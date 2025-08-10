@@ -1,6 +1,7 @@
 import './globals.css';
 import React from 'react';
 import dynamic from 'next/dynamic';
+import HeaderBrand from './HeaderBrand';
 
 const TimerBadge = dynamic(() => import('./TimerBadge'), { ssr: false });
 
@@ -18,19 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div className="container">
           <header>
-            <div className="brand">
-              <img
-                src="/fpl333.svg"
-                alt="FPL333"
-                width={28}
-                height={28}
-                style={{ borderRadius: 8, border: '1px solid #16313f' }}
-              />
-              <div>
-                <div className="headline">FPL333</div>
-                <div className="kicker">Ranking naszej ligii:</div>
-              </div>
-            </div>
+            <HeaderBrand />
             <TimerBadge />
           </header>
           {children}
