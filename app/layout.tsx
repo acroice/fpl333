@@ -1,6 +1,8 @@
 import './globals.css';
 import React from 'react';
-import TimerBadge from './TimerBadge';
+import dynamic from 'next/dynamic';
+
+const TimerBadge = dynamic(() => import('./TimerBadge'), { ssr: false });
 
 export const metadata = {
   title: 'FPL333',
@@ -10,18 +12,20 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* favicon do zakładki */}
+        <link rel="icon" href="/fpl333.svg" type="image/svg+xml" />
+      </head>
       <body>
         <div className="container">
           <header>
             <div className="brand">
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  background: '#0f2029',
-                  border: '1px solid #16313f',
-                }}
+              <img
+                src="/fpl333.svg"
+                alt="FPL333"
+                width={28}
+                height={28}
+                style={{ borderRadius: 8, border: '1px solid #16313f' }}
               />
               <div>
                 <div className="headline">FPL333</div>
