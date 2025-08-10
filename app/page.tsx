@@ -28,9 +28,7 @@ export default function Home() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [preSeason, setPreSeason] = React.useState<boolean>(false);
-
-  // mapa zwycięstw ćwiartek: { entryId: winsCount }
-  const [qWins, setQWins] = React.useState<Record<number, number>>({});
+  const [qWins, setQWins] = React.useState<Record<number, number>>({}); // { entryId: wins }
 
   React.useEffect(() => {
     async function load() {
@@ -44,7 +42,7 @@ export default function Home() {
         const isPre = !!data.pre_season;
         setPreSeason(isPre);
 
-        // sort: pre-season po nazwie managera (alfabetycznie), po starcie po rank
+        // sort: pre-season alfabetycznie po Manager, po starcie po rank
         if (isPre) {
           entries.sort((a, b) =>
             (a.player_name || '').localeCompare(b.player_name || '', 'pl', { sensitivity: 'base' })
@@ -63,10 +61,7 @@ export default function Home() {
         setQuarters(qData.quarters || []);
 
         // --- quarter wins (placeholder; po starcie podłączymy realny endpoint) ---
-        // const wRes = await fetch('/api/quarter-wins', { cache: 'no-store' });
-        // const wData = await wRes.json();
-        // setQWins(wData.wins || {});
-        setQWins({});
+        setQWins({}); // np. { [entryId]: 2 }
         setError(null);
       } catch (err: any) {
         console.error('page load error:', err?.message);
@@ -84,7 +79,7 @@ export default function Home() {
     <div className="grid">
       <section className="card">
         <div className="headline">
-          Planowane składy uczestnicy: {participants}
+          Planowane składy <span className="small">uczestnicy: {participants}</span>
         </div>
 
         {loading ? (
@@ -111,11 +106,7 @@ export default function Home() {
                   <td>{e.entry_name}</td>
                   <td>{e.total}</td>
                   <td>{e.event_total}</td>
-                  <td>
-                    {preSeason
-                      ? '🏆'
-                      : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}
-                  </td>
+                  <td>{preSeason ? '🏆' : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}</td>
                 </tr>
               ))}
             </tbody>
