@@ -65,4 +65,33 @@ th, td {
 }
 td { height: 44px; line-height: 1.25; }
 table { width:100%; border-collapse: collapse; table-layout: fixed; }
+/* === TABLE RESET: pełny tekst, bez ucinania i kropek === */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;          /* było: fixed */
+}
 
+th, td {
+  padding: 12px 12px;          /* trochę ciaśniej, żeby mieścić tekst */
+  border-bottom: 1px solid #1c2430;
+  text-align: left;
+
+  /* usuń ucianie tekstu */
+  white-space: normal;         /* było: nowrap */
+  overflow: visible;           /* było: hidden */
+  text-overflow: clip;         /* było: ellipsis */
+
+  vertical-align: middle;
+}
+
+/* hover zostawiamy subtelny */
+tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* jeśli dodałem wcześniej równe wysokości, zdejmujemy je: */
+td { height: auto; line-height: 1.35; }
+
+/* (opcjonalnie) wąskie ekrany – minimalny wrap nagłówków */
+@media (max-width: 600px){
+  th, td { padding: 10px 10px; }
+}
