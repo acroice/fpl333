@@ -13,7 +13,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* favicon do zakładki */}
         <link rel="icon" href="/fpl333.svg" type="image/svg+xml" />
       </head>
       <body>
@@ -29,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               />
               <div>
                 <div className="headline">FPL333</div>
-                <div className="kicker">Private League Dashboard</div>
+                <div className="kicker">Ranking naszej ligii:</div>
               </div>
             </div>
             <TimerBadge />
