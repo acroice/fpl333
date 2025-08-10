@@ -19,6 +19,7 @@ type Quarter = {
   to: string;
   status: 'trwa' | 'zakończona' | 'wkrótce';
   note: string;
+  is_current?: boolean;
 };
 
 export default function Home() {
@@ -28,7 +29,10 @@ export default function Home() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [preSeason, setPreSeason] = React.useState<boolean>(false);
-  const [qWins, setQWins] = React.useState<Record<number, number>>({}); // { entryId: wins }
+
+  const [qWins, setQWins] = React.useState<Record<number, number>>({});
+  const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
+  const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
   React.useEffect(() => {
     async function load() {
@@ -59,9 +63,21 @@ export default function Home() {
         const qData = await qRes.json();
         if (!qRes.ok) throw new Error(qData?.error || 'quarters fetch failed');
         setQuarters(qData.quarters || []);
+        setCurrentQuarterId(qData.current || 'Q1');
 
-        // --- quarter wins (placeholder; po starcie podłączymy realny endpoint) ---
-        setQWins({}); // np. { [entryId]: 2 }
+        // --- trophies and current-quarter scores ---
+        const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
+        const wData = await wRes.json();
+        if (wRes.ok) {
+          setQWins(wData.wins || {});
+          setCurrentScores(wData.currentScores || {});
+          if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
+        } else {
+          // fallback: pre-season → jeden puchar
+          setQWins({});
+          setCurrentScores({});
+        }
+
         setError(null);
       } catch (err: any) {
         console.error('page load error:', err?.message);
@@ -74,6 +90,9 @@ export default function Home() {
     }
     load();
   }, []);
+
+  // label dynamicznej kolumny ze score aktualnej ćwiartki
+  const currentScoreLabel = `${currentQuarterId} Score`;
 
   return (
     <div className="grid">
@@ -95,6 +114,7 @@ export default function Home() {
                 <th>Team</th>
                 <th>Total</th>
                 <th>GW Pts</th>
+                <th>{currentScoreLabel}</th>
                 <th>Quarter wins</th>
               </tr>
             </thead>
@@ -106,6 +126,7 @@ export default function Home() {
                   <td>{e.entry_name}</td>
                   <td>{e.total}</td>
                   <td>{e.event_total}</td>
+                  <td>{currentScores[e.entry] ?? (preSeason ? 0 : 0)}</td>
                   <td>{preSeason ? '🏆' : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}</td>
                 </tr>
               ))}
@@ -118,7 +139,11 @@ export default function Home() {
         <div className="headline">Quarter Rankings</div>
         <div className="qgrid">
           {quarters.map((q) => (
-            <div key={q.id} className="card" style={{ padding: '12px' }}>
+            <div
+              key={q.id}
+              className={`card ${q.is_current ? 'qcurrent' : ''}`}
+              style={{ padding: '12px' }}
+            >
               <div className="qtitle">
                 {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
               </div>
