@@ -29,24 +29,44 @@ export default function Home() {
   const [error, setError] = React.useState<string | null>(null);
   const [preSeason, setPreSeason] = React.useState<boolean>(false);
 
+  // mapa zwycięstw ćwiartek: { entryId: winsCount }
+  const [qWins, setQWins] = React.useState<Record<number, number>>({});
+
   React.useEffect(() => {
     async function load() {
       try {
-        // league
+        // --- league ---
         const res = await fetch('/api/league?leagueId=831753', { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'league fetch failed');
 
-        setLeague((data.entries || []).sort((a: any, b: any) => a.rank - b.rank));
-        setParticipants(data.count || data.entries?.length || 0);
-        setPreSeason(!!data.pre_season);
+        const entries: LeagueEntry[] = (data.entries || []).slice();
+        const isPre = !!data.pre_season;
+        setPreSeason(isPre);
 
-        // quarters
+        // sort: pre-season po nazwie managera (alfabetycznie), po starcie po rank
+        if (isPre) {
+          entries.sort((a, b) =>
+            (a.player_name || '').localeCompare(b.player_name || '', 'pl', { sensitivity: 'base' })
+          );
+        } else {
+          entries.sort((a, b) => a.rank - b.rank);
+        }
+
+        setLeague(entries);
+        setParticipants(data.count || entries.length || 0);
+
+        // --- quarters ---
         const qRes = await fetch('/api/quarters', { cache: 'no-store' });
         const qData = await qRes.json();
         if (!qRes.ok) throw new Error(qData?.error || 'quarters fetch failed');
-
         setQuarters(qData.quarters || []);
+
+        // --- quarter wins (placeholder; po starcie podłączymy realny endpoint) ---
+        // const wRes = await fetch('/api/quarter-wins', { cache: 'no-store' });
+        // const wData = await wRes.json();
+        // setQWins(wData.wins || {});
+        setQWins({});
         setError(null);
       } catch (err: any) {
         console.error('page load error:', err?.message);
@@ -64,7 +84,7 @@ export default function Home() {
     <div className="grid">
       <section className="card">
         <div className="headline">
-          League Table <span className="small">participants: {participants}</span>
+          Planowane składy uczestnicy: {participants}
         </div>
 
         {loading ? (
@@ -80,16 +100,22 @@ export default function Home() {
                 <th>Team</th>
                 <th>Total</th>
                 <th>GW Pts</th>
+                <th>Quarter wins</th>
               </tr>
             </thead>
             <tbody>
-              {league.map((e: any, idx: number) => (
+              {league.map((e, idx) => (
                 <tr key={e.entry}>
                   <td>{preSeason ? idx + 1 : e.rank}</td>
                   <td>{e.player_name}</td>
                   <td>{e.entry_name}</td>
                   <td>{e.total}</td>
                   <td>{e.event_total}</td>
+                  <td>
+                    {preSeason
+                      ? '🏆'
+                      : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}
+                  </td>
                 </tr>
               ))}
             </tbody>
