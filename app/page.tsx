@@ -39,6 +39,9 @@ export default function Home() {
     Record<string, { entry: number; points: number }[]>
   >({});
 
+  // retro easter egg UI
+  const [showRetroBanner, setShowRetroBanner] = React.useState(false);
+
   // mapka do szybkiego lookupu nazwy manager/team po entryId
   const entryIndex = React.useMemo(() => {
     const map: Record<number, { manager: string; team: string }> = {};
@@ -92,8 +95,6 @@ export default function Home() {
         }
 
         // --- PRE-SEASON PREVIEW zwycięzcy Q1 ---
-        // Jeżeli jeszcze przed startem sezonu: weź 1. osobę z posortowanej listy
-        // i pokaż ją jak zwycięzcę Q1 (podgląd, bez punktów).
         if (isPre && entries.length > 0) {
           const previewEntryId = entries[0].entry;
           setWinnersByQuarter(prev => ({
@@ -115,100 +116,129 @@ export default function Home() {
     load();
   }, []);
 
+  // Konami code → retro mode przez 10s
+  React.useEffect(() => {
+    const seq = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    let idx = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const want = seq[idx];
+      if (key === want) {
+        idx++;
+        if (idx === seq.length) {
+          // success
+          document.body.classList.add('retro');
+          setShowRetroBanner(true);
+          setTimeout(() => {
+            document.body.classList.remove('retro');
+            setShowRetroBanner(false);
+          }, 10000);
+          idx = 0;
+        }
+      } else {
+        idx = key === seq[0] ? 1 : 0;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // etykieta kolumny z punktami bieżącej ćwiartki
   const currentScoreLabel = `${currentQuarterId} Score`;
 
   return (
-    <div className="grid">
-      <section className="card">
-        <div className="headline">
-          Planowane składy <span className="small">uczestnicy: {participants}</span>
-        </div>
+    <>
+      {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
+      <div className="grid">
+        <section className="card">
+          <div className="headline">
+            Planowane składy <span className="small">uczestnicy: {participants}</span>
+          </div>
 
-        {loading ? (
-          <div>Loading…</div>
-        ) : error ? (
-          <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
-        ) : (
-          <table>
-            <colgroup>
-              <col style={{ width: '56px' }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: '24%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '12%' }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Manager</th>
-                <th>Team</th>
-                <th>Total</th>
-                <th>GW Pts</th>
-                <th>{currentScoreLabel}</th>
-                <th>Quarter wins</th>
-              </tr>
-            </thead>
-            <tbody>
-              {league.map((e, idx) => (
-                <tr key={e.entry}>
-                  <td>{preSeason ? idx + 1 : e.rank}</td>
-                  <td>{e.player_name}</td>
-                  <td>{e.entry_name}</td>
-                  <td>{e.total}</td>
-                  <td>{e.event_total}</td>
-                  <td>{currentScores[e.entry] ?? (preSeason ? 0 : 0)}</td>
-                  <td>{preSeason ? '🏆' : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}</td>
+          {loading ? (
+            <div>Loading…</div>
+          ) : error ? (
+            <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
+          ) : (
+            <table>
+              <colgroup>
+                <col style={{ width: '56px' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '12%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Manager</th>
+                  <th>Team</th>
+                  <th>Total</th>
+                  <th>GW Pts</th>
+                  <th>{currentScoreLabel}</th>
+                  <th>Quarter wins</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              </thead>
+              <tbody>
+                {league.map((e, idx) => (
+                  <tr key={e.entry}>
+                    <td>{preSeason ? idx + 1 : e.rank}</td>
+                    <td>{e.player_name}</td>
+                    <td>{e.entry_name}</td>
+                    <td>{e.total}</td>
+                    <td>{e.event_total}</td>
+                    <td>{currentScores[e.entry] ?? (preSeason ? 0 : 0)}</td>
+                    <td>{preSeason ? '🏆' : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
 
-      <aside className="card">
-        <div className="headline">Quarter Rankings</div>
-        <div className="qgrid">
-          {quarters.map((q) => {
-            const winners = winnersByQuarter[q.id] || [];
-            const isPreview = preSeason && q.id === 'Q1' && winners.length > 0;
-            const winnerLabel =
-              (q.status === 'zakończona' || isPreview) && winners.length
-                ? 'Zwycięzca: ' + winners.map(w => {
-                    const who = entryIndex[w.entry];
-                    const pts = w.points || 0;
-                    // w pre-season pokażemy bez punktów; po sezonie z punktami
-                    return isPreview
-                      ? `${who?.manager ?? '—'} (${who?.team ?? '—'})`
-                      : `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
-                  }).join(', ')
-                : '';
+        <aside className="card">
+          <div className="headline">Quarter Rankings</div>
+          <div className="qgrid">
+            {quarters.map((q) => {
+              const winners = winnersByQuarter[q.id] || [];
+              const isPreview = preSeason && q.id === 'Q1' && winners.length > 0;
+              const winnerLabel =
+                (q.status === 'zakończona' || isPreview) && winners.length
+                  ? 'Zwycięzca: ' + winners.map(w => {
+                      const who = entryIndex[w.entry];
+                      const pts = w.points || 0;
+                      return isPreview
+                        ? `${who?.manager ?? '—'} (${who?.team ?? '—'})`
+                        : `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
+                    }).join(', ')
+                  : '';
 
-            return (
-              <div
-                key={q.id}
-                className={`card ${q.is_current ? 'qcurrent' : ''}`}
-                style={{ padding: '12px' }}
-              >
-                <div className="qtitle">
-                  {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
-                </div>
-                <div className="small">Kolejki: {q.games}</div>
-                <div className="small">{q.from} → {q.to}</div>
-                <div className="status">Status: {q.status}</div>
-                <div className="small">{q.note}</div>
-                {winnerLabel && (
-                  <div className="small" style={{ marginTop: 6 }}>
-                    🏆 {winnerLabel}{isPreview ? ' (podgląd)' : ''}
+              return (
+                <div
+                  key={q.id}
+                  className={`card ${q.is_current ? 'qcurrent' : ''}`}
+                  style={{ padding: '12px' }}
+                >
+                  <div className="qtitle">
+                    {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </aside>
-    </div>
+                  <div className="small">Kolejki: {q.games}</div>
+                  <div className="small">{q.from} → {q.to}</div>
+                  <div className="status">Status: {q.status}</div>
+                  <div className="small">{q.note}</div>
+                  {winnerLabel && (
+                    <div className="small" style={{ marginTop: 6 }}>
+                      🏆 {winnerLabel}{isPreview ? ' (podgląd)' : ''}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+      </div>
+    </>
   );
 }
