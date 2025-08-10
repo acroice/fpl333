@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-
 export const revalidate = 0;
 
-// GW start days provided by user, mapped across months Aug 2025 -> May 2026
+// GW start days (Damian)
 const gwDays = [15,22,29,13,20,27,4,18,25,1,8,22,29,3,6,13,20,27,30,3,7,17,24,31,7,11,21,28,4,14,21,11,18,25,2,9,17,24];
 
 function buildDates(){
-  // months for each GW start (0-indexed JS months)
   const months = [7,7,7,8,8,8,9,9,9,10,10,10,10,11,11,11,11,11,11,0,0,0,0,0,1,1,1,1,2,2,2,3,3,3,4,4,4,4];
-  const years =  [2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026];
+  const years  = [2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2025,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026,2026];
   const starts: Date[] = [];
   for (let i=0;i<38;i++){
     starts.push(new Date(Date.UTC(years[i], months[i], gwDays[i])));
@@ -36,14 +34,15 @@ export async function GET(){
   ];
 
   const now = new Date();
+  const seasonEnd = new Date(Date.UTC(2026, 4, 24)); // 24.05.2026
 
   const quarters = ranges.map(r => {
     const from = starts[r.fromGW-1];
-    const to = r.toGW === 38 ? new Date(starts[37].getTime() + 7*24*3600*1000) : new Date(starts[r.toGW].getTime() - 24*3600*1000);
+    const to =
+      r.id === 'Q6'
+        ? seasonEnd // twardo 24.05.2026
+        : new Date(starts[r.toGW].getTime() - 24*3600*1000); // „-1 dzień” do kolejnego startu
     const status = now < from ? 'wkrótce' : (now > to ? 'zakończona' : 'trwa');
-    const note = status === 'wkrótce' ? `Koniec ćwiartki ${r.id} za ${(Math.ceil((to.getTime()-now.getTime())/(24*3600*1000)))} dni`
-                : status === 'trwa' ? `Trwa ćwiartka ${r.id}`
-                : `Ćwiartka zakończona – wyniki gotowe`;
     return {
       id: r.id,
       gw_from: r.fromGW,
@@ -52,9 +51,19 @@ export async function GET(){
       from: fmt(from),
       to: fmt(to),
       status,
-      note
+      note:
+        status === 'wkrótce' ? `Koniec ćwiartki ${r.id} za ${Math.max(0, Math.ceil((to.getTime()-now.getTime())/86400000))} dni`
+        : status === 'trwa' ? `Trwa ćwiartka ${r.id}`
+        : `Ćwiartka zakończona – wyniki gotowe`,
+      // aktywna ćwiartka
+      is_current:
+        (now < starts[0]) ? r.id === 'Q1' // pre‑season → Q1
+        : (now >= (starts[r.fromGW-1]) && now <= to)
     };
   });
 
-  return NextResponse.json({ quarters });
+  // Id obecnej ćwiartki (pre‑season → Q1)
+  const current = quarters.find(q => q.is_current) ?? quarters[0];
+
+  return NextResponse.json({ quarters, current: current?.id });
 }
