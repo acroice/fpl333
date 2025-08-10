@@ -26,3 +26,42 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   border-color:#2a7a58; 
   box-shadow: 0 0 0 1px rgba(94,225,162,.25) inset; 
 }
+/* retro theme toggle (Konami) */
+body.retro {
+  background: #001a12 !important;
+  color: #d9ffe9 !important;
+}
+body.retro .card { background:#001f17 !important; border-color:#0a3a2a !important; }
+body.retro .badge { background:#00261c !important; color:#8affc4 !important; border-color:#0b3f2d !important; }
+body.retro th { color:#94d9bb !important; }
+body.retro .pill { border-color:#0b3f2d !important; color:#b9ffe4 !important; }
+body.retro .qcurrent { border-color:#36c28a !important; box-shadow:0 0 0 1px rgba(54,194,138,.35) inset !important; }
+
+/* banner when retro unlocked */
+.retro-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.7);
+  border: 1px solid #15303e;
+  color: #c7ffe4;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+/* (jeśli jeszcze nie masz) większe spacingi i równe wiersze */
+th, td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #1c2430;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+td { height: 44px; line-height: 1.25; }
+table { width:100%; border-collapse: collapse; table-layout: fixed; }
