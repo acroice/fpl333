@@ -26,32 +26,3 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   border-color:#2a7a58; 
   box-shadow: 0 0 0 1px rgba(94,225,162,.25) inset; 
 }
-/* większe marginesy w komórkach */
-th, td { 
-  padding: 14px 16px;              /* było 10px 8px */
-  border-bottom: 1px solid #1c2430;
-  text-align: left;
-  white-space: nowrap;             /* nie zawijaj */
-  overflow: hidden; 
-  text-overflow: ellipsis;         /* utnij z '…' */
-  vertical-align: middle;
-}
-
-/* stała wysokość wiersza niezależnie od długości tekstu */
-td { 
-  height: 44px;                    /* równa wysokość */
-  line-height: 1.25;
-}
-@media (max-width: 600px){
-  td { height: 40px; }
-}
-
-/* sztywniejszy layout tabeli = stabilne kolumny */
-table { 
-  width: 100%; 
-  border-collapse: collapse; 
-  table-layout: fixed;             /* ważne do elips */
-}
-
-/* opcjonalnie: lekko większy hover, żeby spacing był czytelny */
-tr:hover td { background: rgba(255,255,255,0.03); }
