@@ -34,6 +34,18 @@ export default function Home() {
   const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
   const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
+  // zwycięzcy per ćwiartka (dla zakończonych) — oraz PREVIEW dla Q1 w pre-season
+  const [winnersByQuarter, setWinnersByQuarter] = React.useState<
+    Record<string, { entry: number; points: number }[]>
+  >({});
+
+  // mapka do szybkiego lookupu nazwy manager/team po entryId
+  const entryIndex = React.useMemo(() => {
+    const map: Record<number, { manager: string; team: string }> = {};
+    for (const e of league) map[e.entry] = { manager: e.player_name, team: e.entry_name };
+    return map;
+  }, [league]);
+
   React.useEffect(() => {
     async function load() {
       try {
@@ -65,17 +77,29 @@ export default function Home() {
         setQuarters(qData.quarters || []);
         setCurrentQuarterId(qData.current || 'Q1');
 
-        // --- trophies and current-quarter scores ---
+        // --- trophies & current-quarter scores ---
         const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
         const wData = await wRes.json();
         if (wRes.ok) {
           setQWins(wData.wins || {});
           setCurrentScores(wData.currentScores || {});
           if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
+          setWinnersByQuarter(wData.winnersByQuarter || {});
         } else {
-          // fallback: pre-season → jeden puchar
           setQWins({});
           setCurrentScores({});
+          setWinnersByQuarter({});
+        }
+
+        // --- PRE-SEASON PREVIEW zwycięzcy Q1 ---
+        // Jeżeli jeszcze przed startem sezonu: weź 1. osobę z posortowanej listy
+        // i pokaż ją jak zwycięzcę Q1 (podgląd, bez punktów).
+        if (isPre && entries.length > 0) {
+          const previewEntryId = entries[0].entry;
+          setWinnersByQuarter(prev => ({
+            ...prev,
+            Q1: [{ entry: previewEntryId, points: 0 }],
+          }));
         }
 
         setError(null);
@@ -91,7 +115,7 @@ export default function Home() {
     load();
   }, []);
 
-  // label dynamicznej kolumny ze score aktualnej ćwiartki
+  // etykieta kolumny z punktami bieżącej ćwiartki
   const currentScoreLabel = `${currentQuarterId} Score`;
 
   return (
@@ -107,6 +131,15 @@ export default function Home() {
           <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
         ) : (
           <table>
+            <colgroup>
+              <col style={{ width: '56px' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>#</th>
@@ -138,21 +171,42 @@ export default function Home() {
       <aside className="card">
         <div className="headline">Quarter Rankings</div>
         <div className="qgrid">
-          {quarters.map((q) => (
-            <div
-              key={q.id}
-              className={`card ${q.is_current ? 'qcurrent' : ''}`}
-              style={{ padding: '12px' }}
-            >
-              <div className="qtitle">
-                {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
+          {quarters.map((q) => {
+            const winners = winnersByQuarter[q.id] || [];
+            const isPreview = preSeason && q.id === 'Q1' && winners.length > 0;
+            const winnerLabel =
+              (q.status === 'zakończona' || isPreview) && winners.length
+                ? 'Zwycięzca: ' + winners.map(w => {
+                    const who = entryIndex[w.entry];
+                    const pts = w.points || 0;
+                    // w pre-season pokażemy bez punktów; po sezonie z punktami
+                    return isPreview
+                      ? `${who?.manager ?? '—'} (${who?.team ?? '—'})`
+                      : `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
+                  }).join(', ')
+                : '';
+
+            return (
+              <div
+                key={q.id}
+                className={`card ${q.is_current ? 'qcurrent' : ''}`}
+                style={{ padding: '12px' }}
+              >
+                <div className="qtitle">
+                  {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
+                </div>
+                <div className="small">Kolejki: {q.games}</div>
+                <div className="small">{q.from} → {q.to}</div>
+                <div className="status">Status: {q.status}</div>
+                <div className="small">{q.note}</div>
+                {winnerLabel && (
+                  <div className="small" style={{ marginTop: 6 }}>
+                    🏆 {winnerLabel}{isPreview ? ' (podgląd)' : ''}
+                  </div>
+                )}
               </div>
-              <div className="small">Kolejki: {q.games}</div>
-              <div className="small">{q.from} → {q.to}</div>
-              <div className="status">Status: {q.status}</div>
-              <div className="small">{q.note}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </aside>
     </div>
