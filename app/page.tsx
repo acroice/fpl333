@@ -3,8 +3,8 @@ import React from 'react';
 
 type LeagueEntry = {
   entry: number;
-  player_name: string;
-  entry_name: string;
+  player_name: string; // Manager
+  entry_name: string;  // Team
   total: number;
   rank: number;
   event_total: number;
@@ -17,7 +17,7 @@ type Quarter = {
   games: number;
   from: string;
   to: string;
-  status: 'trwa'|'zakończona'|'wkrótce';
+  status: 'trwa' | 'zakończona' | 'wkrótce';
   note: string;
 };
 
@@ -27,19 +27,21 @@ export default function Home() {
   const [quarters, setQuarters] = React.useState<Quarter[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [preSeason, setPreSeason] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     async function load() {
       try {
-        // --- league ---
+        // league
         const res = await fetch('/api/league?leagueId=831753', { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'league fetch failed');
 
         setLeague((data.entries || []).sort((a: any, b: any) => a.rank - b.rank));
         setParticipants(data.count || data.entries?.length || 0);
+        setPreSeason(!!data.pre_season);
 
-        // --- quarters ---
+        // quarters
         const qRes = await fetch('/api/quarters', { cache: 'no-store' });
         const qData = await qRes.json();
         if (!qRes.ok) throw new Error(qData?.error || 'quarters fetch failed');
@@ -68,7 +70,7 @@ export default function Home() {
         {loading ? (
           <div>Loading…</div>
         ) : error ? (
-          <div className="small" style={{color:'#ff9b9b'}}>{error}</div>
+          <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
         ) : (
           <table>
             <thead>
@@ -81,9 +83,9 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {league.map((e: any) => (
+              {league.map((e: any, idx: number) => (
                 <tr key={e.entry}>
-                  <td>{e.rank}</td>
+                  <td>{preSeason ? idx + 1 : e.rank}</td>
                   <td>{e.player_name}</td>
                   <td>{e.entry_name}</td>
                   <td>{e.total}</td>
