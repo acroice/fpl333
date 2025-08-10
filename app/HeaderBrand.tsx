@@ -15,7 +15,7 @@ export default function HeaderBrand() {
       />
       <div>
         <div className="headline">{alt ? 'FPL 🐐 League' : 'FPL333'}</div>
-        <div className="kicker">Ranking naszej ligii:</div>
+        <div className="kicker">Ranking naszej ligi:</div>
       </div>
     </div>
   );
