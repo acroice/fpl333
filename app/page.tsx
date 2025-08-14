@@ -34,7 +34,7 @@ export default function Home() {
   const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
   const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
-  // zwycięzcy per ćwiartka (dla zakończonych) — oraz PREVIEW dla Q1 w pre-season
+  // zwycięzcy per ćwiartka (dla zakończonych)
   const [winnersByQuarter, setWinnersByQuarter] = React.useState<
     Record<string, { entry: number; points: number }[]>
   >({});
@@ -84,24 +84,17 @@ export default function Home() {
         const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
         const wData = await wRes.json();
         if (wRes.ok) {
-          setQWins(wData.wins || {});
-          setCurrentScores(wData.currentScores || {});
+          setQWins(wData.wins || {});                // puchary tylko z zakończonych ćwiartek
+          setCurrentScores(wData.currentScores || {}); // bieżące punkty w aktualnej ćwiartce
           if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
-          setWinnersByQuarter(wData.winnersByQuarter || {});
+          setWinnersByQuarter(wData.winnersByQuarter || {}); // zwycięzcy tylko po zakończeniu
         } else {
           setQWins({});
           setCurrentScores({});
           setWinnersByQuarter({});
         }
 
-        // --- PRE-SEASON PREVIEW zwycięzcy Q1 ---
-        if (isPre && entries.length > 0) {
-          const previewEntryId = entries[0].entry;
-          setWinnersByQuarter(prev => ({
-            ...prev,
-            Q1: [{ entry: previewEntryId, points: 0 }],
-          }));
-        }
+        // ✅ brak „pre‑season preview” – nie ustawiamy fikcyjnego zwycięzcy Q1
 
         setError(null);
       } catch (err: any) {
@@ -126,7 +119,6 @@ export default function Home() {
       if (key === want) {
         idx++;
         if (idx === seq.length) {
-          // success
           document.body.classList.add('retro');
           setShowRetroBanner(true);
           setTimeout(() => {
@@ -161,15 +153,6 @@ export default function Home() {
             <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
           ) : (
             <table>
-              <colgroup>
-                <col style={{ width: '56px' }} />
-                <col style={{ width: '22%' }} />
-                <col style={{ width: '24%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '16%' }} />
-                <col style={{ width: '12%' }} />
-              </colgroup>
               <thead>
                 <tr>
                   <th>#</th>
@@ -189,8 +172,8 @@ export default function Home() {
                     <td>{e.entry_name}</td>
                     <td>{e.total}</td>
                     <td>{e.event_total}</td>
-                    <td>{currentScores[e.entry] ?? (preSeason ? 0 : 0)}</td>
-                    <td>{preSeason ? '🏆' : (qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '')}</td>
+                    <td>{currentScores[e.entry] ?? 0}</td>
+                    <td>{qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -203,15 +186,12 @@ export default function Home() {
           <div className="qgrid">
             {quarters.map((q) => {
               const winners = winnersByQuarter[q.id] || [];
-              const isPreview = preSeason && q.id === 'Q1' && winners.length > 0;
               const winnerLabel =
-                (q.status === 'zakończona' || isPreview) && winners.length
+                q.status === 'zakończona' && winners.length
                   ? 'Zwycięzca: ' + winners.map(w => {
                       const who = entryIndex[w.entry];
                       const pts = w.points || 0;
-                      return isPreview
-                        ? `${who?.manager ?? '—'} (${who?.team ?? '—'})`
-                        : `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
+                      return `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
                     }).join(', ')
                   : '';
 
@@ -230,7 +210,7 @@ export default function Home() {
                   <div className="small">{q.note}</div>
                   {winnerLabel && (
                     <div className="small" style={{ marginTop: 6 }}>
-                      🏆 {winnerLabel}{isPreview ? ' (podgląd)' : ''}
+                      🏆 {winnerLabel}
                     </div>
                   )}
                 </div>
