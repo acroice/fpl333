@@ -73,3 +73,26 @@ body.retro .qcurrent { border-color:#36c28a !important; box-shadow:0 0 0 1px rgb
   padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 9999;
   backdrop-filter: blur(4px);
 }
+/* aktywna ćwiartka (status: trwa) */
+.qactive {
+  border-color: #2a7a58;
+  box-shadow: 0 0 0 1px rgba(94,225,162,.25) inset;
+}
+
+/* zakończona ćwiartka (status: zakończona) */
+.qdone {
+  border-color: #2a2f3a;
+  background: linear-gradient(0deg, rgba(34,40,52,.15), rgba(34,40,52,.15)) , var(--card);
+  opacity: 0.95;
+}
+
+/* retro warianty */
+body.retro .qactive {
+  border-color:#36c28a !important;
+  box-shadow:0 0 0 1px rgba(54,194,138,.35) inset !important;
+}
+body.retro .qdone {
+  border-color:#104b3a !important;
+  background: #00231a !important;
+  opacity: 1;
+}
