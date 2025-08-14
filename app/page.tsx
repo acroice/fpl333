@@ -84,7 +84,7 @@ export default function Home() {
         const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
         const wData = await wRes.json();
         if (wRes.ok) {
-          setQWins(wData.wins || {});                // puchary tylko z zakończonych ćwiartek
+          setQWins(wData.wins || {});                 // puchary tylko z zakończonych ćwiartek
           setCurrentScores(wData.currentScores || {}); // bieżące punkty w aktualnej ćwiartce
           if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
           setWinnersByQuarter(wData.winnersByQuarter || {}); // zwycięzcy tylko po zakończeniu
@@ -93,8 +93,6 @@ export default function Home() {
           setCurrentScores({});
           setWinnersByQuarter({});
         }
-
-        // ✅ brak „pre‑season preview” – nie ustawiamy fikcyjnego zwycięzcy Q1
 
         setError(null);
       } catch (err: any) {
@@ -195,10 +193,15 @@ export default function Home() {
                     }).join(', ')
                   : '';
 
+              // 🔸 status → klasa
+              const statusClass =
+                q.status === 'trwa' ? 'qactive' :
+                q.status === 'zakończona' ? 'qdone' : '';
+
               return (
                 <div
                   key={q.id}
-                  className={`card ${q.is_current ? 'qcurrent' : ''}`}
+                  className={`card ${statusClass}`}
                   style={{ padding: '12px' }}
                 >
                   <div className="qtitle">
