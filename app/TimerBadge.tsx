@@ -1,71 +1,88 @@
 'use client';
 import React from 'react';
 
-/** Dzisiejsza data w strefie Europe/Warsaw jako {Y,M,D,H,m,s} */
-function nowPartsWarsaw() {
+/** Zwraca „teraz” jako Date odpowiadający czasowi ściennemu w Europe/Warsaw. */
+function nowInWarsaw(): Date {
   const fmt = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Europe/Warsaw',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
     hour12: false,
   });
   const s = fmt.format(new Date()); // "YYYY-MM-DD HH:mm:ss" w czasie PL
   const [d, t] = s.split(' ');
   const [Y, M, D] = d.split('-').map(Number);
   const [h, m, sec] = t.split(':').map(Number);
-  return { Y, M, D, h, m, sec };
+  return new Date(Date.UTC(Y, M - 1, D, h, m, sec));
 }
 
-/** Z części w czasie PL budujemy instant (UTC) odpowiadający tej „ściennej” godzinie w Warszawie */
-function warsawDate(Y: number, M: number, D: number, h = 0, m = 0, s = 0) {
-  // UWAGA: tworzymy Date z komponentów w PL jako UTC — to daje właściwy „instant”
-  return new Date(Date.UTC(Y, M - 1, D, h, m, s));
+/** Parsuje "DD.MM.YYYY" (tak zwraca /api/quarters) do instant odpowiadającego 00:00 Warsaw tego dnia. */
+function parseDMY_WarsawStart(dmy: string): Date {
+  const [dd, mm, yyyy] = dmy.split('.').map(Number);
+  // 00:00 czasu warszawskiego -> składamy UTC z komponentów Warsaw
+  return new Date(Date.UTC(yyyy, (mm - 1), dd, 0, 0, 0));
 }
 
-function formatCountdown(diffMs: number) {
-  if (diffMs <= 0) return 'Deadline trwa!';
+function formatDiff(ms: number) {
+  if (ms <= 0) return 'Start już teraz!';
+  const SEC = 1000, MIN = 60 * SEC, H = 60 * MIN, D = 24 * H;
+  const days = Math.floor(ms / D);
+  const hours = Math.floor((ms % D) / H);
+  const mins = Math.floor((ms % H) / MIN);
 
-  const HOUR = 3600_000;
-  const MIN = 60_000;
-
-  if (diffMs >= HOUR) {
-    const hours = Math.ceil(diffMs / HOUR);
-    return `Deadline za ${hours} godz.`;
-  } else {
-    const mins = Math.max(1, Math.ceil(diffMs / MIN));
-    return `Deadline za ${mins} min`;
-  }
+  if (days > 0) return `Start za ${days} dni ${hours} godz.`;
+  if (hours > 0) return `Start za ${hours} godz. ${mins} min`;
+  return `Start za ${Math.max(1, mins)} min`;
 }
+
+type Quarter = {
+  id: string;
+  from: string; // "DD.MM.YYYY"
+  to: string;   // "DD.MM.YYYY"
+};
 
 export default function TimerBadge() {
   const [text, setText] = React.useState('loading…');
 
   React.useEffect(() => {
-    const update = () => {
-      const { Y, M, D, h, m, sec } = nowPartsWarsaw();
-      const nowW = warsawDate(Y, M, D, h, m, sec);
+    let cancelled = false;
 
-      // Target = najbliższe 19:00 czasu Warszawskiego
-      let target = warsawDate(Y, M, D, 19, 0, 0);
-      if (nowW.getTime() >= target.getTime()) {
-        // już po 19:00 → bierzemy JUTRO 19:00
-        const tomorrow = warsawDate(Y, M, D, 0, 0, 0);
-        const t = new Date(tomorrow.getTime() + 24 * 3600_000);
-        target = warsawDate(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate(), 19, 0, 0);
+    async function tick() {
+      try {
+        // pobierz ćwiartki
+        const res = await fetch('/api/quarters', { cache: 'no-store' });
+        const data = await res.json();
+
+        const quarters: Quarter[] = data?.quarters ?? [];
+        if (!quarters.length) {
+          if (!cancelled) setText('—');
+          return;
+        }
+
+        // oblicz najbliższy start ćwiartki > teraz (Warsaw)
+        const nowW = nowInWarsaw();
+
+        // utwórz listę targetów: { id, startDate }
+        const targets = quarters.map(q => ({ id: q.id, start: parseDMY_WarsawStart(q.from) }));
+        // wybierz pierwszy start > teraz; jeśli brak, sezon skończony
+        const next = targets.find(t => t.start.getTime() > nowW.getTime());
+
+        if (!next) {
+          if (!cancelled) setText('Sezon zakończony 🎉');
+          return;
+        }
+
+        const diff = next.start.getTime() - nowW.getTime();
+        if (!cancelled) setText(`Start ${next.id}: ${formatDiff(diff)}`);
+      } catch (e) {
+        if (!cancelled) setText('—');
       }
+    }
 
-      const diff = target.getTime() - nowW.getTime();
-      setText(formatCountdown(diff));
-    };
-
-    update();
-    // odświeżamy co 30 sekund, a przy <1h i tak liczymy minuty
-    const id = setInterval(update, 30_000);
-    return () => clearInterval(id);
+    // pierwszy strzał + interwał
+    tick();
+    const id = setInterval(tick, 30_000); // co 30 s odświeżenie
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   return <div className="badge">{text}</div>;
