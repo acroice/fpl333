@@ -133,6 +133,18 @@ export default function Home() {
     load();
   }, []);
 
+  // 🔥 NOWE: po załadowaniu quarters automatycznie otwieramy tę ćwiartkę,
+  // która ma status "trwa" (czyli aktualnie grana) - tylko jeśli jeszcze
+  // nic nie jest otwarte.
+  React.useEffect(() => {
+    if (!openQuarter && quarters.length > 0) {
+      const active = quarters.find(q => q.status === 'trwa');
+      if (active) {
+        setOpenQuarter(active.id);
+      }
+    }
+  }, [quarters, openQuarter]);
+
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
     const seq = [
@@ -223,9 +235,14 @@ export default function Home() {
     return sortDir === 'asc' ? '↑' : '↓';
   }
 
-  // CSV export
+  // kliknięcie kafelka ćwiartki
+  function toggleQuarterOpen(id: string, isLocked: boolean) {
+    if (isLocked) return; // ćwiartka "wkrótce" -> brak rozwinięcia
+    setOpenQuarter(prev => (prev === id ? null : id));
+  }
+
+  // eksport CSV (zostawiam tak jak mamy)
   function downloadCsv() {
-    // Kolumny jak w tabeli
     const header = [
       '#',
       'Manager',
@@ -236,7 +253,6 @@ export default function Home() {
       'Quarter wins'
     ];
 
-    // rzędy zgodnie z widocznym sortowaniem
     const rows = sortedLeague.map((e, idx) => {
       const displayRank = preSeason ? (idx + 1) : e.rank;
       const wins = qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '';
@@ -253,11 +269,9 @@ export default function Home() {
       ];
     });
 
-    // budujemy CSV
     const escapeCell = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
-      // jeśli przecinek / cudzysłów / newline -> zawijamy w ""
       if (/[",\n]/.test(str)) {
         return `"${str.replace(/"/g, '""')}"`;
       }
@@ -269,23 +283,16 @@ export default function Home() {
       ...rows.map(r => r.map(escapeCell).join(',')),
     ].join('\n');
 
-    // tworzymy blob i trigger pobrania
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
     const now = new Date();
-    const stamp = now.toISOString().slice(0,19).replace(/[:T]/g,'-'); // yyyy-mm-dd-hh-mm-ss
+    const stamp = now.toISOString().slice(0,19).replace(/[:T]/g,'-');
     a.href = url;
     a.download = `fpl333_export_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  // kliknięcie kafelka ćwiartki
-  function toggleQuarterOpen(id: string, isLocked: boolean) {
-    if (isLocked) return; // ćwiartka "wkrótce" -> brak rozwinięcia
-    setOpenQuarter(prev => (prev === id ? null : id));
   }
 
   return (
@@ -403,7 +410,6 @@ export default function Home() {
                 q.status === 'trwa' ? 'qactive' :
                 q.status === 'zakończona' ? 'qdone' : '';
 
-              // blokujemy rozwijanie jeśli jeszcze "wkrótce"
               const isLocked = q.status === 'wkrótce';
               const isOpen = !isLocked && openQuarter === q.id;
               const topRows = isOpen ? (quarterTop[q.id] || []) : [];
