@@ -91,6 +91,11 @@ body.retro .qcurrent { border-color:#36c28a !important; box-shadow:0 0 0 1px rgb
   100% {
     box-shadow: 0 0 6px rgba(94, 225, 162, 0.2);
   }
+  
+  .qcard-clickable:hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+  }
 }
 
 /* zakończona ćwiartka (status: zakończona) */
