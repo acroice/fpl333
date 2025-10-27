@@ -446,18 +446,16 @@ export default function Home() {
                     </div>
                   )}
                   {/* Pasek postępu trwającej ćwiartki */}
-                  {q.status === 'trwa' && (
-                    <div className="qprogress">
-                      <div
-                        className="qprogress-fill"
-                        style={{
-                          width: `${
-                            ((currentScores?.__gw || 0) - q.gw_from + 1) / q.games * 100
-                          }%`
-                        }}
-                      />
-                    </div>
-                  )}
+                    {q.status === 'trwa' && (
+                      <div className="qprogress">
+                        <div
+                          className="qprogress-fill"
+                          style={{
+                            width: '50%' // tymczasowo 50%, placeholder
+                          }}
+                        />
+                      </div>
+                    )}
                   {isOpen && (
                     <div
                       className="small"
