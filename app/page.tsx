@@ -99,26 +99,19 @@ export default function Home() {
 
         // quarters
         const qRes = await fetch('/api/quarters', { cache: 'no-store' });
-        const qData = await qRes.json();
-        if (!qRes.ok) throw new Error(qData?.error || 'quarters fetch failed');
+        const qData = await resOrThrow(qRes);
         setQuarters(qData.quarters || []);
         setCurrentQuarterId(qData.current || 'Q1');
 
         // wins / bieżąca ćwiartka / top3
         const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
-        const wData = await wRes.json();
-        if (wRes.ok) {
-          setQWins(wData.wins || {});
-          setCurrentScores(wData.currentScores || {});
-          if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
-          setWinnersByQuarter(wData.winnersByQuarter || {});
-          setQuarterTop(wData.quarterTop || {});
-        } else {
-          setQWins({});
-          setCurrentScores({});
-          setWinnersByQuarter({});
-          setQuarterTop({});
-        }
+        const wData = await resOrThrow(wRes);
+
+        setQWins(wData.wins || {});
+        setCurrentScores(wData.currentScores || {});
+        if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
+        setWinnersByQuarter(wData.winnersByQuarter || {});
+        setQuarterTop(wData.quarterTop || {});
 
         setError(null);
       } catch (err: any) {
@@ -132,6 +125,13 @@ export default function Home() {
     }
     load();
   }, []);
+
+  // mała utilka do error handlingu fetchów
+  async function resOrThrow(r: Response) {
+    const js = await r.json();
+    if (!r.ok) throw new Error(js?.error || 'fetch failed');
+    return js;
+  }
 
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
@@ -224,7 +224,8 @@ export default function Home() {
   }
 
   // kliknięcie kafelka ćwiartki
-  function toggleQuarterOpen(id: string) {
+  function toggleQuarterOpen(id: string, isLocked: boolean) {
+    if (isLocked) return; // ćwiartka "wkrótce" -> brak rozwinięcia
     setOpenQuarter(prev => (prev === id ? null : id));
   }
 
@@ -315,22 +316,26 @@ export default function Home() {
                 q.status === 'trwa' ? 'qactive' :
                 q.status === 'zakończona' ? 'qdone' : '';
 
-              const isOpen = openQuarter === q.id;
-              const topRows = (quarterTop[q.id] || []);
+              // blokujemy rozwijanie jeśli jeszcze "wkrótce"
+              const isLocked = q.status === 'wkrótce';
+              const isOpen = !isLocked && openQuarter === q.id;
+              const topRows = isOpen ? (quarterTop[q.id] || []) : [];
 
               return (
                 <div
                   key={q.id}
                   className={`card ${statusClass} qcard-clickable`}
-                  style={{ padding: '12px', cursor:'pointer' }}
-                  onClick={()=>toggleQuarterOpen(q.id)}
+                  style={{ padding: '12px', cursor: isLocked ? 'default' : 'pointer', opacity: isLocked ? 0.8 : 1 }}
+                  onClick={()=>toggleQuarterOpen(q.id, isLocked)}
                 >
                   <div className="qtitle" style={{display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
                       <span>{q.id}</span>
                       <span className="pill">{q.gw_from}–{q.gw_to}</span>
                     </div>
-                    <span className="qchevron">{isOpen ? '▲' : '▼'}</span>
+                    <span className="qchevron">
+                      {isLocked ? '' : (isOpen ? '▲' : '▼')}
+                    </span>
                   </div>
 
                   <div className="small">Kolejki: {q.games}</div>
