@@ -51,15 +51,13 @@ export default function Home() {
     Record<string, QuarterTopRow[]>
   >({});
 
-  // który kafelek Q jest rozwinięty (pokazujemy pod nim TOP3)
+  // który kafelek Q jest rozwinięty
   const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
 
   // retro easter egg UI
   const [showRetroBanner, setShowRetroBanner] = React.useState(false);
 
   // sortowanie tabeli
-  // sortKey: "rank" | "total" | "gw" | "currentQ" | "wins"
-  // sortDir: "asc" | "desc"
   const [sortKey, setSortKey] = React.useState<'rank' | 'total' | 'gw' | 'currentQ' | 'wins'>('rank');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
 
@@ -83,9 +81,7 @@ export default function Home() {
         const isPre = !!data.pre_season;
         setPreSeason(isPre);
 
-        // sort bazowy:
-        // - pre-season po nazwisku managera A-Z
-        // - po starcie sezonu po rank z API
+        // sort bazowy
         if (isPre) {
           entries.sort((a, b) =>
             (a.player_name || '').localeCompare(
@@ -172,13 +168,9 @@ export default function Home() {
   // klik nagłówka tabeli do sortowania
   function toggleSort(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
     if (sortKey === col) {
-      // zmiana kierunku
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     } else {
       setSortKey(col);
-      // default kierunek zależy od kolumny
-      // dla rank chcemy rosnąco domyślnie (1 najlepszy),
-      // dla punktów raczej malejąco
       if (col === 'rank') {
         setSortDir('asc');
       } else {
@@ -187,7 +179,7 @@ export default function Home() {
     }
   }
 
-  // posortowana tabela wg aktualnego wyboru
+  // tabela posortowana wg wyboru usera
   const sortedLeague = React.useMemo(() => {
     const arr = [...league];
 
@@ -225,7 +217,7 @@ export default function Home() {
     return arr;
   }, [league, sortKey, sortDir, preSeason, currentScores, qWins]);
 
-  // helper do pokazania strzałki sortowania
+  // helper do strzałki sortowania w nagłówku
   function sortArrow(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
     if (sortKey !== col) return '';
     return sortDir === 'asc' ? '↑' : '↓';
@@ -323,18 +315,24 @@ export default function Home() {
                 q.status === 'trwa' ? 'qactive' :
                 q.status === 'zakończona' ? 'qdone' : '';
 
-              const topRows = quarterTop[q.id] || [];
+              const isOpen = openQuarter === q.id;
+              const topRows = (quarterTop[q.id] || []);
 
               return (
                 <div
                   key={q.id}
-                  className={`card ${statusClass}`}
+                  className={`card ${statusClass} qcard-clickable`}
                   style={{ padding: '12px', cursor:'pointer' }}
                   onClick={()=>toggleQuarterOpen(q.id)}
                 >
-                  <div className="qtitle">
-                    {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
+                  <div className="qtitle" style={{display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+                      <span>{q.id}</span>
+                      <span className="pill">{q.gw_from}–{q.gw_to}</span>
+                    </div>
+                    <span className="qchevron">{isOpen ? '▲' : '▼'}</span>
                   </div>
+
                   <div className="small">Kolejki: {q.games}</div>
                   <div className="small">{q.from} → {q.to}</div>
                   <div className="status">Status: {q.status}</div>
@@ -346,7 +344,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  {openQuarter === q.id && (
+                  {isOpen && (
                     <div
                       className="small"
                       style={{
