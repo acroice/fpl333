@@ -96,3 +96,36 @@ body.retro .qdone {
   background: #00231a !important;
   opacity: 1;
 }
+
+/* kafelek ćwiartki: klikalny */
+.qcard-clickable {
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.qcard-clickable:hover {
+  border-color:#3a4d61;
+  box-shadow:0 0 0 1px rgba(160,200,255,.2) inset;
+  background-color:rgba(255,255,255,0.02);
+}
+
+/* jeśli ćwiartka trwa (qactive), to hover wzmacnia zielony akcent */
+.qactive.qcard-clickable:hover {
+  border-color:#3cffb2;
+  box-shadow:0 0 0 1px rgba(94,225,162,.4) inset;
+  background-color:rgba(0,255,170,0.03);
+}
+
+/* jeśli ćwiartka zakończona (qdone), hover delikatny szarawy */
+.qdone.qcard-clickable:hover {
+  border-color:#4a5568;
+  box-shadow:0 0 0 1px rgba(150,150,170,.25) inset;
+  background-color:rgba(255,255,255,0.015);
+}
+
+/* strzałka przy nazwie ćwiartki */
+.qchevron {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+  margin-left: 6px;
+}
