@@ -68,6 +68,13 @@ export default function Home() {
     return map;
   }, [league]);
 
+  // utilka do error handlingu fetcha
+  async function resOrThrow(r: Response) {
+    const js = await r.json();
+    if (!r.ok) throw new Error(js?.error || 'fetch failed');
+    return js;
+  }
+
   // fetch danych
   React.useEffect(() => {
     async function load() {
@@ -125,13 +132,6 @@ export default function Home() {
     }
     load();
   }, []);
-
-  // mała utilka do error handlingu fetchów
-  async function resOrThrow(r: Response) {
-    const js = await r.json();
-    if (!r.ok) throw new Error(js?.error || 'fetch failed');
-    return js;
-  }
 
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
@@ -223,6 +223,65 @@ export default function Home() {
     return sortDir === 'asc' ? '↑' : '↓';
   }
 
+  // CSV export
+  function downloadCsv() {
+    // Kolumny jak w tabeli
+    const header = [
+      '#',
+      'Manager',
+      'Team',
+      'Total',
+      'GW Pts',
+      `${currentScoreLabel}`,
+      'Quarter wins'
+    ];
+
+    // rzędy zgodnie z widocznym sortowaniem
+    const rows = sortedLeague.map((e, idx) => {
+      const displayRank = preSeason ? (idx + 1) : e.rank;
+      const wins = qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '';
+      const currentQpts = currentScores[e.entry] ?? 0;
+
+      return [
+        displayRank,
+        e.player_name,
+        e.entry_name,
+        e.total,
+        e.event_total,
+        currentQpts,
+        wins
+      ];
+    });
+
+    // budujemy CSV
+    const escapeCell = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      // jeśli przecinek / cudzysłów / newline -> zawijamy w ""
+      if (/[",\n]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csv = [
+      header.map(escapeCell).join(','),
+      ...rows.map(r => r.map(escapeCell).join(',')),
+    ].join('\n');
+
+    // tworzymy blob i trigger pobrania
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    const now = new Date();
+    const stamp = now.toISOString().slice(0,19).replace(/[:T]/g,'-'); // yyyy-mm-dd-hh-mm-ss
+    a.href = url;
+    a.download = `fpl333_export_${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // kliknięcie kafelka ćwiartki
   function toggleQuarterOpen(id: string, isLocked: boolean) {
     if (isLocked) return; // ćwiartka "wkrótce" -> brak rozwinięcia
@@ -235,8 +294,36 @@ export default function Home() {
 
       <div className="grid">
         <section className="card">
-          <div className="headline">
-            Planowane składy <span className="small">uczestnicy: {participants}</span>
+          <div
+            className="headline"
+            style={{
+              display:'flex',
+              flexWrap:'wrap',
+              alignItems:'center',
+              justifyContent:'space-between',
+              rowGap:'8px',
+              columnGap:'12px'
+            }}
+          >
+            <div>
+              Planowane składy{' '}
+              <span className="small">uczestnicy: {participants}</span>
+            </div>
+
+            <button
+              onClick={downloadCsv}
+              style={{
+                background:'#0f2029',
+                border:'1px solid #16313f',
+                borderRadius:'6px',
+                color:'#9fd9ff',
+                fontSize:'12px',
+                padding:'6px 10px',
+                cursor:'pointer'
+              }}
+            >
+              Eksportuj CSV
+            </button>
           </div>
 
           {loading ? (
@@ -325,7 +412,11 @@ export default function Home() {
                 <div
                   key={q.id}
                   className={`card ${statusClass} qcard-clickable`}
-                  style={{ padding: '12px', cursor: isLocked ? 'default' : 'pointer', opacity: isLocked ? 0.8 : 1 }}
+                  style={{
+                    padding: '12px',
+                    cursor: isLocked ? 'default' : 'pointer',
+                    opacity: isLocked ? 0.8 : 1
+                  }}
                   onClick={()=>toggleQuarterOpen(q.id, isLocked)}
                 >
                   <div className="qtitle" style={{display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px'}}>
