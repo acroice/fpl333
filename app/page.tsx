@@ -22,6 +22,13 @@ type Quarter = {
   is_current?: boolean;
 };
 
+type QuarterTopRow = {
+  entry: number;
+  player_name: string;
+  entry_name: string;
+  points: number;
+};
+
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
   const [participants, setParticipants] = React.useState<number>(0);
@@ -34,25 +41,40 @@ export default function Home() {
   const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
   const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
-  // zwycięzcy per ćwiartka (dla zakończonych)
+  // zwycięzcy zakończonych ćwiartek
   const [winnersByQuarter, setWinnersByQuarter] = React.useState<
     Record<string, { entry: number; points: number }[]>
   >({});
 
+  // TOP3 w każdej ćwiartce
+  const [quarterTop, setQuarterTop] = React.useState<
+    Record<string, QuarterTopRow[]>
+  >({});
+
+  // który kafelek Q jest rozwinięty (pokazujemy pod nim TOP3)
+  const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
+
   // retro easter egg UI
   const [showRetroBanner, setShowRetroBanner] = React.useState(false);
 
-  // mapka do szybkiego lookupu nazwy manager/team po entryId
+  // sortowanie tabeli
+  // sortKey: "rank" | "total" | "gw" | "currentQ" | "wins"
+  // sortDir: "asc" | "desc"
+  const [sortKey, setSortKey] = React.useState<'rank' | 'total' | 'gw' | 'currentQ' | 'wins'>('rank');
+  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
+
+  // helper do podglądu danych gracza po entryId
   const entryIndex = React.useMemo(() => {
     const map: Record<number, { manager: string; team: string }> = {};
     for (const e of league) map[e.entry] = { manager: e.player_name, team: e.entry_name };
     return map;
   }, [league]);
 
+  // fetch danych
   React.useEffect(() => {
     async function load() {
       try {
-        // --- league ---
+        // league
         const res = await fetch('/api/league?leagueId=831753', { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'league fetch failed');
@@ -61,10 +83,16 @@ export default function Home() {
         const isPre = !!data.pre_season;
         setPreSeason(isPre);
 
-        // sort: pre-season alfabetycznie po Manager, po starcie po rank
+        // sort bazowy:
+        // - pre-season po nazwisku managera A-Z
+        // - po starcie sezonu po rank z API
         if (isPre) {
           entries.sort((a, b) =>
-            (a.player_name || '').localeCompare(b.player_name || '', 'pl', { sensitivity: 'base' })
+            (a.player_name || '').localeCompare(
+              b.player_name || '',
+              'pl',
+              { sensitivity: 'base' }
+            )
           );
         } else {
           entries.sort((a, b) => a.rank - b.rank);
@@ -73,25 +101,27 @@ export default function Home() {
         setLeague(entries);
         setParticipants(data.count || entries.length || 0);
 
-        // --- quarters ---
+        // quarters
         const qRes = await fetch('/api/quarters', { cache: 'no-store' });
         const qData = await qRes.json();
         if (!qRes.ok) throw new Error(qData?.error || 'quarters fetch failed');
         setQuarters(qData.quarters || []);
         setCurrentQuarterId(qData.current || 'Q1');
 
-        // --- trophies & current-quarter scores ---
+        // wins / bieżąca ćwiartka / top3
         const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
         const wData = await wRes.json();
         if (wRes.ok) {
-          setQWins(wData.wins || {});                 // puchary tylko z zakończonych ćwiartek
-          setCurrentScores(wData.currentScores || {}); // bieżące punkty w aktualnej ćwiartce
+          setQWins(wData.wins || {});
+          setCurrentScores(wData.currentScores || {});
           if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
-          setWinnersByQuarter(wData.winnersByQuarter || {}); // zwycięzcy tylko po zakończeniu
+          setWinnersByQuarter(wData.winnersByQuarter || {});
+          setQuarterTop(wData.quarterTop || {});
         } else {
           setQWins({});
           setCurrentScores({});
           setWinnersByQuarter({});
+          setQuarterTop({});
         }
 
         setError(null);
@@ -109,7 +139,10 @@ export default function Home() {
 
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
-    const seq = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    const seq = [
+      'ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+      'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'
+    ];
     let idx = 0;
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -136,9 +169,77 @@ export default function Home() {
   // etykieta kolumny z punktami bieżącej ćwiartki
   const currentScoreLabel = `${currentQuarterId} Score`;
 
+  // klik nagłówka tabeli do sortowania
+  function toggleSort(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
+    if (sortKey === col) {
+      // zmiana kierunku
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(col);
+      // default kierunek zależy od kolumny
+      // dla rank chcemy rosnąco domyślnie (1 najlepszy),
+      // dla punktów raczej malejąco
+      if (col === 'rank') {
+        setSortDir('asc');
+      } else {
+        setSortDir('desc');
+      }
+    }
+  }
+
+  // posortowana tabela wg aktualnego wyboru
+  const sortedLeague = React.useMemo(() => {
+    const arr = [...league];
+
+    arr.sort((a, b) => {
+      function val(e: LeagueEntry) {
+        if (sortKey === 'rank') {
+          return preSeason ? league.indexOf(e) + 1 : e.rank;
+        }
+        if (sortKey === 'total') {
+          return e.total;
+        }
+        if (sortKey === 'gw') {
+          return e.event_total;
+        }
+        if (sortKey === 'currentQ') {
+          return currentScores[e.entry] ?? 0;
+        }
+        if (sortKey === 'wins') {
+          return qWins[e.entry] ?? 0;
+        }
+        return 0;
+      }
+
+      const av = val(a);
+      const bv = val(b);
+
+      if (av === bv) return 0;
+      if (sortDir === 'asc') {
+        return av < bv ? -1 : 1;
+      } else {
+        return av > bv ? -1 : 1;
+      }
+    });
+
+    return arr;
+  }, [league, sortKey, sortDir, preSeason, currentScores, qWins]);
+
+  // helper do pokazania strzałki sortowania
+  function sortArrow(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
+    if (sortKey !== col) return '';
+    return sortDir === 'asc' ? '↑' : '↓';
+  }
+
+  // kliknięcie kafelka ćwiartki
+  function toggleQuarterOpen(id: string) {
+    setOpenQuarter(prev => (prev === id ? null : id));
+  }
+
   return (
     <>
       {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
+
       <div className="grid">
         <section className="card">
           <div className="headline">
@@ -153,17 +254,42 @@ export default function Home() {
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th
+                    style={{cursor:'pointer'}}
+                    onClick={()=>toggleSort('rank')}
+                  >
+                    # {sortArrow('rank')}
+                  </th>
                   <th>Manager</th>
                   <th>Team</th>
-                  <th>Total</th>
-                  <th>GW Pts</th>
-                  <th>{currentScoreLabel}</th>
-                  <th>Quarter wins</th>
+                  <th
+                    style={{cursor:'pointer'}}
+                    onClick={()=>toggleSort('total')}
+                  >
+                    Total {sortArrow('total')}
+                  </th>
+                  <th
+                    style={{cursor:'pointer'}}
+                    onClick={()=>toggleSort('gw')}
+                  >
+                    GW Pts {sortArrow('gw')}
+                  </th>
+                  <th
+                    style={{cursor:'pointer'}}
+                    onClick={()=>toggleSort('currentQ')}
+                  >
+                    {currentScoreLabel} {sortArrow('currentQ')}
+                  </th>
+                  <th
+                    style={{cursor:'pointer'}}
+                    onClick={()=>toggleSort('wins')}
+                  >
+                    Quarter wins {sortArrow('wins')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {league.map((e, idx) => (
+                {sortedLeague.map((e, idx) => (
                   <tr key={e.entry}>
                     <td>{preSeason ? idx + 1 : e.rank}</td>
                     <td>{e.player_name}</td>
@@ -193,16 +319,18 @@ export default function Home() {
                     }).join(', ')
                   : '';
 
-              // 🔸 status → klasa
               const statusClass =
                 q.status === 'trwa' ? 'qactive' :
                 q.status === 'zakończona' ? 'qdone' : '';
+
+              const topRows = quarterTop[q.id] || [];
 
               return (
                 <div
                   key={q.id}
                   className={`card ${statusClass}`}
-                  style={{ padding: '12px' }}
+                  style={{ padding: '12px', cursor:'pointer' }}
+                  onClick={()=>toggleQuarterOpen(q.id)}
                 >
                   <div className="qtitle">
                     {q.id} <span className="pill">{q.gw_from}–{q.gw_to}</span>
@@ -211,9 +339,35 @@ export default function Home() {
                   <div className="small">{q.from} → {q.to}</div>
                   <div className="status">Status: {q.status}</div>
                   <div className="small">{q.note}</div>
+
                   {winnerLabel && (
                     <div className="small" style={{ marginTop: 6 }}>
                       🏆 {winnerLabel}
+                    </div>
+                  )}
+
+                  {openQuarter === q.id && (
+                    <div
+                      className="small"
+                      style={{
+                        marginTop: 10,
+                        paddingTop: 10,
+                        borderTop: '1px solid #1c2430',
+                        lineHeight: 1.4
+                      }}
+                    >
+                      <div style={{fontWeight:600, marginBottom:4}}>
+                        Top 3 {q.id}:
+                      </div>
+                      {topRows.length === 0 ? (
+                        <div>Brak danych</div>
+                      ) : (
+                        topRows.map((row, i) => (
+                          <div key={row.entry} style={{marginBottom:4}}>
+                            {i+1}. {row.player_name} ({row.entry_name}) – {row.points} pkt
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
