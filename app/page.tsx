@@ -445,7 +445,19 @@ export default function Home() {
                       🏆 {winnerLabel}
                     </div>
                   )}
-
+                  {/* Pasek postępu trwającej ćwiartki */}
+                  {q.status === 'trwa' && (
+                    <div className="qprogress">
+                      <div
+                        className="qprogress-fill"
+                        style={{
+                          width: `${
+                            ((currentScores?.__gw || 0) - q.gw_from + 1) / q.games * 100
+                          }%`
+                        }}
+                      />
+                    </div>
+                  )}
                   {isOpen && (
                     <div
                       className="small"
