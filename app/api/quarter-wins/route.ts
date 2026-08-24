@@ -93,10 +93,14 @@ export async function GET(req: NextRequest){
     // Przygotowanie struktur:
     // - winsCount[entryId] = ile pucharów (wygranych ćwiartek zakończonych)
     // - currentScores[entryId] = wynik w aktualnej ćwiartce (tej która trwa)
-    // - quarterScores[q.id] = [{entry, player_name, entry_name, pointsSum}] dla danej ćwiartki
+    // - currentHits[entryId] = ile pkt stracił na hitach (transferach ponad darmowy limit)
+    //   w aktualnej ćwiartce — punkty w currentScores są już NETTO (FPL sam je odejmuje),
+    //   to pole to tylko wgląd "ile to kosztowało", nie wpływa na wynik
+    // - quarterScores[q.id] = [{entry, player_name, entry_name, points, hits}] dla danej ćwiartki
     const winsCount: Record<number, number> = {};
     const currentScores: Record<number, number> = {};
-    const quarterScores: Record<string, {entry:number; player_name:string; entry_name:string; points:number}[]> = {};
+    const currentHits: Record<number, number> = {};
+    const quarterScores: Record<string, {entry:number; player_name:string; entry_name:string; points:number; hits:number}[]> = {};
 
     // znajdź bieżącą ćwiartkę
     const currentQuarter = (() => {
@@ -120,9 +124,11 @@ export async function GET(req: NextRequest){
 
       for (const q of ranges){
         let sum = 0;
+        let hitsSum = 0;
         for (const item of hist){
           if (item.gw >= q.fromGW && item.gw <= q.toGW){
             sum += item.pts;
+            hitsSum += item.cost;
           }
         }
         // zapisz do quarterScores
@@ -131,12 +137,14 @@ export async function GET(req: NextRequest){
           entry: plr.entry,
           player_name: plr.player_name || '',
           entry_name: plr.entry_name || '',
-          points: sum
+          points: sum,
+          hits: hitsSum
         });
 
-        // jeśli to aktualna ćwiartka -> to jest currentScores
+        // jeśli to aktualna ćwiartka -> to jest currentScores / currentHits
         if (q.id === currentQuarter.id){
           currentScores[plr.entry] = sum;
+          currentHits[plr.entry] = hitsSum;
         }
       }
     });
@@ -174,13 +182,27 @@ export async function GET(req: NextRequest){
       quarterTop[q.id] = list.slice(0,3);
     }
 
+    // Ranking hitów per ćwiartka — kto stracił najwięcej punktów na transferach ponad darmowy
+    // limit. Kompaktowy, opcjonalny wgląd na froncie (nie wpływa na wyniki, punkty są już netto).
+    // Tylko gracze z hits>0, top5, żeby nie zaśmiecać widoku zerami.
+    const quarterHitsTop: Record<string, {entry:number; player_name:string; entry_name:string; hits:number}[]> = {};
+    for (const q of ranges){
+      const list = (quarterScores[q.id] || []).filter(x => x.hits > 0);
+      list.sort((a,b)=>b.hits - a.hits);
+      quarterHitsTop[q.id] = list.slice(0,5).map(x => ({
+        entry: x.entry, player_name: x.player_name, entry_name: x.entry_name, hits: x.hits
+      }));
+    }
+
     return NextResponse.json({
       currentQuarter: currentQuarter.id,
       currentRange: { fromGW: currentQuarter.fromGW, toGW: currentQuarter.toGW },
       currentScores,          // { entryId: points in current quarter }
+      currentHits,            // { entryId: pkt stracone na hitach w bieżącej ćwiartce }
       wins: winsCount,        // { entryId: trophies }
       winnersByQuarter,       // { Q1:[{entry,points},...], ... } only finished
-      quarterTop              // { Q1:[{entry,player_name,entry_name,points}, ... up to 3], ...}
+      quarterTop,             // { Q1:[{entry,player_name,entry_name,points}, ... up to 3], ...}
+      quarterHitsTop          // { Q1:[{entry,player_name,entry_name,hits}, ... up to 5, hits>0], ...}
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

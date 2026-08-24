@@ -30,6 +30,13 @@ type QuarterTopRow = {
   points: number;
 };
 
+type QuarterHitsRow = {
+  entry: number;
+  player_name: string;
+  entry_name: string;
+  hits: number; // pkt stracone na transferach ponad darmowy limit w tej ćwiartce
+};
+
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
   const [participants, setParticipants] = React.useState<number>(0);
@@ -45,6 +52,12 @@ export default function Home() {
   const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
   const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
+  // pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce, per manager —
+  // czysto informacyjne: currentScores jest już netto, to tylko pokazuje "ile to kosztowało"
+  const [currentHits, setCurrentHits] = React.useState<Record<number, number>>({});
+  // czy pokazywać wgląd w hity (domyślnie schowane — opcjonalny, kompaktowy dodatek)
+  const [showHits, setShowHits] = React.useState(false);
+
   // zwycięzcy zakończonych ćwiartek
   const [winnersByQuarter, setWinnersByQuarter] = React.useState<
     Record<string, { entry: number; points: number }[]>
@@ -53,6 +66,11 @@ export default function Home() {
   // TOP3 w każdej ćwiartce
   const [quarterTop, setQuarterTop] = React.useState<
     Record<string, QuarterTopRow[]>
+  >({});
+
+  // ranking "hit-takerów" (top5, tylko hits>0) w każdej ćwiartce
+  const [quarterHitsTop, setQuarterHitsTop] = React.useState<
+    Record<string, QuarterHitsRow[]>
   >({});
 
   // który kafelek Q jest rozwinięty
@@ -130,9 +148,11 @@ export default function Home() {
 
         setQWins(wData.wins || {});
         setCurrentScores(wData.currentScores || {});
+        setCurrentHits(wData.currentHits || {});
         if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
         setWinnersByQuarter(wData.winnersByQuarter || {});
         setQuarterTop(wData.quarterTop || {});
+        setQuarterHitsTop(wData.quarterHitsTop || {});
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -259,6 +279,7 @@ export default function Home() {
       'Total',
       'GW Pts',
       `${currentScoreLabel}`,
+      ...(showHits ? [`${currentQuarterId} Hits`] : []),
       'Quarter wins'
     ];
 
@@ -266,6 +287,7 @@ export default function Home() {
       const displayRank = preSeason ? (idx + 1) : e.rank;
       const wins = qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : '';
       const currentQpts = currentScores[e.entry] ?? 0;
+      const currentQhits = currentHits[e.entry] ?? 0;
 
       return [
         displayRank,
@@ -274,6 +296,7 @@ export default function Home() {
         e.total,
         e.event_total,
         currentQpts,
+        ...(showHits ? [currentQhits] : []),
         wins
       ];
     });
@@ -326,20 +349,37 @@ export default function Home() {
               <span className="small">uczestnicy: {participants}</span>
             </div>
 
-            <button
-              onClick={downloadCsv}
-              style={{
-                background:'#0f2029',
-                border:'1px solid #16313f',
-                borderRadius:'6px',
-                color:'#9fd9ff',
-                fontSize:'12px',
-                padding:'6px 10px',
-                cursor:'pointer'
-              }}
-            >
-              Eksportuj CSV
-            </button>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <button
+                onClick={() => setShowHits(v => !v)}
+                title="Pokaż/ukryj pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce"
+                style={{
+                  background: showHits ? '#2a1414' : '#0f2029',
+                  border: showHits ? '1px solid #5a2a2a' : '1px solid #16313f',
+                  borderRadius:'6px',
+                  color: showHits ? '#ff9b9b' : '#9fd9ff',
+                  fontSize:'12px',
+                  padding:'6px 10px',
+                  cursor:'pointer'
+                }}
+              >
+                ⚡ Hity {showHits ? 'ukryj' : 'pokaż'}
+              </button>
+              <button
+                onClick={downloadCsv}
+                style={{
+                  background:'#0f2029',
+                  border:'1px solid #16313f',
+                  borderRadius:'6px',
+                  color:'#9fd9ff',
+                  fontSize:'12px',
+                  padding:'6px 10px',
+                  cursor:'pointer'
+                }}
+              >
+                Eksportuj CSV
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -392,7 +432,17 @@ export default function Home() {
                     <td>{e.entry_name}</td>
                     <td>{e.total}</td>
                     <td>{e.event_total}</td>
-                    <td>{currentScores[e.entry] ?? 0}</td>
+                    <td>
+                      {currentScores[e.entry] ?? 0}
+                      {showHits && (currentHits[e.entry] ?? 0) > 0 && (
+                        <span
+                          className="hitbadge"
+                          title={`Stracone na hitach w ${currentScoreLabel}: -${currentHits[e.entry]} pkt (${currentHits[e.entry] / 4} × -4 za transfer ponad limit)`}
+                        >
+                          ⚡-{currentHits[e.entry]}
+                        </span>
+                      )}
+                    </td>
                     <td>{qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : ''}</td>
                   </tr>
                 ))}
@@ -425,6 +475,7 @@ export default function Home() {
               const isLocked = q.status === 'wkrótce';
               const isOpen = !isLocked && openQuarter === q.id;
               const topRows = isOpen ? (quarterTop[q.id] || []) : [];
+              const hitsRows = isOpen && showHits ? (quarterHitsTop[q.id] || []) : [];
 
               return (
                 <div
@@ -489,6 +540,23 @@ export default function Home() {
                             {i+1}. {row.player_name} ({row.entry_name}) – {row.points} pkt
                           </div>
                         ))
+                      )}
+
+                      {showHits && (
+                        <>
+                          <div style={{fontWeight:600, marginTop:10, marginBottom:4}}>
+                            ⚡ Hity {q.id}:
+                          </div>
+                          {hitsRows.length === 0 ? (
+                            <div>Nikt nie wziął hita w tej ćwiartce</div>
+                          ) : (
+                            hitsRows.map((row) => (
+                              <div key={row.entry} style={{marginBottom:4, color:'#ff9b9b'}}>
+                                {row.player_name} ({row.entry_name}) – -{row.hits} pkt
+                              </div>
+                            ))
+                          )}
+                        </>
                       )}
                     </div>
                   )}

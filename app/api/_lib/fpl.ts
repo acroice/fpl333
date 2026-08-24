@@ -22,8 +22,14 @@ export type StandingsRaw = {
   newEntries: any[]; // new_entries.results z ostatniej strony (przedsezonowe zapisy)
 };
 
+export type GwHistory = {
+  gw: number;
+  pts: number;  // punkty NETTO — FPL już odejmuje tu koszt hitów (event_transfers_cost)
+  cost: number; // ile pkt kosztowały transfery ponad darmowy limit w tej kolejce (0, 4, 8, ...)
+};
+
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
-const historyCache = new Map<number, CacheEntry<{ gw: number; pts: number }[]>>();
+const historyCache = new Map<number, CacheEntry<GwHistory[]>>();
 
 async function fetchClassicStandingsRaw(leagueId: string): Promise<StandingsRaw> {
   let page = 1;
@@ -56,16 +62,20 @@ export async function fetchClassicStandingsCached(leagueId: string): Promise<Sta
   return data;
 }
 
-async function fetchEntryHistoryRaw(entryId: number): Promise<{ gw: number; pts: number }[]> {
+async function fetchEntryHistoryRaw(entryId: number): Promise<GwHistory[]> {
   const url = `https://fantasy.premierleague.com/api/entry/${entryId}/history/`;
   const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
   if (!res.ok) return [];
   const data = await res.json();
-  return (data?.current ?? []).map((e: any) => ({ gw: e.event, pts: e.points }));
+  return (data?.current ?? []).map((e: any) => ({
+    gw: e.event,
+    pts: e.points,
+    cost: Number(e.event_transfers_cost ?? 0),
+  }));
 }
 
-// Historia punktowa gracza (per GW), z cache TTL po entryId.
-export async function fetchEntryHistoryCached(entryId: number): Promise<{ gw: number; pts: number }[]> {
+// Historia punktowa gracza (per GW, netto + koszt hitów), z cache TTL po entryId.
+export async function fetchEntryHistoryCached(entryId: number): Promise<GwHistory[]> {
   const hit = historyCache.get(entryId);
   if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
 
