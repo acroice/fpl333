@@ -20,6 +20,7 @@ type Quarter = {
   status: 'trwa' | 'zakończona' | 'wkrótce';
   note: string;
   is_current?: boolean;
+  progress?: number; // 0–100, upływ czasu ćwiartki
 };
 
 type QuarterTopRow = {
@@ -35,6 +36,9 @@ export default function Home() {
   const [quarters, setQuarters] = React.useState<Quarter[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  // błąd sekcji ćwiartek (quarters/quarter-wins) — osobny od błędu tabeli ligi, żeby
+  // przejściowa awaria jednego z nich nie kasowała już poprawnie wczytanej tabeli
+  const [sideError, setSideError] = React.useState<string | null>(null);
   const [preSeason, setPreSeason] = React.useState<boolean>(false);
 
   const [qWins, setQWins] = React.useState<Record<number, number>>({});
@@ -78,9 +82,9 @@ export default function Home() {
   // fetch danych
   React.useEffect(() => {
     async function load() {
+      // 1) tabela ligi — jeśli padnie, tylko ta sekcja pokazuje błąd
       try {
-        // league
-        const res = await fetch('/api/league?leagueId=831753', { cache: 'no-store' });
+        const res = await fetch('/api/league?leagueId=1078207', { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'league fetch failed');
 
@@ -103,15 +107,25 @@ export default function Home() {
 
         setLeague(entries);
         setParticipants(data.count || entries.length || 0);
+        setError(null);
+      } catch (err: any) {
+        console.error('league load error:', err?.message);
+        setError('nie udało się pobrać danych ligi (spróbuj odświeżyć za chwilę)');
+        setLeague([]);
+        setParticipants(0);
+      } finally {
+        setLoading(false);
+      }
 
-        // quarters
+      // 2) ćwiartki + wygrane — niezależne od tabeli ligi: jeśli któreś z tego padnie,
+      // już wczytana tabela ligi zostaje na ekranie, a błąd pokazujemy tylko w tej sekcji
+      try {
         const qRes = await fetch('/api/quarters', { cache: 'no-store' });
         const qData = await resOrThrow(qRes);
         setQuarters(qData.quarters || []);
         setCurrentQuarterId(qData.current || 'Q1');
 
-        // wins / bieżąca ćwiartka / top3
-        const wRes = await fetch('/api/quarter-wins?leagueId=831753', { cache: 'no-store' });
+        const wRes = await fetch('/api/quarter-wins?leagueId=1078207', { cache: 'no-store' });
         const wData = await resOrThrow(wRes);
 
         setQWins(wData.wins || {});
@@ -119,15 +133,10 @@ export default function Home() {
         if (wData.currentQuarter) setCurrentQuarterId(wData.currentQuarter);
         setWinnersByQuarter(wData.winnersByQuarter || {});
         setQuarterTop(wData.quarterTop || {});
-
-        setError(null);
+        setSideError(null);
       } catch (err: any) {
-        console.error('page load error:', err?.message);
-        setError('nie udało się pobrać danych ligi (spróbuj odświeżyć za chwilę)');
-        setLeague([]);
-        setParticipants(0);
-      } finally {
-        setLoading(false);
+        console.error('quarters/wins load error:', err?.message);
+        setSideError('nie udało się pobrać danych ćwiartek (spróbuj odświeżyć za chwilę)');
       }
     }
     load();
@@ -394,6 +403,9 @@ export default function Home() {
 
         <aside className="card">
           <div className="headline">Quarter Rankings</div>
+          {sideError ? (
+            <div className="small" style={{ color: '#ff9b9b' }}>{sideError}</div>
+          ) : (
           <div className="qgrid">
             {quarters.map((q) => {
               const winners = winnersByQuarter[q.id] || [];
@@ -445,13 +457,13 @@ export default function Home() {
                       🏆 {winnerLabel}
                     </div>
                   )}
-                  {/* Pasek postępu trwającej ćwiartki */}
+                  {/* Pasek postępu trwającej ćwiartki — realny % upływu czasu z API */}
                     {q.status === 'trwa' && (
                       <div className="qprogress">
                         <div
                           className="qprogress-fill"
                           style={{
-                            width: '50%' // tymczasowo 50%, placeholder
+                            width: `${q.progress ?? 0}%`
                           }}
                         />
                       </div>
@@ -484,6 +496,7 @@ export default function Home() {
               );
             })}
           </div>
+          )}
         </aside>
       </div>
     </>
