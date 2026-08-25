@@ -74,6 +74,7 @@ type SquadData = {
 type Award = {
   entry: number; player_name: string; entry_name: string;
   points?: number; value?: number; chip?: ChipInfo | null; rankChange?: number;
+  bonus?: number | null; // Chip Master: pkt zdobyte dzięki chipowi (BB/TC); null gdy nie da się policzyć (WC/FH)
 } | null;
 
 type Awards = {
@@ -532,11 +533,25 @@ export default function Home() {
                 </span>
               )}
               {awards.chipMaster && (
-                <span className="statchip statchip--special" title="Najlepszy wynik z zagranym chipem">
+                <span
+                  className="statchip statchip--special"
+                  title={
+                    awards.chipMaster.bonus != null
+                      ? `Punkty zdobyte dzięki chipowi ${awards.chipMaster.chip?.label} (nie total z kolejki)`
+                      : 'Najlepszy wynik z zagranym chipem (dla tego chipa nie da się policzyć samego zysku)'
+                  }
+                >
                   <span className="statchip-icon">🏅</span>
                   <span className="statchip-text">
                     <span className="statchip-label">Chip Master · {awards.chipMaster.chip?.label}</span>
-                    <span className="statchip-value">{awards.chipMaster.player_name} · <b>{awards.chipMaster.points}</b></span>
+                    <span className="statchip-value">
+                      {awards.chipMaster.player_name} ·{' '}
+                      <b>
+                        {awards.chipMaster.bonus != null
+                          ? `+${awards.chipMaster.bonus} z chipa`
+                          : `${awards.chipMaster.points} pkt`}
+                      </b>
+                    </span>
                   </span>
                 </span>
               )}
