@@ -762,7 +762,7 @@ export default function Home() {
                         <PlayerAvatar src={p.photoUrl} alt={p.name} />
                         <span className="pill">{p.position}</span>
                         {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
-                        {p.captainCount > 0 && ` — kapitan u ${p.captainCount}/${overview.leagueSize}`}
+                        {p.captainCount > 0 && ` — C: ${p.captainCount}`}
                       </span>
                       <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize}</span>
                     </div>
