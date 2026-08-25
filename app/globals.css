@@ -66,6 +66,18 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   vertical-align:middle;
 }
 
+/* strzałki zmiany pozycji w tabeli głównej (last_rank vs rank) */
+.rankup { color:#5ee1a2; font-size:11px; font-weight:600; }
+.rankdown { color:#ff9b9b; font-size:11px; font-weight:600; }
+
+/* znacznik automatycznej zamiany (autosub) przy zawodniku w drill-downie */
+.subbadge {
+  display:inline-block;
+  margin-left:6px;
+  font-size:11px;
+  color:#8aa0b6;
+}
+
 /* pojedynczy wiersz zawodnika w rozwiniętym składzie (drill-down) */
 .squadplayer {
   display:flex;

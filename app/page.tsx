@@ -8,6 +8,7 @@ type LeagueEntry = {
   total: number;
   rank: number;
   event_total: number;
+  last_rank: number; // 0 = FPL nie ma jeszcze poprzedniej pozycji do porównania
 };
 
 type Quarter = {
@@ -49,8 +50,10 @@ type SquadPlayer = {
   isCaptain: boolean;
   isViceCaptain: boolean;
   isBench: boolean;
+  subbedIn: boolean;   // wszedł automatyczną zamianą (bo ktoś z podstawowej 11 nie zagrał)
+  subbedOut: boolean;  // wypadł automatyczną zamianą (nie zagrał, mimo że był w podstawowej 11)
   multiplier: number;
-  ownershipPct: number; // % managerów w naszej lidze, którzy też go mieli w składzie
+  ownershipPct: number; // Effective Ownership % w naszej lidze (z uwzględnieniem ×kapitan)
 };
 
 type SquadData = {
@@ -78,6 +81,15 @@ type Awards = {
   topGun: Award; toughWeek: Award; chipMaster: Award;
   noChipWarrior: Award; valueKing: Award; rankCrasher: Award;
 };
+
+type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
+
+type TopOwnedRow = {
+  element: number; name: string; team: string; position: string;
+  ownedCount: number; ownedPct: number; captainCount: number; eoPct: number;
+};
+
+type LeagueOverview = { gw: number; leagueSize: number; chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[] };
 
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
@@ -125,6 +137,12 @@ export default function Home() {
   const [squadCache, setSquadCache] = React.useState<Record<number, SquadData>>({});
   const [squadLoadingEntry, setSquadLoadingEntry] = React.useState<number | null>(null);
   const [squadError, setSquadError] = React.useState<string | null>(null);
+
+  // przegląd całej ligi (chipy + top ownership) — opcjonalny, ładowany na żądanie po kliknięciu
+  const [showOverview, setShowOverview] = React.useState(false);
+  const [overview, setOverview] = React.useState<LeagueOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = React.useState(false);
+  const [overviewError, setOverviewError] = React.useState<string | null>(null);
 
   // który kafelek Q jest rozwinięty
   const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
@@ -351,6 +369,27 @@ export default function Home() {
     }
   }
 
+  // przełącznik przeglądu ligi (chipy + top ownership) — ładowany leniwie przy pierwszym otwarciu
+  async function toggleOverview() {
+    const next = !showOverview;
+    setShowOverview(next);
+    if (!next || overview) return; // zwijamy, albo już mamy dane
+
+    setOverviewLoading(true);
+    setOverviewError(null);
+    try {
+      const res = await fetch('/api/league-overview?leagueId=1078207', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'overview fetch failed');
+      setOverview(data);
+    } catch (err: any) {
+      console.error('overview load error:', err?.message);
+      setOverviewError('nie udało się pobrać przeglądu ligi (spróbuj ponownie)');
+    } finally {
+      setOverviewLoading(false);
+    }
+  }
+
   // eksport CSV (zostawiam tak jak mamy)
   function downloadCsv() {
     const header = [
@@ -447,6 +486,21 @@ export default function Home() {
                 ⚡ Hity {showHits ? 'ukryj' : 'pokaż'}
               </button>
               <button
+                onClick={toggleOverview}
+                title="Chipy i ownership w całej lidze dla bieżącej kolejki"
+                style={{
+                  background: showOverview ? '#1e2a14' : '#0f2029',
+                  border: showOverview ? '1px solid #3a5a21' : '1px solid #16313f',
+                  borderRadius:'6px',
+                  color: showOverview ? '#c8f09b' : '#9fd9ff',
+                  fontSize:'12px',
+                  padding:'6px 10px',
+                  cursor:'pointer'
+                }}
+              >
+                📊 Liga {showOverview ? 'ukryj' : 'pokaż'}
+              </button>
+              <button
                 onClick={downloadCsv}
                 style={{
                   background:'#0f2029',
@@ -494,6 +548,45 @@ export default function Home() {
                 <span className="awardpill" title="Największy spadek w rankingu ogólnym FPL vs poprzednia kolejka">
                   📊 Rank Crasher: {awards.rankCrasher.player_name} (-{awards.rankCrasher.rankChange?.toLocaleString('pl')})
                 </span>
+              )}
+            </div>
+          )}
+
+          {showOverview && (
+            <div className="small" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #1c2430' }}>
+              {overviewLoading ? (
+                <div>Ładowanie przeglądu ligi…</div>
+              ) : overviewError ? (
+                <div style={{ color: '#ff9b9b' }}>{overviewError}</div>
+              ) : !overview ? (
+                <div>Brak danych</div>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                    Chipy w GW{overview.gw} (cała liga):
+                  </div>
+                  <div className="awardsrow" style={{ marginBottom: 12 }}>
+                    {overview.chipUsage.map(c => (
+                      <span key={c.code} className="awardpill" title={c.name}>
+                        {c.label}: {c.count} ({c.pct}%)
+                      </span>
+                    ))}
+                  </div>
+
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                    Najczęściej wybierani zawodnicy (Effective Ownership):
+                  </div>
+                  {overview.topOwned.map(p => (
+                    <div key={p.element} className="squadplayer">
+                      <span>
+                        <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                        {p.name} ({p.team})
+                        {p.captainCount > 0 && ` — (C) u ${p.captainCount}`}
+                      </span>
+                      <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize} ma</span>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           )}
@@ -553,7 +646,16 @@ export default function Home() {
                         style={{ cursor: 'pointer' }}
                         title="Kliknij, żeby zobaczyć skład w bieżącej kolejce"
                       >
-                        <td>{preSeason ? idx + 1 : e.rank}</td>
+                        <td>
+                          {preSeason ? idx + 1 : e.rank}
+                          {!preSeason && e.last_rank > 0 && e.last_rank !== e.rank && (
+                            e.rank < e.last_rank ? (
+                              <span className="rankup" title={`Poprzednio: ${e.last_rank}`}> ▲{e.last_rank - e.rank}</span>
+                            ) : (
+                              <span className="rankdown" title={`Poprzednio: ${e.last_rank}`}> ▼{e.rank - e.last_rank}</span>
+                            )
+                          )}
+                        </td>
                         <td>
                           {e.player_name}
                           <span className="qchevron">{isOpenManager ? '▲' : '▼'}</span>
@@ -612,8 +714,9 @@ export default function Home() {
                                       {p.name} ({p.team})
                                       {p.isCaptain && ' (C)'}
                                       {p.isViceCaptain && ' (VC)'}
+                                      {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
                                     </span>
-                                    <span>{p.total} pkt · {p.ownershipPct}% w lidze</span>
+                                    <span>{p.total} pkt · {p.ownershipPct}% EO</span>
                                   </div>
                                 ))}
 
@@ -623,8 +726,9 @@ export default function Home() {
                                     <span>
                                       <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
                                       {p.name} ({p.team})
+                                      {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
                                     </span>
-                                    <span>{p.total} pkt · {p.ownershipPct}% w lidze</span>
+                                    <span>{p.total} pkt · {p.ownershipPct}% EO</span>
                                   </div>
                                 ))}
                               </div>

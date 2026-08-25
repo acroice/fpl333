@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       total: 0,
       rank: 999999 + idx, // placeholder – żeby nie mieszał się z prawdziwym rankingiem
       event_total: 0,
+      last_rank: 0,
     }));
 
     const raw = results.concat(mappedNew);
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
         total: Number(r.total ?? 0),
         rank: Number(r.rank ?? 999999),
         event_total: Number(r.event_total ?? 0),
+        last_rank: Number(r.last_rank ?? 0), // 0 = FPL nie ma jeszcze poprzedniej pozycji do porównania
       }))
       .sort((a: any, b: any) => a.rank - b.rank);
 

@@ -43,6 +43,8 @@ export type EntryHistoryData = {
 
 export type LeagueEntryBasic = { entry: number; player_name: string; entry_name: string };
 
+export type AutomaticSub = { elementIn: number; elementOut: number };
+
 export type PicksData = {
   activeChip: string | null;
   entryHistory: {
@@ -51,6 +53,7 @@ export type PicksData = {
     bank: number; value: number; pointsOnBench: number;
   };
   picks: { element: number; position: number; multiplier: number; isCaptain: boolean; isViceCaptain: boolean }[];
+  automaticSubs: AutomaticSub[];
 };
 
 export type BootstrapSlim = {
@@ -188,6 +191,7 @@ async function fetchEntryPicksRaw(entryId: number, gw: number): Promise<PicksDat
       activeChip: null,
       entryHistory: { event: gw, points: 0, totalPoints: 0, eventTransfers: 0, eventTransfersCost: 0, bank: 0, value: 0, pointsOnBench: 0 },
       picks: [],
+      automaticSubs: [],
     };
   }
   const data = await res.json();
@@ -210,6 +214,14 @@ async function fetchEntryPicksRaw(entryId: number, gw: number): Promise<PicksDat
       multiplier: p.multiplier,
       isCaptain: !!p.is_captain,
       isViceCaptain: !!p.is_vice_captain,
+    })),
+    // Automatyczne zamiany FPL (gdy ktoś z podstawowej 11 nie zagrał wcale, a ławka miała
+    // sensowną alternatywę) — FPL dolicza je dopiero PO zakończeniu kolejki (finished:true
+    // w bootstrap-static), więc dla trwającej/świeżo zamkniętej kolejki ta lista bywa pusta
+    // nawet jeśli zamiana faktycznie się należy.
+    automaticSubs: (data?.automatic_subs ?? []).map((s: any) => ({
+      elementIn: s.element_in,
+      elementOut: s.element_out,
     })),
   };
 }
