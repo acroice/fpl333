@@ -49,7 +49,10 @@ export type TeamInfo = { value: number; transfers: number; transfersCost: number
 
 export type ChipInfo = { code: string; label: string; name?: string };
 
-export type ChipHistoryEntry = { code: string; label: string; name: string; event: number };
+// bonus: pkt zdobyte DZIĘKI temu konkretnemu zagraniu chipa (nie total kolejki) — policzalne dla
+// bboost (suma pkt z ławki) i 3xc (pkt kapitana, czyli nadwyżka ponad zwykłe podwojenie); null dla
+// wildcard/freehit/manager, gdzie nie ma dobrze zdefiniowanego "zysku z chipa" (to chipy transferowe)
+export type ChipHistoryEntry = { code: string; label: string; name: string; event: number; bonus: number | null };
 
 export type SquadPlayer = {
   element: number;

@@ -9,6 +9,7 @@ import {
   playerPhotoUrl,
   CHIP_LABELS,
   CHIP_NAMES,
+  type PicksData,
 } from '../_lib/fpl';
 
 export const revalidate = 0;
@@ -141,7 +142,10 @@ export async function GET(req: NextRequest){
 
     // pełna historia chipów w sezonie per manager (nie tylko latestGw) — do modułu Chips
     // w Statystykach. Też już mamy w pamięci (histories[idx].chips), zero nowych zapytań.
-    const chipHistory: Record<number, { code: string; label: string; name: string; event: number }[]> = {};
+    // Pole `bonus` (zysk PUNKTOWY z tytułu samego chipa, nie total kolejki) jest tu na razie
+    // null — dopełniane niżej, po tym jak dociągniemy skład+live z kolejek, w których chipy
+    // faktycznie padły (patrz sekcja "Bonus z chipa dla całej historii" poniżej).
+    const chipHistory: Record<number, { code: string; label: string; name: string; event: number; bonus: number | null }[]> = {};
     leagueEntries.forEach((plr, idx) => {
       chipHistory[plr.entry] = histories[idx].chips
         .map(c => ({
@@ -149,6 +153,7 @@ export async function GET(req: NextRequest){
           label: CHIP_LABELS[c.name] || c.name,
           name: CHIP_NAMES[c.name] || c.name,
           event: c.event,
+          bonus: null as number | null,
         }))
         .sort((a, b) => a.event - b.event);
     });
@@ -257,24 +262,72 @@ export async function GET(req: NextRequest){
       fetchEventMinutesCached(latestGw),
     ]);
 
-    // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — policzalny dla BB (suma pkt
-    // zawodników z ławki, które bez BB by się nie liczyły) i TC (dodatkowe punkty kapitana ponad
-    // zwykłe podwojenie). Dla WC/FH nie ma dobrze zdefiniowanego "zysku z chipa" (to chip
-    // transferowy, nie punktowy), więc dla nich bonus zostaje null i Chip Master spada wtedy do
-    // rankingu po zwykłym total wśród chipowiczów.
+    // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — dla KAŻDEGO zagrania chipa w
+    // całym sezonie (nie tylko latestGw), żeby moduł Chips w Statystykach mógł pokazać "ile z
+    // tytułu tego chipa", a nie total GW. Policzalny dla BB (suma pkt zawodników z ławki, które
+    // bez BB by się nie liczyły) i TC (dodatkowe punkty kapitana ponad zwykłe podwojenie) — oba
+    // wymagają składu I punktów live z KONKRETNEJ kolejki, w której chip padł. Dla WC/FH/AM nie
+    // ma dobrze zdefiniowanego "zysku z chipa" (to chipy transferowe/menedżerskie, nie
+    // punktowe), więc dla nich bonus zostaje null.
+    const bonusableCodes = new Set(['bboost', '3xc']);
+    const bonusablePlays: { entry: number; code: string; event: number }[] = [];
+    for (const [entryStr, chips] of Object.entries(chipHistory)) {
+      const entry = Number(entryStr);
+      for (const c of chips) {
+        if (bonusableCodes.has(c.code)) bonusablePlays.push({ entry, code: c.code, event: c.event });
+      }
+    }
+    // latestGw mamy już w pamięci (live + allPicksLatest); dociągamy TYLKO to, czego faktycznie
+    // brakuje — jedno picks-zapytanie na parę (manager, kolejka) i jedno live-zapytanie na
+    // unikalną wcześniejszą kolejkę, oba cache'owane w fpl.ts (nic się nie dubluje przy kolejnych
+    // odświeżeniach). Wcześnie w sezonie to zwykle 0 dodatkowych zapytań (chipy dopiero zaczynają
+    // padać w bieżącej kolejce).
+    const extraPlays = bonusablePlays.filter(p => p.event !== latestGw);
+    const extraGws = Array.from(new Set(extraPlays.map(p => p.event)));
+    const [extraLiveList, extraPicksList] = await Promise.all([
+      Promise.all(extraGws.map(gw => fetchEventLiveCached(gw))),
+      Promise.all(extraPlays.map(p => fetchEntryPicksCached(p.entry, p.event))),
+    ]);
+    const liveByGw: Record<number, Record<number, number>> = { [latestGw]: live };
+    extraGws.forEach((gw, i) => { liveByGw[gw] = extraLiveList[i]; });
+    const picksByEntryGw = new Map<string, PicksData>();
+    allPicksLatest.forEach((picks, idx) => {
+      picksByEntryGw.set(`${leagueEntries[idx].entry}:${latestGw}`, picks);
+    });
+    extraPlays.forEach((p, i) => {
+      picksByEntryGw.set(`${p.entry}:${p.event}`, extraPicksList[i]);
+    });
+
+    function computeBonus(code: string, picks: PicksData | undefined, liveMap: Record<number, number> | undefined): number | null {
+      if (!picks || !liveMap) return null;
+      if (code === 'bboost') {
+        return picks.picks.filter(p => p.position > 11).reduce((sum, p) => sum + (liveMap[p.element] ?? 0), 0);
+      }
+      if (code === '3xc') {
+        const captainPick = picks.picks.find(p => p.isCaptain);
+        return captainPick ? (liveMap[captainPick.element] ?? 0) : 0;
+      }
+      return null;
+    }
+
+    // dopełnij chipHistory o realny bonus per zagranie (WC/FH/AM zostają null)
+    for (const entryStr in chipHistory) {
+      chipHistory[Number(entryStr)] = chipHistory[Number(entryStr)].map(c => ({
+        ...c,
+        bonus: bonusableCodes.has(c.code)
+          ? computeBonus(c.code, picksByEntryGw.get(`${entryStr}:${c.event}`), liveByGw[c.event])
+          : null,
+      }));
+    }
+
+    // chipBonus per manager DLA latestGw konkretnie — to jest to, czego nadal potrzebuje
+    // istniejący Chip Master award poniżej (jedno zagranie na managera w bieżącej kolejce)
     const chipBonus: Record<number, number> = {};
-    leagueEntries.forEach((plr, idx) => {
+    leagueEntries.forEach((plr) => {
       const chip = latestChip[plr.entry];
       if (!chip) return;
-      const picks = allPicksLatest[idx];
-      if (chip.code === 'bboost') {
-        chipBonus[plr.entry] = picks.picks
-          .filter(p => p.position > 11)
-          .reduce((sum, p) => sum + (live[p.element] ?? 0), 0);
-      } else if (chip.code === '3xc') {
-        const captainPick = picks.picks.find(p => p.isCaptain);
-        chipBonus[plr.entry] = captainPick ? (live[captainPick.element] ?? 0) : 0;
-      }
+      const b = computeBonus(chip.code, picksByEntryGw.get(`${plr.entry}:${latestGw}`), live);
+      if (b != null) chipBonus[plr.entry] = b;
     });
 
     // Best Captain: kto zagrał INNEGO kapitana niż większość ligi (tzw. "template") i zdobył nim

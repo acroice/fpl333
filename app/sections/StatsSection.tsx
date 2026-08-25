@@ -62,25 +62,27 @@ export default function StatsSection({
     return rec;
   }, [gwPoints]);
 
-  // Chips: pogrupowane per typ chipa (osobny segment na BB/WC/FH/TC/AM), posortowane wg
-  // punktów zdobytych w kolejce, w której dany chip był zagrany — to jest to samo GW-total,
-  // które i tak już mamy w gwPoints, więc "kto ile zdobył grając ten chip" nie wymaga żadnych
-  // nowych zapytań (sam "bonus wyłącznie z chipa" jak przy Chip Master w Awards wymagałby
-  // dociągnięcia picks z każdej wcześniejszej kolejki — to na razie zostaje przy latestGw)
+  // Chips: pogrupowane per typ chipa (osobny segment na BB/WC/FH/TC/AM). Dla BB/TC sortujemy
+  // malejąco wg REALNEGO zysku z chipa (bonus z backendu — dla BB suma pkt z ławki, dla TC pkt
+  // kapitana ponad zwykłe podwojenie; nie total kolejki). Dla WC/FH/AM taki "zysk" nie jest
+  // dobrze zdefiniowany (to chipy transferowe/menedżerskie) — te segmenty zostają jako zwykła,
+  // chronologiczna lista "kto kiedy zagrał", bez zmyślonego rankingu po fałszywej liczbie.
   const chipGroups = React.useMemo(() => {
-    const byCode: Record<string, { entry: number; label: string; name: string; event: number; pts: number }[]> = {};
+    const byCode: Record<string, { entry: number; label: string; name: string; event: number; bonus: number | null }[]> = {};
     for (const [entryStr, chips] of Object.entries(chipHistory)) {
       const entry = Number(entryStr);
       for (const c of chips) {
-        const pts = gwPoints[entry]?.find(g => g.gw === c.event)?.pts;
-        if (pts == null) continue;
         if (!byCode[c.code]) byCode[c.code] = [];
-        byCode[c.code].push({ entry, label: c.label, name: c.name, event: c.event, pts });
+        byCode[c.code].push({ entry, label: c.label, name: c.name, event: c.event, bonus: c.bonus });
       }
     }
-    for (const code in byCode) byCode[code].sort((a, b) => b.pts - a.pts);
+    for (const code in byCode) {
+      byCode[code].sort((a, b) =>
+        a.bonus != null && b.bonus != null ? b.bonus - a.bonus : a.event - b.event
+      );
+    }
     return byCode;
-  }, [chipHistory, gwPoints]);
+  }, [chipHistory]);
   const activeChipCodes = ['bboost', 'wildcard', 'freehit', '3xc', 'manager'].filter(code => (chipGroups[code]?.length ?? 0) > 0);
 
   return (
@@ -216,13 +218,15 @@ export default function StatsSection({
               {rows.map((r, i) => (
                 <div key={`${r.entry}-${r.event}`} className="rankbar">
                   <div className="rankbar-top">
-                    <span className="rankbar-rank">{rankBadge(i)}</span>
+                    <span className="rankbar-rank">{r.bonus != null ? rankBadge(i) : '•'}</span>
                     <span className="rankbar-name">
                       {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
                     </span>
-                    <span className="rankbar-pts">{r.pts} pkt</span>
+                    <span className="rankbar-pts">{r.bonus != null ? `+${r.bonus} z chipa` : `GW${r.event}`}</span>
                   </div>
-                  <div className="rankbar-gap">GW{r.event}</div>
+                  <div className="rankbar-gap">
+                    {r.bonus != null ? `GW${r.event}` : 'brak zdefiniowanego zysku dla tego chipa'}
+                  </div>
                 </div>
               ))}
             </div>
