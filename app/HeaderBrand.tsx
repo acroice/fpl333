@@ -2,10 +2,13 @@
 import React from 'react';
 
 export default function HeaderBrand() {
-  const [alt, setAlt] = React.useState(false);
-
   return (
-    <div className="brand" onClick={() => setAlt(a => !a)} style={{cursor:'pointer'}}>
+    <div
+      className="brand"
+      onClick={() => window.location.reload()}
+      title="Odśwież stronę"
+      style={{cursor:'pointer'}}
+    >
       <img
         src="/fpl333.svg"
         alt="FPL"
@@ -14,7 +17,7 @@ export default function HeaderBrand() {
         style={{ borderRadius: 8, border: '1px solid #16313f' }}
       />
       <div>
-        <div className="headline">{alt ? 'FPL 🐐 League' : 'FPL'}</div>
+        <div className="headline">FPL</div>
       </div>
     </div>
   );

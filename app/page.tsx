@@ -268,8 +268,12 @@ export default function Home() {
   const [compareA, setCompareA] = React.useState<number | null>(null);
   const [compareB, setCompareB] = React.useState<number | null>(null);
 
-  // sekcja "Ćwiartki" (przeniesiona na dół strony) — domyślnie widoczna, chowana kafelkiem
-  const [showQuarters, setShowQuarters] = React.useState(true);
+  // sekcja "Ćwiartki" jest zawsze widoczna (na dole strony) — ref do przewijania do niej
+  // po kliknięciu kafelka "Ćwiartki" w górnym rzędzie zamiast chowania/pokazywania
+  const quartersSectionRef = React.useRef<HTMLElement>(null);
+  function scrollToQuarters() {
+    quartersSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // retro easter egg UI
   const [showRetroBanner, setShowRetroBanner] = React.useState(false);
@@ -591,9 +595,9 @@ export default function Home() {
 
             <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
               <button
-                onClick={() => setShowQuarters(v => !v)}
-                title="Podsumowanie ćwiartek sezonu (Q1–Q4) — na dole strony"
-                className={`toggle-btn${showQuarters ? ' is-active' : ''}`}
+                onClick={scrollToQuarters}
+                title="Przewiń do podsumowania ćwiartek sezonu (Q1–Q4) na dole strony"
+                className="toggle-btn is-active"
               >
                 <span className="dot" />
                 Ćwiartki
@@ -1186,8 +1190,7 @@ export default function Home() {
         </section>
       </div>
 
-      {showQuarters && (
-        <section className="card" style={{ marginTop: 16 }}>
+      <section className="card" style={{ marginTop: 16 }} ref={quartersSectionRef}>
           <div
             className="headline"
             style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', rowGap:'8px', columnGap:'12px' }}
@@ -1363,7 +1366,6 @@ export default function Home() {
           </>
           )}
         </section>
-      )}
     </>
   );
 }
