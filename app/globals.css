@@ -6,6 +6,10 @@ html, body {
   padding:0; margin:0;
   background:var(--bg); color:var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+  /* zabezpieczenie: gdyby jakiś element (np. szeroka tabela) kiedyś znów wymusił szerokość
+     większą niż viewport, ma się przyciąć/scrollować lokalnie, a nie rozepchnąć całą stronę
+     w poziomie — to właśnie robiło "Podsumowanie ćwiartek" i resztę strony wąskimi na telefonie */
+  overflow-x: hidden;
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -17,7 +21,11 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 
 .badge { background: #0f2029; color: var(--accent); border:1px solid #16313f; padding:6px 10px; border-radius:999px; font-size:12px; }
 
-.card { background: var(--card); border:1px solid #1c2430; border-radius: 12px; padding:16px; }
+/* min-width:0 jest tu kluczowe: .card bywa dzieckiem CSS Gridu (.grid), a grid/flex items mają
+   domyślnie min-width:auto — czyli odmawiają skurczenia się poniżej minimalnej szerokości swojej
+   zawartości. Z szeroką tabelą w środku to właśnie forsowało całą stronę do rozpychania się
+   w poziomie na wąskich ekranach (overflow-x:auto na .table-scroll nic by nie dał bez tego). */
+.card { background: var(--card); border:1px solid #1c2430; border-radius: 12px; padding:16px; min-width: 0; }
 
 .grid { display:grid; grid-template-columns: 1fr; gap:16px; }
 @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 0.8fr; } }
@@ -301,6 +309,13 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 }
 
 /* -------- TABLE (scalone, bez duplikatów) -------- */
+/* tabela ligi ma dużo kolumn (Manager/Team/Kapitan/Total/GW Pts/Forma/Q Score/Quarter Wins) —
+   na wąskim ekranie jej naturalna szerokość potrafi przekroczyć viewport. Bez tego wrappera
+   tabela rozpychała całą stronę w poziomie (patrz overflow-x:hidden na html,body), przez co
+   WSZYSTKO na stronie — łącznie z sekcją ćwiartek niżej — wyglądało ściśnięte/wąskie. Teraz
+   przekracza swój kontener lokalnie, z własnym scrollem, a reszta strony zostaje pełnej
+   szerokości viewportu. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width:100%; border-collapse: collapse; table-layout: auto; }
 
 th, td {

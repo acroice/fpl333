@@ -962,6 +962,7 @@ export default function Home() {
           ) : error ? (
             <div className="small" style={{ color: '#ff9b9b' }}>{error}</div>
           ) : (
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -1180,6 +1181,7 @@ export default function Home() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </section>
       </div>
