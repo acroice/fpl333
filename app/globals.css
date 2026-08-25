@@ -27,8 +27,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 
 .status { font-size: 13px; color: var(--muted); }
 .kicker { font-size: 14px; color: var(--muted); }
-.pill { background:#0f2029; border: 1px solid #15303e; color:#9fd9ff; padding:2px 8px; border-radius: 999px; font-size:12px; }
-.headline { font-weight:700; font-size: 20px; margin: 0 0 6px; }
+.pill { background:#0f2029; border: 1px solid #15303e; color:#9fd9ff; padding:3px 9px; border-radius: 999px; font-size:12.5px; }
+.headline { font-weight:700; font-size: 21px; margin: 0 0 6px; }
 
 .qgrid { display:grid; grid-template-columns: 1fr; gap:12px; }
 @media (min-width: 600px) { .qgrid { grid-template-columns: 1fr 1fr; } }
@@ -37,11 +37,16 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 /* siatka kafelków Quarter Rankings — osobna od .qgrid (tamta zostaje 2-kolumnowa, używana też
    w porównywarce). Sekcja ćwiartek jest teraz pełnej szerokości pod tabelą, więc na szerokim
    ekranie ma sens jeden rząd z 4 kafelkami zamiast dwóch wąskich rzędów z dużą pustą przestrzenią. */
-.quartersgrid { display:grid; grid-template-columns: 1fr; gap:12px; margin-top:14px; }
+.quartersgrid { display:grid; grid-template-columns: 1fr; gap:14px; margin-top:14px; }
 @media (min-width: 560px) { .quartersgrid { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 980px) { .quartersgrid { grid-template-columns: repeat(4, 1fr); } }
 
-.small { font-size: 12px; color: var(--muted); }
+/* pojedynczy kafelek ćwiartki — padding wydzielony do klasy (zamiast inline w JSX), żeby mógł
+   rosnąć na telefonie razem z resztą typografii w media query niżej */
+.qcard { padding: 14px; }
+.qcard-id { font-size: 17px; font-weight: 700; }
+
+.small { font-size: 12.5px; color: var(--muted); }
 
 /* kompaktowy pasek "Awards of the Week" nad tabelą ligi */
 .awardsrow {
@@ -118,7 +123,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   border:1px solid #16313f;
   border-radius:6px;
   color:#9fd9ff;
-  font-size:12px;
+  font-size:12.5px;
   font-weight:500;
   padding:6px 10px;
   cursor:pointer;
@@ -151,7 +156,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   background:#152a1c;
   border:1px solid #2f5a3d;
   color:#8fe6b3;
-  font-size:12px;
+  font-size:12.5px;
   font-weight:700;
   white-space:nowrap;
 }
@@ -190,9 +195,9 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   background: transparent;
   border: none;
   color: #9fd9ff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
@@ -206,8 +211,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   border:1px solid #16313f;
   border-radius:6px;
   color:var(--text);
-  font-size:12px;
-  padding:6px 8px;
+  font-size:12.5px;
+  padding:7px 9px;
   max-width: 220px;
 }
 .compare-select:focus { outline: 1px solid #3a5a7a; }
@@ -375,7 +380,7 @@ body.retro .qdone {
 }
 /* --- Pasek postępu dla aktualnej ćwiartki --- */
 .qprogress {
-  height: 4px;
+  height: 5px;
   border-radius: 3px;
   background: #1c2430;
   margin-top: 8px;
@@ -400,8 +405,8 @@ body.retro .qdone {
   position: relative;
   flex: 1 1 0;
   min-width: 44px;
-  height: 32px;
-  border-radius: 8px;
+  height: 38px;
+  border-radius: 9px;
   border: 1px solid #1c2430;
   background: #0f1620;
   overflow: hidden;
@@ -412,7 +417,7 @@ body.retro .qdone {
 .seasonbar-label {
   position: relative;
   z-index: 1;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #c8d9e8;
   letter-spacing: .3px;
@@ -432,10 +437,10 @@ body.retro .qdone {
 .qstatuspill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   text-transform: capitalize;
@@ -445,26 +450,60 @@ body.retro .qdone {
 .qstatuspill--upcoming { background: #2a2410; border: 1px solid #5a4d1f; color: #f0c975; }
 
 /* kropka statusu w pigułce: zielona = trwa (live), żółta = wkrótce (pending), czerwona = zakończona (closed) */
-.qstatusdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.qstatusdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .qstatuspill--active .qstatusdot { background: #5ee1a2; box-shadow: 0 0 4px rgba(94,225,162,.7); }
 .qstatuspill--upcoming .qstatusdot { background: #f0c975; }
 .qstatuspill--done .qstatusdot { background: #ff6b6b; }
 
 /* rankingi wewnątrz rozwiniętego kafelka (Top3, minusowe pkt): rząd z pozycją/nazwą/wynikiem,
    a pod nim subtelna informacja o dystansie do lidera tej ćwiartki (zamiast paska postępu) */
-.rankbar { margin-bottom: 7px; }
+.rankbar { margin-bottom: 9px; }
 .rankbar:last-child { margin-bottom: 0; }
 .rankbar-top {
   display: flex;
   align-items: baseline;
   gap: 6px;
 }
-.rankbar-rank { font-weight: 700; color: var(--muted); font-size: 11px; flex-shrink: 0; }
-.rankbar-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); }
-.rankbar-pts { font-weight: 700; font-size: 12.5px; flex-shrink: 0; color: var(--text); }
+.rankbar-rank { font-weight: 700; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.rankbar-name { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); }
+.rankbar-pts { font-weight: 700; font-size: 13.5px; flex-shrink: 0; color: var(--text); }
 .rankbar-gap {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   text-align: right;
-  margin-top: 1px;
+  margin-top: 2px;
+}
+
+/* --- Telefon: dodatkowy bump typografii/odstępów, głównie dla sekcji Podsumowanie ćwiartek —
+   tam tekst był w większości oparty o .small (12px), więc na małym ekranie wyglądał wyraźnie
+   drobniej niż reszta strony (główna tabela korzysta z domyślnej wielkości przeglądarki). --- */
+@media (max-width: 600px) {
+  .container { padding: 14px; }
+  .headline { font-size: 20px; }
+  .small { font-size: 14px; }
+  .pill { font-size: 13px; padding: 4px 10px; }
+
+  .qcard { padding: 18px; }
+  .qcard-id { font-size: 19px; }
+  .quartersgrid { gap: 16px; }
+
+  .seasonbar { gap: 6px; margin: 16px 0 6px; }
+  .seasonbar-seg { height: 46px; border-radius: 10px; }
+  .seasonbar-label { font-size: 16px; }
+
+  .qstatuspill { font-size: 13px; padding: 4px 10px; }
+  .qstatusdot { width: 9px; height: 9px; }
+
+  .qprogress { height: 7px; margin-top: 10px; }
+
+  .rankbar { margin-bottom: 12px; }
+  .rankbar-rank { font-size: 14px; }
+  .rankbar-name { font-size: 15px; }
+  .rankbar-pts { font-size: 15px; }
+  .rankbar-gap { font-size: 13px; }
+
+  .toggle-btn { font-size: 13.5px; padding: 8px 12px; }
+  .leadbadge { font-size: 13px; padding: 4px 11px; }
+  .statchip-value { font-size: 13.5px; }
+  .statchip-label { font-size: 10.5px; }
 }

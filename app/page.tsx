@@ -1256,12 +1256,12 @@ export default function Home() {
               return (
                 <div
                   key={q.id}
-                  className={`card ${statusClass}`}
-                  style={{ padding: '14px', opacity: isLocked ? 0.85 : 1 }}
+                  className={`card qcard ${statusClass}`}
+                  style={{ opacity: isLocked ? 0.85 : 1 }}
                 >
                   <div className="qtitle" style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                      <span style={{ fontSize: 16 }}>{q.id}</span>
+                      <span className="qcard-id">{q.id}</span>
                       <span className="pill">GW {q.gw_from}–{q.gw_to}</span>
                     </div>
                     <span className={`qstatuspill qstatuspill--${statusKey}`}>
