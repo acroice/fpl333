@@ -252,6 +252,7 @@ export default function LeagueSection({
             {sortedLeague.map((e) => {
               const isOpenManager = openManagerEntry === e.entry;
               const chip = latestChip[e.entry];
+              const captain = captainInfo[e.entry];
               const squad = squadCache[e.entry];
 
               return (
@@ -264,6 +265,12 @@ export default function LeagueSection({
                     </span>
                     <span className="leaguecard-total">{e.total}</span>
                   </div>
+                  {captain && (
+                    <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
+                      <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
+                      <span>{captain.name}</span>
+                    </div>
+                  )}
                   <div className="leaguecard-row2">
                     <span>{renderDelta(e)} · GW {e.event_total}</span>
                     <span>{renderGap(e)}</span>
