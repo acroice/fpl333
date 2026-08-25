@@ -762,7 +762,7 @@ export default function Home() {
                         <PlayerAvatar src={p.photoUrl} alt={p.name} />
                         <span className="pill">{p.position}</span>
                         {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-                        {p.captainCount > 0 && ` — (C) u ${p.captainCount}`}
+                        {p.captainCount > 0 && ` — kapitan u ${p.captainCount}/${overview.leagueSize}`}
                       </span>
                       <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize}</span>
                     </div>
@@ -781,7 +781,7 @@ export default function Home() {
                           <span className="pill">{p.position}</span>
                           {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                         </span>
-                        <span>{p.points} pkt · obstawy ({p.ownedCount}/{overview.leagueSize})</span>
+                        <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize}</span>
                       </div>
                     ))
                   )}
