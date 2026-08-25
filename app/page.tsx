@@ -199,10 +199,11 @@ export default function Home() {
   const [currentScores, setCurrentScores] = React.useState<Record<number, number>>({});
   const [currentQuarterId, setCurrentQuarterId] = React.useState<string>('Q1');
 
-  // pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce, per manager —
-  // czysto informacyjne: currentScores jest już netto, to tylko pokazuje "ile to kosztowało"
+  // minusowe pkt (transfery ponad darmowy limit) w bieżącej ćwiartce, per manager — czysto
+  // informacyjne: currentScores jest już netto, to tylko pokazuje "ile to kosztowało". Badge
+  // w głównej tabeli jest zawsze widoczny; ten toggle steruje tylko rankingiem minusowych
+  // punktów wewnątrz rozwiniętego kafelka ćwiartki (Quarter Rankings, na dole strony).
   const [currentHits, setCurrentHits] = React.useState<Record<number, number>>({});
-  // czy pokazywać wgląd w hity (domyślnie schowane — opcjonalny, kompaktowy dodatek)
   const [showHits, setShowHits] = React.useState(false);
 
   // zwycięzcy zakończonych ćwiartek
@@ -523,7 +524,7 @@ export default function Home() {
       'Total',
       'GW Pts',
       `${currentScoreLabel}`,
-      ...(showHits ? [`${currentQuarterId} Hits`] : []),
+      `${currentQuarterId} Minusowe pkt`,
       'Quarter wins'
     ];
 
@@ -540,7 +541,7 @@ export default function Home() {
         e.total,
         e.event_total,
         currentQpts,
-        ...(showHits ? [currentQhits] : []),
+        currentQhits,
         wins
       ];
     });
@@ -601,14 +602,6 @@ export default function Home() {
               >
                 <span className="dot" />
                 Ćwiartki
-              </button>
-              <button
-                onClick={() => setShowHits(v => !v)}
-                title="Pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce"
-                className={`toggle-btn${showHits ? ' is-active' : ''}`}
-              >
-                <span className="dot" />
-                Hity
               </button>
               <button
                 onClick={toggleOverview}
@@ -825,11 +818,24 @@ export default function Home() {
                 const sqB = squadCache[compareB];
                 const bElements = new Set(sqB.squad.map(p => p.element));
                 const aElements = new Set(sqA.squad.map(p => p.element));
-                const onlyA = sqA.squad.filter(p => !bElements.has(p.element));
-                const onlyB = sqB.squad.filter(p => !aElements.has(p.element));
+
+                // różnice składu (differentials) — posortowane wg wpływu na wynik (najwięcej pkt na górze),
+                // żeby od razu było widać, który różnicowy zawodnik realnie decyduje o przewadze
+                const onlyA = sqA.squad.filter(p => !bElements.has(p.element)).sort((a, b) => b.total - a.total);
+                const onlyB = sqB.squad.filter(p => !aElements.has(p.element)).sort((a, b) => b.total - a.total);
                 const commonCount = sqA.squad.length - onlyA.length;
                 const capA = sqA.squad.find(p => p.isCaptain);
                 const capB = sqB.squad.find(p => p.isCaptain);
+
+                const totalA = sqA.entryHistory.points;
+                const totalB = sqB.entryHistory.points;
+                const totalDiff = totalA - totalB;
+
+                // suma punktów, które faktycznie wniosły różnicowi zawodnicy (po ×kapitan) — to jest
+                // "ile ci różni zawodnicy realnie zmienili w wyniku", a nie tylko lista nazwisk
+                const onlyASum = onlyA.reduce((sum, p) => sum + p.total, 0);
+                const onlyBSum = onlyB.reduce((sum, p) => sum + p.total, 0);
+                const diffSwing = onlyASum - onlyBSum;
 
                 const renderList = (rows: SquadPlayer[]) =>
                   rows.length === 0 ? (
@@ -842,6 +848,7 @@ export default function Home() {
                           <span className="pill">{p.position}</span>
                           {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                           {p.isCaptain && ' (C)'}
+                          {p.isBench && <span className="subbadge" title="Na ławce">ław.</span>}
                         </span>
                         <span>{p.total} pkt</span>
                       </div>
@@ -850,26 +857,60 @@ export default function Home() {
 
                 return (
                   <>
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', flexWrap: 'wrap',
+                        gap: 10, marginBottom: 10
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
+                        {sqA.playerName}: {totalA} pkt
+                      </span>
+                      <span style={{ color: 'var(--muted)' }}>vs</span>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
+                        {sqB.playerName}: {totalB} pkt
+                      </span>
+                      {totalDiff !== 0 ? (
+                        <span className="leadbadge">
+                          {totalDiff > 0 ? sqA.playerName : sqB.playerName} prowadzi o {Math.abs(totalDiff)} pkt
+                        </span>
+                      ) : (
+                        <span className="leadbadge leadbadge--neutral">remis</span>
+                      )}
+                    </div>
+
                     <div style={{ marginBottom: 10 }}>
                       Kapitan: <strong>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
                       {' '}vs{' '}
                       <strong>{sqB.playerName}</strong>: {capB ? `${capB.name} · ${capB.total} pkt` : '—'}
                     </div>
+
                     <div className="qgrid">
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                          Tylko u {sqA.playerName} ({onlyA.length}):
+                          Tylko u {sqA.playerName} ({onlyA.length}) · suma: {onlyASum} pkt
                         </div>
                         {renderList(onlyA)}
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                          Tylko u {sqB.playerName} ({onlyB.length}):
+                          Tylko u {sqB.playerName} ({onlyB.length}) · suma: {onlyBSum} pkt
                         </div>
                         {renderList(onlyB)}
                       </div>
                     </div>
-                    <div style={{ marginTop: 10, color: 'var(--muted)' }}>
+
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ color: 'var(--muted)' }}>Różnica z różnic składu:</span>
+                      {diffSwing !== 0 ? (
+                        <span className="leadbadge">
+                          {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt
+                        </span>
+                      ) : (
+                        <span className="leadbadge leadbadge--neutral">bez przewagi</span>
+                      )}
+                    </div>
+                    <div style={{ marginTop: 6, color: 'var(--muted)' }}>
                       Wspólnych zawodników: {commonCount}
                     </div>
                   </>
@@ -982,10 +1023,10 @@ export default function Home() {
                         </td>
                         <td>
                           {currentScores[e.entry] ?? 0}
-                          {showHits && (currentHits[e.entry] ?? 0) > 0 && (
+                          {(currentHits[e.entry] ?? 0) > 0 && (
                             <span
                               className="hitbadge"
-                              title={`Stracone na hitach w ${currentScoreLabel}: -${currentHits[e.entry]} pkt (${currentHits[e.entry] / 4} × -4 za transfer ponad limit)`}
+                              title={`Minusowe pkt (transfery ponad darmowy limit) w ${currentScoreLabel}: -${currentHits[e.entry]} pkt (${currentHits[e.entry] / 4} × -4 za transfer ponad limit)`}
                             >
                               ⚡-{currentHits[e.entry]}
                             </span>
@@ -1010,10 +1051,11 @@ export default function Home() {
 
                               // punkty ławki liczone z samego składu (nie z FPL entryHistory.pointsOnBench,
                               // które przy Bench Boost pokazuje 0 — bo nic się "nie zmarnowało", a nie że
-                              // ławka nie zdobyła punktów). benchCounted > 0, gdy chip BB je wliczył do total.
-                              const benchList = displaySquad.filter(p => p.isBench);
-                              const benchRawPoints = benchList.reduce((sum, p) => sum + p.points, 0);
-                              const benchCountedPoints = benchList.reduce((sum, p) => sum + p.total, 0);
+                              // ławka nie zdobyła punktów). Czy się liczą, widać już przy graczach niżej
+                              // (✓/– obok punktów), więc tu tylko surowa suma.
+                              const benchRawPoints = displaySquad
+                                .filter(p => p.isBench)
+                                .reduce((sum, p) => sum + p.points, 0);
 
                               return (
                               <div className="small" style={{ lineHeight: 1.5 }}>
@@ -1023,14 +1065,6 @@ export default function Home() {
                                   {' • '}Transfery: {squad.entryHistory.eventTransfers}
                                   {squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost} pkt)`}
                                   {' • '}Ławka: {benchRawPoints} pkt
-                                  {benchCountedPoints > 0 && (
-                                    <span
-                                      className="benchcountbadge"
-                                      title="Punkty z ławki wliczone do total dzięki Bench Boost (lub autosubowi)"
-                                    >
-                                      ✓ liczy się (+{benchCountedPoints})
-                                    </span>
-                                  )}
                                   {' • '}Wartość: £{(squad.entryHistory.value / 10).toFixed(1)}m
                                   {squad.activeChip && (
                                     <span className="chipbadge" title={squad.activeChip.name}>
@@ -1038,15 +1072,26 @@ export default function Home() {
                                     </span>
                                   )}
                                   {squad.hasProjection && (
-                                    <button
-                                      onClick={() => setUseProjection(prev => ({ ...prev, [e.entry]: !showingProjected }))}
+                                    <span
+                                      className="viewswitch"
+                                      role="group"
+                                      aria-label="Widok składu: jak wybrany czy z projekcją autosubów"
                                       title="Ktoś w tym składzie na pewno nie zagrał (mecz się skończył) — przełącz między projekcją autosubów a surowym wyborem"
-                                      className={`toggle-btn${showingProjected ? ' is-active' : ''}`}
-                                      style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }}
                                     >
-                                      <span className="dot" />
-                                      Autosuby: projekcja
-                                    </button>
+                                      <span className="viewswitch-thumb" style={{ transform: showingProjected ? 'translateX(100%)' : 'translateX(0)' }} />
+                                      <button
+                                        onClick={() => setUseProjection(prev => ({ ...prev, [e.entry]: false }))}
+                                        className={`viewswitch-option${!showingProjected ? ' is-active' : ''}`}
+                                      >
+                                        Wybrany
+                                      </button>
+                                      <button
+                                        onClick={() => setUseProjection(prev => ({ ...prev, [e.entry]: true }))}
+                                        className={`viewswitch-option${showingProjected ? ' is-active' : ''}`}
+                                      >
+                                        🔮 Projekcja
+                                      </button>
+                                    </span>
                                   )}
                                 </div>
 
@@ -1103,7 +1148,20 @@ export default function Home() {
 
       {showQuarters && (
         <section className="card" style={{ marginTop: 16 }}>
-          <div className="headline">Quarter Rankings</div>
+          <div
+            className="headline"
+            style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', rowGap:'8px', columnGap:'12px' }}
+          >
+            <div>Quarter Rankings</div>
+            <button
+              onClick={() => setShowHits(v => !v)}
+              title="Pokaż ranking minusowych punktów (transfery ponad darmowy limit) w rozwiniętej ćwiartce"
+              className={`toggle-btn${showHits ? ' is-active' : ''}`}
+            >
+              <span className="dot" />
+              Minusowe pkt
+            </button>
+          </div>
           {sideError ? (
             <div className="small" style={{ color: '#ff9b9b' }}>{sideError}</div>
           ) : (
@@ -1196,10 +1254,10 @@ export default function Home() {
                       {showHits && (
                         <>
                           <div style={{fontWeight:600, marginTop:10, marginBottom:4}}>
-                            ⚡ Hity {q.id}:
+                            ⚡ Minusowe pkt {q.id}:
                           </div>
                           {hitsRows.length === 0 ? (
-                            <div>Nikt nie wziął hita w tej ćwiartce</div>
+                            <div>Nikt nie miał minusowych punktów w tej ćwiartce</div>
                           ) : (
                             hitsRows.map((row) => (
                               <div key={row.entry} style={{marginBottom:4, color:'#ff9b9b'}}>

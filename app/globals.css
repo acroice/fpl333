@@ -137,6 +137,64 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
 .countmark--on { color:#5ee1a2; }
 .countmark--off { color:#4a5b6c; }
 
+/* badge przewagi w porównywarce (kto prowadzi, o ile) */
+.leadbadge {
+  display:inline-flex;
+  align-items:center;
+  padding:3px 10px;
+  border-radius:999px;
+  background:#152a1c;
+  border:1px solid #2f5a3d;
+  color:#8fe6b3;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.leadbadge--neutral {
+  background:#0f2029;
+  border-color:#16313f;
+  color:#9fd9ff;
+}
+
+/* suwaczek (segmented switch) do przełączania widoku składu: "jak wybrany" vs "projekcja
+   autosubów" — dwie etykiety na wspólnym torze, z przesuwanym tłem pod aktywną opcją */
+.viewswitch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px;
+  background: #0f2029;
+  border: 1px solid #16313f;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.viewswitch-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  background: #152a1c;
+  border: 1px solid #2f5a3d;
+  border-radius: 999px;
+  transition: transform .2s ease;
+}
+.viewswitch-option {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: #9fd9ff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.viewswitch-option.is-active { color: #8fe6b3; }
+
 /* dropdown wyboru managera w porównywarce */
 .compare-select {
   background:#0f2029;
@@ -222,20 +280,6 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   background:#2a1414;
   border:1px solid #5a2a2a;
   color:#ff9b9b;
-  font-size:11px;
-  font-weight:600;
-  vertical-align:middle;
-}
-
-/* badge: punkty z ławki wliczone do total (Bench Boost / autosub) — obok "Ławka: X pkt" */
-.benchcountbadge {
-  display:inline-block;
-  margin-left:6px;
-  padding:1px 7px;
-  border-radius:999px;
-  background:#152a1c;
-  border:1px solid #2f5a3d;
-  color:#8fe6b3;
   font-size:11px;
   font-weight:600;
   vertical-align:middle;
