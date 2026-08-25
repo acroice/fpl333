@@ -45,6 +45,7 @@ type SquadPlayer = {
   name: string;
   team: string;
   position: string;
+  photoUrl: string;
   points: number;      // surowe punkty zawodnika w tej kolejce
   total: number;        // to, co faktycznie wliczyło się do wyniku (po ×kapitan)
   isCaptain: boolean;
@@ -86,7 +87,7 @@ type Awards = {
 type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
 
 type TopOwnedRow = {
-  element: number; name: string; team: string; position: string;
+  element: number; name: string; team: string; position: string; photoUrl: string;
   ownedCount: number; ownedPct: number; captainCount: number; eoPct: number;
 };
 
@@ -98,6 +99,24 @@ const CHIP_ICON: Record<string, string> = {
 };
 function chipIcon(code: string) {
   return CHIP_ICON[code] || '🔹';
+}
+
+// mały okrągły awatar zawodnika (oficjalne zdjęcie z CDN Premier League) — jeśli się nie
+// załaduje (np. zawodnik bez zdjęcia), po prostu znika, żeby nie zostawiać "złamanej" ikonki
+function PlayerAvatar({ src, alt }: { src: string; alt: string }) {
+  const [broken, setBroken] = React.useState(false);
+  if (!src || broken) {
+    return <span className="playeravatar playeravatar--fallback" aria-hidden="true">{alt.slice(0, 1)}</span>;
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="playeravatar"
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 export default function Home() {
@@ -613,8 +632,9 @@ export default function Home() {
                   </div>
                   {overview.topOwned.map(p => (
                     <div key={p.element} className="squadplayer">
-                      <span>
-                        <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                      <span className="squadplayer-name">
+                        <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                        <span className="pill">{p.position}</span>
                         {p.name} ({p.team})
                         {p.captainCount > 0 && ` — (C) u ${p.captainCount}`}
                       </span>
@@ -746,8 +766,9 @@ export default function Home() {
                                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
                                 {squad.squad.filter(p => !p.isBench).map(p => (
                                   <div key={p.element} className="squadplayer">
-                                    <span>
-                                      <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                                    <span className="squadplayer-name">
+                                      <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                                      <span className="pill">{p.position}</span>
                                       {p.name} ({p.team})
                                       {p.isCaptain && ' (C)'}
                                       {p.isViceCaptain && ' (VC)'}
@@ -760,8 +781,9 @@ export default function Home() {
                                 <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
                                 {squad.squad.filter(p => p.isBench).map(p => (
                                   <div key={p.element} className="squadplayer" style={{ opacity: 0.7 }}>
-                                    <span>
-                                      <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                                    <span className="squadplayer-name">
+                                      <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                                      <span className="pill">{p.position}</span>
                                       {p.name} ({p.team})
                                       {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
                                     </span>

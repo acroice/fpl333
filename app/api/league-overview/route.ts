@@ -3,6 +3,7 @@ import {
   fetchLeagueEntries,
   fetchEntryPicksCached,
   fetchBootstrapCached,
+  playerPhotoUrl,
   CHIP_LABELS,
   CHIP_NAMES,
 } from '../_lib/fpl';
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
           name: el?.web_name ?? '—',
           team: team?.short_name ?? '',
           position: el ? POSITION_LABEL[el.element_type] ?? '' : '',
+          photoUrl: el ? playerPhotoUrl(el.code) : '',
           ownedCount: count,
           ownedPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
           captainCount: captainCount[element] || 0,

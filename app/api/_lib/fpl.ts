@@ -57,8 +57,15 @@ export type PicksData = {
   automaticSubs: AutomaticSub[];
 };
 
+// Baza CDN oficjalnych zdjęć zawodników PL — publiczny, statyczny wzorzec (bez auth), używany
+// też przez oficjalną stronę FPL. Rozmiary: 40x40 (mała miniaturka), 110x140 (portret).
+export const PLAYER_PHOTO_BASE = 'https://resources.premierleague.com/premierleague/photos/players';
+export function playerPhotoUrl(code: number, size: '40x40' | '110x140' = '40x40') {
+  return `${PLAYER_PHOTO_BASE}/${size}/p${code}.png`;
+}
+
 export type BootstrapSlim = {
-  elementsById: Record<number, { web_name: string; team: number; element_type: number }>;
+  elementsById: Record<number, { web_name: string; team: number; element_type: number; code: number }>;
   teamsById: Record<number, { short_name: string; name: string }>;
   currentGw: number; // is_current, albo ostatni z deadline_time w przeszłości, albo 1
 };
@@ -165,7 +172,7 @@ async function fetchBootstrapRaw(): Promise<BootstrapSlim> {
 
   const elementsById: BootstrapSlim['elementsById'] = {};
   for (const e of data?.elements ?? []) {
-    elementsById[e.id] = { web_name: e.web_name, team: e.team, element_type: e.element_type };
+    elementsById[e.id] = { web_name: e.web_name, team: e.team, element_type: e.element_type, code: e.code };
   }
   const teamsById: BootstrapSlim['teamsById'] = {};
   for (const t of data?.teams ?? []) {
