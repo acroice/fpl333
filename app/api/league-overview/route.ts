@@ -51,14 +51,14 @@ export async function GET(req: NextRequest) {
       pct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
     })).sort((a, b) => b.count - a.count);
 
-    // Ownership + Effective Ownership per zawodnik w całej lidze
+    // Ownership per zawodnik w całej lidze (zwykły % obstawy, bez mnożnika za kapitana —
+    // Effective Ownership potrafiła przekraczać 100% u często kapitanowanych graczy, co
+    // wyglądało jak błąd, więc tu celowo zwykłe 0-100%)
     const ownedCount: Record<number, number> = {};
-    const multiplierSum: Record<number, number> = {};
     const captainCount: Record<number, number> = {};
     for (const p of allPicks) {
       for (const pick of p.picks) {
         ownedCount[pick.element] = (ownedCount[pick.element] || 0) + 1;
-        multiplierSum[pick.element] = (multiplierSum[pick.element] || 0) + pick.multiplier;
         if (pick.isCaptain) captainCount[pick.element] = (captainCount[pick.element] || 0) + 1;
       }
     }
@@ -78,12 +78,11 @@ export async function GET(req: NextRequest) {
         ownedCount: count,
         ownedPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
         captainCount: captainCount[element] || 0,
-        eoPct: leagueSize ? Math.round(((multiplierSum[element] || 0) / leagueSize) * 100) : 0,
       };
     });
 
     const topOwned = [...ownershipRows]
-      .sort((a, b) => b.eoPct - a.eoPct || b.ownedCount - a.ownedCount)
+      .sort((a, b) => b.ownedCount - a.ownedCount)
       .slice(0, 6);
 
     // Różnicowi zawodnicy: nisko obstawiani w lidze (≤20%), a mimo to dobrze punktujący w tej

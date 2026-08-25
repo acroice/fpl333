@@ -332,7 +332,16 @@ th, td {
 th { color: #a6bbcf; font-weight: 600; font-size: 13px; letter-spacing: .3px; text-transform: uppercase; }
 tr:hover td { background: rgba(255,255,255,0.02); }
 
-@media (max-width: 600px){ th, td { padding: 10px 10px; } }
+@media (max-width: 600px){
+  /* główna tabela ligi: delikatnie mniejsza na telefonie (mniejsze wiersze/odznaki), żeby
+     nie zajmowała nadmiernie dużo miejsca — w przeciwieństwie do Podsumowania ćwiartek, które
+     ma zostać duże, tabela ma dużo kolumn i sporo wierszy, więc kompaktowość tu pomaga */
+  th, td { padding: 8px 8px; font-size: 13.5px; }
+  th { font-size: 11px; }
+  .playeravatar { width: 22px; height: 22px; }
+  .clubbadge { width: 12px; height: 12px; }
+  .chipbadge { font-size: 10px; padding: 1px 6px 1px 4px; }
+}
 
 /* -------- Retro theme (Konami) -------- */
 body.retro { background: #001a12 !important; color: #d9ffe9 !important; }

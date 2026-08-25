@@ -97,7 +97,7 @@ type ChipUsageRow = { code: string; label: string; name: string; count: number; 
 
 type TopOwnedRow = {
   element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
-  ownedCount: number; ownedPct: number; captainCount: number; eoPct: number;
+  ownedCount: number; ownedPct: number; captainCount: number;
 };
 
 type CaptaincyRow = {
@@ -747,24 +747,24 @@ export default function Home() {
                       <span className="squadplayer-name">
                         <PlayerAvatar src={p.photoUrl} alt={p.name} />
                         <span className="pill">{p.position}</span>
-                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
                       </span>
                       <span>{p.points} pkt · {p.captainPct}% C</span>
                     </div>
                   ))}
 
                   <div style={{ fontWeight: 600, margin: '12px 0 6px' }}>
-                    Najczęściej wybierani (EO), top 6:
+                    Najczęściej wybierani, top 6:
                   </div>
                   {overview.topOwned.map(p => (
                     <div key={p.element} className="squadplayer">
                       <span className="squadplayer-name">
                         <PlayerAvatar src={p.photoUrl} alt={p.name} />
                         <span className="pill">{p.position}</span>
-                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
                         {p.captainCount > 0 && ` — kapitan u ${p.captainCount}/${overview.leagueSize}`}
                       </span>
-                      <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize}</span>
+                      <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize}</span>
                     </div>
                   ))}
 
@@ -779,7 +779,7 @@ export default function Home() {
                         <span className="squadplayer-name">
                           <PlayerAvatar src={p.photoUrl} alt={p.name} />
                           <span className="pill">{p.position}</span>
-                          {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                          {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
                         </span>
                         <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize}</span>
                       </div>
