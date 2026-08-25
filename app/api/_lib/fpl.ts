@@ -76,6 +76,7 @@ export type BootstrapSlim = {
   teamsById: Record<number, { short_name: string; name: string; code: number }>;
   currentGw: number; // is_current, albo ostatni z deadline_time w przeszłości, albo 1
   nextDeadline: { gw: number; deadline: string } | null; // najbliższy deadline_time w przyszłości (ISO), do TimerBadge
+  eventFinished: Record<number, boolean>; // finished per GW — FPL sam to mówi (oficjalne po doliczeniu bonusów), do statusu LIVE/ZAKOŃCZONA
 };
 
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
@@ -199,7 +200,10 @@ async function fetchBootstrapRaw(): Promise<BootstrapSlim> {
     .sort((a, b) => new Date(a.deadline_time).getTime() - new Date(b.deadline_time).getTime())[0];
   const nextDeadline = upcoming ? { gw: upcoming.id, deadline: upcoming.deadline_time } : null;
 
-  return { elementsById, teamsById, currentGw, nextDeadline };
+  const eventFinished: Record<number, boolean> = {};
+  for (const e of events) eventFinished[e.id] = !!e.finished;
+
+  return { elementsById, teamsById, currentGw, nextDeadline, eventFinished };
 }
 
 // Słownik zawodników/drużyn + numer bieżącej kolejki, z dłuższym cache TTL (dane rzadko się zmieniają).

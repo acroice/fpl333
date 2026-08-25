@@ -409,7 +409,8 @@ export async function GET(req: NextRequest){
       gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
       captainInfo,             // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
       teamInfo,                // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
-      chipHistory               // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
+      chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
+      gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

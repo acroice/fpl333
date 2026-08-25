@@ -64,6 +64,9 @@ export default function Home() {
   const [captainInfo, setCaptainInfo] = React.useState<Record<number, CaptainInfo>>({});
   // wartość drużyny + transfery w najświeższej kolejce (subtelny wgląd pod nazwą teamu)
   const [teamInfo, setTeamInfo] = React.useState<Record<number, TeamInfo>>({});
+  // status latestGw: true=zakończona, false=live, null=nie da się wiarygodnie ustalić (do
+  // badge'a "GW X · LIVE/ZAKOŃCZONA" w Lidze) — z FPL bootstrap-static (już i tak pobierany)
+  const [gwFinished, setGwFinished] = React.useState<boolean | null>(null);
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -89,7 +92,7 @@ export default function Home() {
   const [showRetroBanner, setShowRetroBanner] = React.useState(false);
 
   // sortowanie tabeli
-  const [sortKey, setSortKey] = React.useState<'rank' | 'total' | 'gw' | 'currentQ' | 'wins'>('rank');
+  const [sortKey, setSortKey] = React.useState<'rank' | 'total' | 'gw'>('rank');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
 
   // helper do podglądu danych gracza po entryId
@@ -169,6 +172,7 @@ export default function Home() {
         setGwPoints(wData.gwPoints || {});
         setCaptainInfo(wData.captainInfo || {});
         setTeamInfo(wData.teamInfo || {});
+        setGwFinished(wData.gwFinished ?? null);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -211,7 +215,7 @@ export default function Home() {
   const currentScoreLabel = `${currentQuarterId} Score`;
 
   // klik nagłówka tabeli do sortowania
-  function toggleSort(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
+  function toggleSort(col: 'rank'|'total'|'gw') {
     if (sortKey === col) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     } else {
@@ -239,12 +243,6 @@ export default function Home() {
         if (sortKey === 'gw') {
           return e.event_total;
         }
-        if (sortKey === 'currentQ') {
-          return currentScores[e.entry] ?? 0;
-        }
-        if (sortKey === 'wins') {
-          return qWins[e.entry] ?? 0;
-        }
         return 0;
       }
 
@@ -260,10 +258,10 @@ export default function Home() {
     });
 
     return arr;
-  }, [league, sortKey, sortDir, preSeason, currentScores, qWins]);
+  }, [league, sortKey, sortDir, preSeason]);
 
   // helper do strzałki sortowania w nagłówku
-  function sortArrow(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
+  function sortArrow(col: 'rank'|'total'|'gw') {
     if (sortKey !== col) return '';
     return sortDir === 'asc' ? '↑' : '↓';
   }
@@ -404,10 +402,7 @@ export default function Home() {
           sortDir={sortDir}
           toggleSort={toggleSort}
           sortArrow={sortArrow}
-          currentScoreLabel={currentScoreLabel}
-          currentScores={currentScores}
-          currentHits={currentHits}
-          qWins={qWins}
+          gwFinished={gwFinished}
           latestChip={latestChip}
           captainInfo={captainInfo}
           teamInfo={teamInfo}

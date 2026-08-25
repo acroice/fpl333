@@ -704,6 +704,116 @@ body.retro .qdone {
 .seasonchart-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* ============================================================
+   Liga / League Center
+   ============================================================ */
+.leaguectx {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  row-gap: 8px;
+  column-gap: 12px;
+  margin-bottom: 14px;
+}
+.leaguectx-left { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 20px; }
+.leaguectx-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* druga linia w komórce Managera (desktop): team, kapitan, FT/TV/PLD — celowo przygaszona */
+.teaminfo-line { margin-top: 2px; display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+.teaminfo-line .playeravatar { width: 16px; height: 16px; vertical-align: middle; }
+
+/* Δ Rank i Gap — kolor wspiera znaczenie, ale strzałka/tekst niosą je samodzielnie */
+.deltarank { font-weight: 700; font-size: 12.5px; }
+.deltarank--up { color: #5ee1a2; }
+.deltarank--down { color: #ff9b9b; }
+.deltarank--flat { color: var(--muted); }
+.gapcell { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+.gapcell--leader {
+  color: #5ee1a2;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: .4px;
+}
+
+/* desktop widoczny domyślnie, mobile karty schowane — odwrócone w media query niżej */
+.leaguetable-mobile { display: none; }
+
+/* --- GW Pulse: 4 kompaktowe KPI, tie-aware --- */
+.gwpulse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.gwpulse-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.005));
+  border: 1px solid #1c2430;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.gwpulse-icon { font-size: 15px; }
+.gwpulse-item b { font-size: 19px; font-weight: 800; color: var(--text); margin-top: 2px; }
+.gwpulse-item .small { white-space: normal; overflow-wrap: anywhere; }
+.gwpulse-label { font-size: 10px; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 3px; }
+
+/* --- League Insight: jeden baner, deterministyczny --- */
+.insight-banner {
+  margin-top: 14px;
+  background: #0f2029;
+  border: 1px solid #16313f;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9fd9ff;
+}
+
+/* --- Mobile: karty rankingu (nie ściśnięta tabela) --- */
+.leaguecard {
+  padding: 10px 4px;
+  border-bottom: 1px solid #1c2430;
+  cursor: pointer;
+}
+.leaguecard:last-child { border-bottom: none; }
+.leaguecard-row1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.leaguecard-rank { font-weight: 700; color: var(--muted); font-size: 13px; flex-shrink: 0; width: 18px; }
+.leaguecard-manager {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.leaguecard-total { font-weight: 800; font-size: 16px; color: var(--text); flex-shrink: 0; }
+.leaguecard-row2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3px;
+  padding-left: 26px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.leaguecard-drill {
+  margin: 10px 0 4px 26px;
+  padding-top: 10px;
+  border-top: 1px solid #1c2430;
+  cursor: default;
+}
+
+/* ============================================================
    Mobile (≤600px): dolny fixed nav zamiast górnego paska + dodatkowe
    dostosowania nowych sekcji. Ostatni blok w pliku celowo — musi
    wygrać z wcześniejszymi regułami tej samej specyficzności.
@@ -743,4 +853,10 @@ body.retro .qdone {
   .comparestats { grid-template-columns: 1fr; }
   .gwcenter-grid, .records-grid { grid-template-columns: 1fr 1fr; }
   .qwinnersrow { grid-template-columns: 1fr 1fr; }
+
+  /* Liga: karty zamiast tabeli, GW Pulse w układzie 2×2 */
+  .leaguetable-desktop { display: none; }
+  .leaguetable-mobile { display: block; }
+  .gwpulse-grid { grid-template-columns: 1fr 1fr; }
+  .leaguectx-left { font-size: 17px; }
 }
