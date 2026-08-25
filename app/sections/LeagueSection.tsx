@@ -136,11 +136,11 @@ export default function LeagueSection({
                             className="small teaminfo"
                             title={
                               teamInfo[e.entry].transfersCost > 0
-                                ? `FT: transfery w tej kolejce (-${teamInfo[e.entry].transfersCost} pkt) • TV: wartość drużyny • PLAYED: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
-                                : `FT: transfery w tej kolejce • TV: wartość drużyny • PLAYED: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
+                                ? `FT: transfery w tej kolejce (-${teamInfo[e.entry].transfersCost} pkt) • TV: wartość drużyny • PLD: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
+                                : `FT: transfery w tej kolejce • TV: wartość drużyny • PLD: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
                             }
                           >
-                            FT: {teamInfo[e.entry].transfers} · TV: £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLAYED: {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
+                            FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
                           </div>
                         )}
                       </td>

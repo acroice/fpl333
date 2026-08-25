@@ -341,11 +341,12 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   /* główna tabela ligi: delikatnie mniejsza na telefonie (mniejsze wiersze/odznaki), żeby
      nie zajmowała nadmiernie dużo miejsca — w przeciwieństwie do Podsumowania ćwiartek, które
      ma zostać duże, tabela ma dużo kolumn i sporo wierszy, więc kompaktowość tu pomaga */
-  th, td { padding: 8px 8px; font-size: 13.5px; }
-  th { font-size: 11px; }
-  .playeravatar { width: 22px; height: 22px; }
-  .clubbadge { width: 12px; height: 12px; }
-  .chipbadge { font-size: 10px; padding: 1px 6px 1px 4px; }
+  th, td { padding: 6px 6px; font-size: 11.5px; }
+  th { font-size: 9.5px; }
+  .playeravatar { width: 18px; height: 18px; }
+  .clubbadge { width: 10px; height: 10px; }
+  .chipbadge { font-size: 9px; padding: 1px 5px 1px 3px; margin-left: 4px; }
+  .qchevron { font-size: 9px; }
 }
 
 /* -------- Retro theme (Konami) -------- */
@@ -538,7 +539,7 @@ body.retro .qdone {
 
   /* .teaminfo musi być ostatnią deklaracją dla tej klasy w pliku, żeby wygrać z .small
      (ten sam poziom specyficzności — wygrywa kolejność w kodzie) */
-  .teaminfo { font-size: 10px; }
+  .teaminfo { font-size: 8.5px; margin-top: 0; }
 }
 
 /* ============================================================
