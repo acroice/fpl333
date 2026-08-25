@@ -57,8 +57,9 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 .small { font-size: 12.5px; color: var(--muted); }
 
 /* subtelny wgląd w wartość drużyny + transfery pod nazwą teamu w głównej tabeli — celowo
-   przygaszony (niższa opacity) względem reszty .small, żeby nie konkurował wizualnie z nazwą */
-.teaminfo { opacity: .6; margin-top: 1px; }
+   przygaszony (niższa opacity) i nieco mniejszy niż reszta .small, żeby nie konkurował
+   wizualnie z nazwą */
+.teaminfo { opacity: .6; margin-top: 1px; font-size: 11px; }
 
 /* kompaktowy pasek "Awards of the Week" nad tabelą ligi */
 .awardsrow {
@@ -534,4 +535,8 @@ body.retro .qdone {
   .leadbadge { font-size: 13px; padding: 4px 11px; }
   .statchip-value { font-size: 13.5px; }
   .statchip-label { font-size: 10.5px; }
+
+  /* .teaminfo musi być ostatnią deklaracją dla tej klasy w pliku, żeby wygrać z .small
+     (ten sam poziom specyficzności — wygrywa kolejność w kodzie) */
+  .teaminfo { font-size: 10px; }
 }
