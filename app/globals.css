@@ -39,8 +39,8 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
 .awardsrow {
   display:flex;
   flex-wrap:wrap;
-  gap:6px;
-  margin: 10px 0 14px;
+  gap:8px;
+  margin: 12px 0 16px;
 }
 .awardpill {
   background:#0f2029;
@@ -52,11 +52,46 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   white-space: nowrap;
 }
 
+/* "karty" wyróżnień (Top Gun, Tough Week itd.) — ikona w kolorowym kółku + dwuwierszowy opis */
+.statchip {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.005));
+  border: 1px solid #1c2430;
+  border-radius: 10px;
+  padding: 5px 10px 5px 5px;
+  white-space: nowrap;
+}
+.statchip-icon {
+  width:24px; height:24px;
+  border-radius:7px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px;
+  flex-shrink:0;
+  background: rgba(154,170,190,.10);
+}
+.statchip-text { display:flex; flex-direction:column; line-height:1.25; }
+.statchip-label { font-size:9.5px; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); font-weight:700; }
+.statchip-value { font-size:12.5px; color:var(--text); font-weight:600; }
+.statchip-value b { color:inherit; font-weight:700; }
+
+.statchip--good .statchip-icon { background: rgba(94,225,162,.14); }
+.statchip--good .statchip-value b { color:#5ee1a2; }
+.statchip--bad .statchip-icon { background: rgba(255,120,120,.14); }
+.statchip--bad .statchip-value b { color:#ff9b9b; }
+.statchip--special .statchip-icon { background: rgba(240,201,117,.16); }
+.statchip--special .statchip-value b { color:#f0c975; }
+.statchip--neutral .statchip-icon { background: rgba(159,217,255,.14); }
+.statchip--neutral .statchip-value b { color:#9fd9ff; }
+
 /* badge chipa (BB/WC/FH/TC) przy managerze w tabeli i w drill-downie składu */
 .chipbadge {
-  display:inline-block;
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
   margin-left:6px;
-  padding:1px 6px;
+  padding:1px 7px 1px 5px;
   border-radius:999px;
   background:#2a1e0f;
   border:1px solid #5a4321;
@@ -65,6 +100,39 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   font-weight:600;
   vertical-align:middle;
 }
+
+/* przełącznik-pigułka (Hity / Liga) — stały label, stan pokazany kolorem, bez "pokaż/ukryj" w tekście */
+.toggle-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:#0f2029;
+  border:1px solid #16313f;
+  border-radius:6px;
+  color:#9fd9ff;
+  font-size:12px;
+  font-weight:500;
+  padding:6px 10px;
+  cursor:pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.toggle-btn:hover { border-color:#22405a; }
+.toggle-btn.is-active {
+  background:#152a1c;
+  border-color:#2f5a3d;
+  color:#8fe6b3;
+}
+.toggle-btn .dot {
+  width:6px; height:6px; border-radius:50%;
+  background:#3a4a5a;
+  flex-shrink:0;
+}
+.toggle-btn.is-active .dot { background:#5ee1a2; box-shadow:0 0 4px rgba(94,225,162,.7); }
+
+/* kompaktowy znacznik "liczy się do wyniku" przy zawodniku na ławce */
+.countmark { margin-left:6px; font-size:11px; font-weight:700; }
+.countmark--on { color:#5ee1a2; }
+.countmark--off { color:#4a5b6c; }
 
 /* strzałki zmiany pozycji w tabeli głównej (last_rank vs rank) */
 .rankup { color:#5ee1a2; font-size:11px; font-weight:600; }

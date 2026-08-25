@@ -91,6 +91,14 @@ type TopOwnedRow = {
 
 type LeagueOverview = { gw: number; leagueSize: number; chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[] };
 
+// ikonki chipów FPL do badge'y — czysto kosmetyczne, kod chipa i tak jest w tooltipie
+const CHIP_ICON: Record<string, string> = {
+  bboost: '🪑', wildcard: '🃏', freehit: '🎯', '3xc': '👑', manager: '👔',
+};
+function chipIcon(code: string) {
+  return CHIP_ICON[code] || '🔹';
+}
+
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
   const [participants, setParticipants] = React.useState<number>(0);
@@ -469,36 +477,22 @@ export default function Home() {
               <span className="small">uczestnicy: {participants}</span>
             </div>
 
-            <div style={{ display:'flex', gap:'8px' }}>
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
               <button
                 onClick={() => setShowHits(v => !v)}
-                title="Pokaż/ukryj pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce"
-                style={{
-                  background: showHits ? '#2a1414' : '#0f2029',
-                  border: showHits ? '1px solid #5a2a2a' : '1px solid #16313f',
-                  borderRadius:'6px',
-                  color: showHits ? '#ff9b9b' : '#9fd9ff',
-                  fontSize:'12px',
-                  padding:'6px 10px',
-                  cursor:'pointer'
-                }}
+                title="Pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce"
+                className={`toggle-btn${showHits ? ' is-active' : ''}`}
               >
-                ⚡ Hity {showHits ? 'ukryj' : 'pokaż'}
+                <span className="dot" />
+                Hity
               </button>
               <button
                 onClick={toggleOverview}
                 title="Chipy i ownership w całej lidze dla bieżącej kolejki"
-                style={{
-                  background: showOverview ? '#1e2a14' : '#0f2029',
-                  border: showOverview ? '1px solid #3a5a21' : '1px solid #16313f',
-                  borderRadius:'6px',
-                  color: showOverview ? '#c8f09b' : '#9fd9ff',
-                  fontSize:'12px',
-                  padding:'6px 10px',
-                  cursor:'pointer'
-                }}
+                className={`toggle-btn${showOverview ? ' is-active' : ''}`}
               >
-                📊 Liga {showOverview ? 'ukryj' : 'pokaż'}
+                <span className="dot" />
+                Wgląd w ligę
               </button>
               <button
                 onClick={downloadCsv}
@@ -520,33 +514,57 @@ export default function Home() {
           {awards && (
             <div className="awardsrow">
               {awards.topGun && (
-                <span className="awardpill" title="Najwyższy wynik w tej kolejce">
-                  🏆 Top Gun: {awards.topGun.player_name} ({awards.topGun.points})
+                <span className="statchip statchip--good" title="Najwyższy wynik w tej kolejce">
+                  <span className="statchip-icon">🏆</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Top Gun</span>
+                    <span className="statchip-value">{awards.topGun.player_name} · <b>{awards.topGun.points}</b></span>
+                  </span>
                 </span>
               )}
               {awards.toughWeek && (
-                <span className="awardpill" title="Najniższy wynik w tej kolejce">
-                  📉 Tough Week: {awards.toughWeek.player_name} ({awards.toughWeek.points})
+                <span className="statchip statchip--bad" title="Najniższy wynik w tej kolejce">
+                  <span className="statchip-icon">📉</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Tough Week</span>
+                    <span className="statchip-value">{awards.toughWeek.player_name} · <b>{awards.toughWeek.points}</b></span>
+                  </span>
                 </span>
               )}
               {awards.chipMaster && (
-                <span className="awardpill" title="Najlepszy wynik z zagranym chipem">
-                  🏅 Chip Master: {awards.chipMaster.player_name} ({awards.chipMaster.points}, {awards.chipMaster.chip?.label})
+                <span className="statchip statchip--special" title="Najlepszy wynik z zagranym chipem">
+                  <span className="statchip-icon">🏅</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Chip Master · {awards.chipMaster.chip?.label}</span>
+                    <span className="statchip-value">{awards.chipMaster.player_name} · <b>{awards.chipMaster.points}</b></span>
+                  </span>
                 </span>
               )}
               {awards.noChipWarrior && (
-                <span className="awardpill" title="Najlepszy wynik bez chipa">
-                  🛡️ No-Chip Warrior: {awards.noChipWarrior.player_name} ({awards.noChipWarrior.points})
+                <span className="statchip statchip--neutral" title="Najlepszy wynik bez chipa">
+                  <span className="statchip-icon">🛡️</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">No-Chip Warrior</span>
+                    <span className="statchip-value">{awards.noChipWarrior.player_name} · <b>{awards.noChipWarrior.points}</b></span>
+                  </span>
                 </span>
               )}
               {awards.valueKing && (
-                <span className="awardpill" title="Najwyższa wartość drużyny">
-                  💰 Value King: {awards.valueKing.player_name} (£{((awards.valueKing.value ?? 0) / 10).toFixed(1)}m)
+                <span className="statchip statchip--special" title="Najwyższa wartość drużyny">
+                  <span className="statchip-icon">💰</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Value King</span>
+                    <span className="statchip-value">{awards.valueKing.player_name} · <b>£{((awards.valueKing.value ?? 0) / 10).toFixed(1)}m</b></span>
+                  </span>
                 </span>
               )}
               {awards.rankCrasher && (
-                <span className="awardpill" title="Największy spadek w rankingu ogólnym FPL vs poprzednia kolejka">
-                  📊 Rank Crasher: {awards.rankCrasher.player_name} (-{awards.rankCrasher.rankChange?.toLocaleString('pl')})
+                <span className="statchip statchip--bad" title="Największy spadek w rankingu ogólnym FPL vs poprzednia kolejka">
+                  <span className="statchip-icon">🔻</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Rank Crasher</span>
+                    <span className="statchip-value">{awards.rankCrasher.player_name} · <b>-{awards.rankCrasher.rankChange?.toLocaleString('pl')}</b></span>
+                  </span>
                 </span>
               )}
             </div>
@@ -664,7 +682,7 @@ export default function Home() {
                           {e.entry_name}
                           {chip && (
                             <span className="chipbadge" title={chip.name || chip.label}>
-                              {chip.label}
+                              {chipIcon(chip.code)} {chip.label}
                             </span>
                           )}
                         </td>
@@ -702,7 +720,9 @@ export default function Home() {
                                   {' • '}Ławka: {squad.entryHistory.pointsOnBench} pkt
                                   {' • '}Wartość: £{(squad.entryHistory.value / 10).toFixed(1)}m
                                   {squad.activeChip && (
-                                    <span className="chipbadge" title={squad.activeChip.name}>{squad.activeChip.label}</span>
+                                    <span className="chipbadge" title={squad.activeChip.name}>
+                                      {chipIcon(squad.activeChip.code)} {squad.activeChip.label}
+                                    </span>
                                   )}
                                 </div>
 
@@ -730,7 +750,12 @@ export default function Home() {
                                     </span>
                                     <span>
                                       {p.points} pkt
-                                      {p.multiplier === 0 ? ' (nie liczą się)' : ' (liczą się)'}
+                                      <span
+                                        className={`countmark ${p.multiplier > 0 ? 'countmark--on' : 'countmark--off'}`}
+                                        title={p.multiplier > 0 ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}
+                                      >
+                                        {p.multiplier > 0 ? '✓' : '–'}
+                                      </span>
                                       {' · '}{p.ownershipPct}% EO
                                     </span>
                                   </div>
