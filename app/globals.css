@@ -35,6 +35,45 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
 
 .small { font-size: 12px; color: var(--muted); }
 
+/* kompaktowy pasek "Awards of the Week" nad tabelą ligi */
+.awardsrow {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin: 10px 0 14px;
+}
+.awardpill {
+  background:#0f2029;
+  border: 1px solid #15303e;
+  color:#c8d9e8;
+  padding:4px 10px;
+  border-radius: 999px;
+  font-size:12px;
+  white-space: nowrap;
+}
+
+/* badge chipa (BB/WC/FH/TC) przy managerze w tabeli i w drill-downie składu */
+.chipbadge {
+  display:inline-block;
+  margin-left:6px;
+  padding:1px 6px;
+  border-radius:999px;
+  background:#2a1e0f;
+  border:1px solid #5a4321;
+  color:#f0c975;
+  font-size:11px;
+  font-weight:600;
+  vertical-align:middle;
+}
+
+/* pojedynczy wiersz zawodnika w rozwiniętym składzie (drill-down) */
+.squadplayer {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:3px 0;
+}
+
 /* kompaktowy badge: pkt stracone na hitach (transfery ponad darmowy limit) */
 .hitbadge {
   display:inline-block;

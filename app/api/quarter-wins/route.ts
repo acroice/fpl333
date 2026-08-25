@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchClassicStandingsCached, fetchEntryHistoryCached } from '../_lib/fpl';
+import { fetchLeagueEntries, fetchEntryHistoryCached, CHIP_LABELS } from '../_lib/fpl';
 
 export const revalidate = 0;
 
@@ -48,37 +48,6 @@ function buildQuarterRanges(): QuarterRange[] {
   return ranges;
 }
 
-// pobierz wszystkich uczestników ligi (standings pobierane przez wspólny, cache'owany fetcher —
-// współdzielony z /api/league, żeby nie odpytywać FPL o te same dane dwa razy)
-async function fetchLeagueEntries(leagueId: string) {
-  const { results, newEntries } = await fetchClassicStandingsCached(leagueId);
-
-  const mappedNew = newEntries.map((n:any)=>({ entry:n.entry, player_name: n.player_first_name + ' ' + n.player_last_name, entry_name: n.entry_name }));
-
-  // map klasycznych wyników
-  const mappedStandings = results.map((r:any)=>({
-    entry: r.entry,
-    player_name: r.player_name,
-    entry_name: r.entry_name
-  }));
-
-  // sklej, deduplikuj po entry
-  const merged = [...mappedStandings, ...mappedNew];
-  const seen = new Map<number, {player_name:string, entry_name:string}>();
-  for (const row of merged){
-    if (!seen.has(row.entry)) {
-      seen.set(row.entry, {player_name: row.player_name, entry_name: row.entry_name});
-    }
-  }
-
-  // zwróć listę unikalnych entry + metadata
-  return Array.from(seen.entries()).map(([entry, info]) => ({
-    entry,
-    player_name: info.player_name,
-    entry_name: info.entry_name
-  }));
-}
-
 export async function GET(req: NextRequest){
   const { searchParams } = new URL(req.url);
   const leagueId = (searchParams.get('leagueId') || '1078207').trim();
@@ -120,7 +89,7 @@ export async function GET(req: NextRequest){
     const histories = await Promise.all(leagueEntries.map(plr => fetchEntryHistoryCached(plr.entry)));
 
     leagueEntries.forEach((plr, idx) => {
-      const hist = histories[idx]; // [{gw, pts}]
+      const hist = histories[idx].current; // [{gw, pts, cost, value, overallRank, benchPoints}]
 
       for (const q of ranges){
         let sum = 0;
@@ -194,6 +163,77 @@ export async function GET(req: NextRequest){
       }));
     }
 
+    // Najświeższa kolejka, dla której mamy dane (max gw obecny w historii managerów) —
+    // używana do badge'a chipa w tabeli głównej i do "Awards of the Week"
+    let latestGw = 0;
+    for (const h of histories) {
+      for (const item of h.current) {
+        if (item.gw > latestGw) latestGw = item.gw;
+      }
+    }
+
+    // Chip zagrany przez każdego managera w latestGw (do badge'a w tabeli głównej)
+    const latestChip: Record<number, { code: string; label: string } | null> = {};
+    leagueEntries.forEach((plr, idx) => {
+      const used = histories[idx].chips.find(c => c.event === latestGw);
+      latestChip[plr.entry] = used ? { code: used.name, label: CHIP_LABELS[used.name] || used.name } : null;
+    });
+
+    // Awards of the Week — kompaktowe wyróżnienia dla latestGw, liczone z danych, które i tak
+    // już mamy (historia per manager), bez dodatkowych zapytań do FPL.
+    const latestRows = leagueEntries.map((plr, idx) => {
+      const cur = histories[idx].current.find(x => x.gw === latestGw);
+      const prev = histories[idx].current.find(x => x.gw === latestGw - 1);
+      return {
+        entry: plr.entry,
+        player_name: plr.player_name || '',
+        entry_name: plr.entry_name || '',
+        points: cur?.pts ?? 0,
+        value: cur?.value ?? 0,
+        overallRank: cur?.overallRank ?? 0,
+        prevOverallRank: prev?.overallRank ?? null,
+        chip: latestChip[plr.entry],
+      };
+    }).filter(r => r.points > 0 || r.value > 0); // pomiń graczy bez danych dla latestGw
+
+    function topBy<T>(rows: T[], key: (r: T) => number): T | null {
+      if (!rows.length) return null;
+      return rows.reduce((best, r) => (key(r) > key(best) ? r : best));
+    }
+    function bottomBy<T>(rows: T[], key: (r: T) => number): T | null {
+      if (!rows.length) return null;
+      return rows.reduce((worst, r) => (key(r) < key(worst) ? r : worst));
+    }
+
+    const withChip = latestRows.filter(r => r.chip);
+    const withoutChip = latestRows.filter(r => !r.chip);
+    // spadek rankingu ogólnego FPL = overallRank rośnie (większa liczba = gorzej); tylko gdy mamy
+    // dane z poprzedniej kolejki (nie da się policzyć dla GW1)
+    const rankFallers = latestRows.filter(r => r.prevOverallRank != null)
+      .map(r => ({ ...r, rankChange: r.overallRank - (r.prevOverallRank as number) }));
+
+    const mkAward = (r: typeof latestRows[number] | null, extra?: object) =>
+      r ? { entry: r.entry, player_name: r.player_name, entry_name: r.entry_name, ...extra } : null;
+
+    const topGun = topBy(latestRows, r => r.points);
+    const toughWeek = bottomBy(latestRows, r => r.points);
+    const chipMaster = topBy(withChip, r => r.points);
+    const noChipWarrior = topBy(withoutChip, r => r.points);
+    const valueKing = topBy(latestRows, r => r.value);
+    const rankCrasher = topBy(rankFallers, r => r.rankChange);
+
+    const awards = {
+      gw: latestGw,
+      topGun: mkAward(topGun, { points: topGun?.points }),
+      toughWeek: mkAward(toughWeek, { points: toughWeek?.points }),
+      chipMaster: mkAward(chipMaster, { points: chipMaster?.points, chip: chipMaster?.chip }),
+      noChipWarrior: mkAward(noChipWarrior, { points: noChipWarrior?.points }),
+      valueKing: mkAward(valueKing, { value: valueKing?.value }),
+      rankCrasher: rankCrasher && rankCrasher.rankChange > 0
+        ? mkAward(rankCrasher, { rankChange: rankCrasher.rankChange })
+        : null, // brak sensownego spadku (albo brak danych z poprzedniej GW, np. GW1) -> ukryty na froncie
+    };
+
     return NextResponse.json({
       currentQuarter: currentQuarter.id,
       currentRange: { fromGW: currentQuarter.fromGW, toGW: currentQuarter.toGW },
@@ -202,7 +242,10 @@ export async function GET(req: NextRequest){
       wins: winsCount,        // { entryId: trophies }
       winnersByQuarter,       // { Q1:[{entry,points},...], ... } only finished
       quarterTop,             // { Q1:[{entry,player_name,entry_name,points}, ... up to 3], ...}
-      quarterHitsTop          // { Q1:[{entry,player_name,entry_name,hits}, ... up to 5, hits>0], ...}
+      quarterHitsTop,         // { Q1:[{entry,player_name,entry_name,hits}, ... up to 5, hits>0], ...}
+      latestGw,                // numer ostatniej kolejki z danymi
+      latestChip,              // { entryId: {code,label} | null } — chip zagrany w latestGw
+      awards                   // Awards of the Week dla latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

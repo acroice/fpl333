@@ -37,6 +37,48 @@ type QuarterHitsRow = {
   hits: number; // pkt stracone na transferach ponad darmowy limit w tej ćwiartce
 };
 
+type ChipInfo = { code: string; label: string; name?: string };
+
+type SquadPlayer = {
+  element: number;
+  name: string;
+  team: string;
+  position: string;
+  points: number;      // surowe punkty zawodnika w tej kolejce
+  total: number;        // to, co faktycznie wliczyło się do wyniku (po ×kapitan)
+  isCaptain: boolean;
+  isViceCaptain: boolean;
+  isBench: boolean;
+  multiplier: number;
+  ownershipPct: number; // % managerów w naszej lidze, którzy też go mieli w składzie
+};
+
+type SquadData = {
+  gw: number;
+  entryId: number;
+  playerName: string;
+  entryName: string;
+  activeChip: ChipInfo | null;
+  entryHistory: {
+    points: number; totalPoints: number;
+    eventTransfers: number; eventTransfersCost: number;
+    bank: number; value: number; pointsOnBench: number;
+  };
+  squad: SquadPlayer[];
+  leagueSize: number;
+};
+
+type Award = {
+  entry: number; player_name: string; entry_name: string;
+  points?: number; value?: number; chip?: ChipInfo | null; rankChange?: number;
+} | null;
+
+type Awards = {
+  gw: number;
+  topGun: Award; toughWeek: Award; chipMaster: Award;
+  noChipWarrior: Award; valueKing: Award; rankCrasher: Award;
+};
+
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
   const [participants, setParticipants] = React.useState<number>(0);
@@ -72,6 +114,17 @@ export default function Home() {
   const [quarterHitsTop, setQuarterHitsTop] = React.useState<
     Record<string, QuarterHitsRow[]>
   >({});
+
+  // chip zagrany przez każdego managera w najświeższej kolejce (BB/WC/FH/TC), do badge'a w tabeli
+  const [latestChip, setLatestChip] = React.useState<Record<number, ChipInfo | null>>({});
+  // Awards of the Week dla najświeższej kolejki
+  const [awards, setAwards] = React.useState<Awards | null>(null);
+
+  // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania
+  const [openManagerEntry, setOpenManagerEntry] = React.useState<number | null>(null);
+  const [squadCache, setSquadCache] = React.useState<Record<number, SquadData>>({});
+  const [squadLoadingEntry, setSquadLoadingEntry] = React.useState<number | null>(null);
+  const [squadError, setSquadError] = React.useState<string | null>(null);
 
   // który kafelek Q jest rozwinięty
   const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
@@ -153,6 +206,8 @@ export default function Home() {
         setWinnersByQuarter(wData.winnersByQuarter || {});
         setQuarterTop(wData.quarterTop || {});
         setQuarterHitsTop(wData.quarterHitsTop || {});
+        setLatestChip(wData.latestChip || {});
+        setAwards(wData.awards || null);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -270,6 +325,32 @@ export default function Home() {
     setOpenQuarter(prev => (prev === id ? null : id));
   }
 
+  // kliknięcie wiersza managera w tabeli — rozwija/zwija drill-down składu (na żądanie,
+  // z cache po entryId, żeby ponowne kliknięcie nie odpytywało FPL jeszcze raz)
+  async function toggleManager(entry: number) {
+    if (openManagerEntry === entry) {
+      setOpenManagerEntry(null);
+      return;
+    }
+    setOpenManagerEntry(entry);
+    setSquadError(null);
+
+    if (squadCache[entry]) return; // już mamy w cache
+
+    setSquadLoadingEntry(entry);
+    try {
+      const res = await fetch(`/api/squad?leagueId=1078207&entryId=${entry}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'squad fetch failed');
+      setSquadCache(prev => ({ ...prev, [entry]: data }));
+    } catch (err: any) {
+      console.error('squad load error:', err?.message);
+      setSquadError('nie udało się pobrać składu (spróbuj ponownie)');
+    } finally {
+      setSquadLoadingEntry(null);
+    }
+  }
+
   // eksport CSV (zostawiam tak jak mamy)
   function downloadCsv() {
     const header = [
@@ -382,6 +463,41 @@ export default function Home() {
             </div>
           </div>
 
+          {awards && (
+            <div className="awardsrow">
+              {awards.topGun && (
+                <span className="awardpill" title="Najwyższy wynik w tej kolejce">
+                  🏆 Top Gun: {awards.topGun.player_name} ({awards.topGun.points})
+                </span>
+              )}
+              {awards.toughWeek && (
+                <span className="awardpill" title="Najniższy wynik w tej kolejce">
+                  📉 Tough Week: {awards.toughWeek.player_name} ({awards.toughWeek.points})
+                </span>
+              )}
+              {awards.chipMaster && (
+                <span className="awardpill" title="Najlepszy wynik z zagranym chipem">
+                  🏅 Chip Master: {awards.chipMaster.player_name} ({awards.chipMaster.points}, {awards.chipMaster.chip?.label})
+                </span>
+              )}
+              {awards.noChipWarrior && (
+                <span className="awardpill" title="Najlepszy wynik bez chipa">
+                  🛡️ No-Chip Warrior: {awards.noChipWarrior.player_name} ({awards.noChipWarrior.points})
+                </span>
+              )}
+              {awards.valueKing && (
+                <span className="awardpill" title="Najwyższa wartość drużyny">
+                  💰 Value King: {awards.valueKing.player_name} (£{((awards.valueKing.value ?? 0) / 10).toFixed(1)}m)
+                </span>
+              )}
+              {awards.rankCrasher && (
+                <span className="awardpill" title="Największy spadek w rankingu ogólnym FPL vs poprzednia kolejka">
+                  📊 Rank Crasher: {awards.rankCrasher.player_name} (-{awards.rankCrasher.rankChange?.toLocaleString('pl')})
+                </span>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div>Loading…</div>
           ) : error ? (
@@ -425,27 +541,100 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {sortedLeague.map((e, idx) => (
-                  <tr key={e.entry}>
-                    <td>{preSeason ? idx + 1 : e.rank}</td>
-                    <td>{e.player_name}</td>
-                    <td>{e.entry_name}</td>
-                    <td>{e.total}</td>
-                    <td>{e.event_total}</td>
-                    <td>
-                      {currentScores[e.entry] ?? 0}
-                      {showHits && (currentHits[e.entry] ?? 0) > 0 && (
-                        <span
-                          className="hitbadge"
-                          title={`Stracone na hitach w ${currentScoreLabel}: -${currentHits[e.entry]} pkt (${currentHits[e.entry] / 4} × -4 za transfer ponad limit)`}
-                        >
-                          ⚡-{currentHits[e.entry]}
-                        </span>
+                {sortedLeague.map((e, idx) => {
+                  const isOpenManager = openManagerEntry === e.entry;
+                  const chip = latestChip[e.entry];
+                  const squad = squadCache[e.entry];
+
+                  return (
+                    <React.Fragment key={e.entry}>
+                      <tr
+                        onClick={() => toggleManager(e.entry)}
+                        style={{ cursor: 'pointer' }}
+                        title="Kliknij, żeby zobaczyć skład w bieżącej kolejce"
+                      >
+                        <td>{preSeason ? idx + 1 : e.rank}</td>
+                        <td>
+                          {e.player_name}
+                          <span className="qchevron">{isOpenManager ? '▲' : '▼'}</span>
+                        </td>
+                        <td>
+                          {e.entry_name}
+                          {chip && (
+                            <span className="chipbadge" title={chip.name || chip.label}>
+                              {chip.label}
+                            </span>
+                          )}
+                        </td>
+                        <td>{e.total}</td>
+                        <td>{e.event_total}</td>
+                        <td>
+                          {currentScores[e.entry] ?? 0}
+                          {showHits && (currentHits[e.entry] ?? 0) > 0 && (
+                            <span
+                              className="hitbadge"
+                              title={`Stracone na hitach w ${currentScoreLabel}: -${currentHits[e.entry]} pkt (${currentHits[e.entry] / 4} × -4 za transfer ponad limit)`}
+                            >
+                              ⚡-{currentHits[e.entry]}
+                            </span>
+                          )}
+                        </td>
+                        <td>{qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : ''}</td>
+                      </tr>
+
+                      {isOpenManager && (
+                        <tr>
+                          <td colSpan={7} style={{ background: 'rgba(255,255,255,0.015)' }}>
+                            {squadLoadingEntry === e.entry ? (
+                              <div className="small">Ładowanie składu…</div>
+                            ) : squadError ? (
+                              <div className="small" style={{ color: '#ff9b9b' }}>{squadError}</div>
+                            ) : !squad ? (
+                              <div className="small">Brak danych</div>
+                            ) : (
+                              <div className="small" style={{ lineHeight: 1.5 }}>
+                                <div style={{ marginBottom: 8 }}>
+                                  GW{squad.gw} • Total: <strong>{squad.entryHistory.points} pkt</strong>
+                                  {' • '}Transfery: {squad.entryHistory.eventTransfers}
+                                  {squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost} pkt)`}
+                                  {' • '}Ławka: {squad.entryHistory.pointsOnBench} pkt
+                                  {' • '}Wartość: £{(squad.entryHistory.value / 10).toFixed(1)}m
+                                  {squad.activeChip && (
+                                    <span className="chipbadge" title={squad.activeChip.name}>{squad.activeChip.label}</span>
+                                  )}
+                                </div>
+
+                                <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
+                                {squad.squad.filter(p => !p.isBench).map(p => (
+                                  <div key={p.element} className="squadplayer">
+                                    <span>
+                                      <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                                      {p.name} ({p.team})
+                                      {p.isCaptain && ' (C)'}
+                                      {p.isViceCaptain && ' (VC)'}
+                                    </span>
+                                    <span>{p.total} pkt · {p.ownershipPct}% w lidze</span>
+                                  </div>
+                                ))}
+
+                                <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
+                                {squad.squad.filter(p => p.isBench).map(p => (
+                                  <div key={p.element} className="squadplayer" style={{ opacity: 0.7 }}>
+                                    <span>
+                                      <span className="pill" style={{ marginRight: 6 }}>{p.position}</span>
+                                      {p.name} ({p.team})
+                                    </span>
+                                    <span>{p.total} pkt · {p.ownershipPct}% w lidze</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td>{qWins[e.entry] ? '🏆'.repeat(qWins[e.entry]) : ''}</td>
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}
