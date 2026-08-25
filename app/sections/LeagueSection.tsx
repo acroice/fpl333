@@ -1,9 +1,13 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon } from '../components/shared';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
+
+const QUARTER_STATUS_LABEL: Record<Quarter['status'], string> = {
+  trwa: 'LIVE', zakończona: 'ZAKOŃCZONA', wkrótce: 'WKRÓTCE',
+};
 
 type Props = {
   leagueName: string;
@@ -17,7 +21,8 @@ type Props = {
   sortDir: 'asc' | 'desc';
   toggleSort: (col: SortKey) => void;
   sortArrow: (col: SortKey) => string;
-  gwFinished: boolean | null;
+  quarters: Quarter[];
+  currentQuarterId: string;
   latestChip: Record<number, ChipInfo | null>;
   captainInfo: Record<number, CaptainInfo>;
   teamInfo: Record<number, TeamInfo>;
@@ -52,11 +57,19 @@ function namesOf(entries: LeagueEntry[]) {
 export default function LeagueSection({
   leagueName, participants, league, sortedLeague, preSeason, loading, error,
   sortKey, sortDir, toggleSort, sortArrow,
-  gwFinished, latestChip, captainInfo, teamInfo, gwPoints,
+  quarters, currentQuarterId, latestChip, captainInfo, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
   useProjection, setUseProjection, downloadCsv, awards,
 }: Props) {
   const ready = !loading && !error && !preSeason && league.length > 0;
+
+  // status w headerze liczony z ĆWIARTKI (daty — wiarygodne), nie z FPL "finished" na GW: to
+  // pole potrafi zostać false jeszcze długo po tym, jak wszystkie mecze kolejki się skończyły
+  // (FPL czeka na potwierdzenie bonusów), więc "GW X LIVE" bywało mylące mimo zakończonej GW
+  const currentQuarter = React.useMemo(
+    () => quarters.find(q => q.id === currentQuarterId) ?? null,
+    [quarters, currentQuarterId]
+  );
 
   // lider (rank #1 wg oficjalnych danych FPL, nie kolejność w sortedLeague — ta może być
   // przesortowana przez usera) — punkt odniesienia dla Gap
@@ -150,12 +163,13 @@ export default function LeagueSection({
         </div>
         {ready && (
           <div className="leaguectx-right">
-            {awards?.gw != null && (
-              <span className="qstatuspill qstatuspill--active" style={gwFinished === false ? undefined : { background: '#171d26', borderColor: '#263140', color: 'var(--muted)' }}>
-                <span className="qstatusdot" style={gwFinished === false ? undefined : { background: '#5a6b7c' }} />
-                GW {awards.gw}{gwFinished === true ? ' · ZAKOŃCZONA' : gwFinished === false ? ' · LIVE' : ''}
+            {currentQuarter && (
+              <span className={`qstatuspill qstatuspill--${quarterStatusKey(currentQuarter.status)}`} title={`${currentQuarter.from} → ${currentQuarter.to}`}>
+                <span className="qstatusdot" />
+                {currentQuarter.id} · {QUARTER_STATUS_LABEL[currentQuarter.status]}
               </span>
             )}
+            {awards?.gw != null && <span className="small">GW {awards.gw}</span>}
             {leader && (
               <span className="small">Lider: <strong style={{ color: 'var(--text)' }}>{leader.player_name}</strong> · {leader.total} pkt</span>
             )}

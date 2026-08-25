@@ -402,7 +402,8 @@ export default function Home() {
           sortDir={sortDir}
           toggleSort={toggleSort}
           sortArrow={sortArrow}
-          gwFinished={gwFinished}
+          quarters={quarters}
+          currentQuarterId={currentQuarterId}
           latestChip={latestChip}
           captainInfo={captainInfo}
           teamInfo={teamInfo}

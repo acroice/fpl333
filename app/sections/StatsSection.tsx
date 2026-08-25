@@ -62,12 +62,26 @@ export default function StatsSection({
     return rec;
   }, [gwPoints]);
 
-  // Chips: kto zagrał jaki chip i kiedy — tylko managerowie, którzy już coś zagrali
-  const chipRows = React.useMemo(() => {
-    return Object.entries(chipHistory)
-      .map(([entryStr, chips]) => ({ entry: Number(entryStr), chips }))
-      .filter(r => r.chips.length > 0);
-  }, [chipHistory]);
+  // Chips: pogrupowane per typ chipa (osobny segment na BB/WC/FH/TC/AM), posortowane wg
+  // punktów zdobytych w kolejce, w której dany chip był zagrany — to jest to samo GW-total,
+  // które i tak już mamy w gwPoints, więc "kto ile zdobył grając ten chip" nie wymaga żadnych
+  // nowych zapytań (sam "bonus wyłącznie z chipa" jak przy Chip Master w Awards wymagałby
+  // dociągnięcia picks z każdej wcześniejszej kolejki — to na razie zostaje przy latestGw)
+  const chipGroups = React.useMemo(() => {
+    const byCode: Record<string, { entry: number; label: string; name: string; event: number; pts: number }[]> = {};
+    for (const [entryStr, chips] of Object.entries(chipHistory)) {
+      const entry = Number(entryStr);
+      for (const c of chips) {
+        const pts = gwPoints[entry]?.find(g => g.gw === c.event)?.pts;
+        if (pts == null) continue;
+        if (!byCode[c.code]) byCode[c.code] = [];
+        byCode[c.code].push({ entry, label: c.label, name: c.name, event: c.event, pts });
+      }
+    }
+    for (const code in byCode) byCode[code].sort((a, b) => b.pts - a.pts);
+    return byCode;
+  }, [chipHistory, gwPoints]);
+  const activeChipCodes = ['bboost', 'wildcard', 'freehit', '3xc', 'manager'].filter(code => (chipGroups[code]?.length ?? 0) > 0);
 
   return (
     <section className="card">
@@ -189,17 +203,31 @@ export default function StatsSection({
           ))}
         </div>
       )}
-      {chipRows.length === 0 ? (
+      {activeChipCodes.length === 0 ? (
         <div className="small">Nikt jeszcze nie zagrał chipa w tym sezonie.</div>
       ) : (
-        chipRows.map(r => (
-          <div key={r.entry} className="squadplayer">
-            <span className="squadplayer-name">{entryIndex[r.entry]?.manager ?? '—'}</span>
-            <span className="small">
-              {r.chips.map(c => `${chipIcon(c.code)} ${c.label} (GW${c.event})`).join(' · ')}
-            </span>
-          </div>
-        ))
+        activeChipCodes.map(code => {
+          const rows = chipGroups[code];
+          return (
+            <div key={code} style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                {chipIcon(code)} {rows[0].name}
+              </div>
+              {rows.map((r, i) => (
+                <div key={`${r.entry}-${r.event}`} className="rankbar">
+                  <div className="rankbar-top">
+                    <span className="rankbar-rank">{rankBadge(i)}</span>
+                    <span className="rankbar-name">
+                      {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
+                    </span>
+                    <span className="rankbar-pts">{r.pts} pkt</span>
+                  </div>
+                  <div className="rankbar-gap">GW{r.event}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })
       )}
     </section>
   );

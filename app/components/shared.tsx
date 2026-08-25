@@ -1,5 +1,12 @@
 'use client';
 import React from 'react';
+import type { Quarter } from '../lib/types';
+
+// klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu) — steruje kolorem kropki:
+// trwa = zielona (live), wkrótce = żółta (pending), zakończona = czerwona (closed)
+export function quarterStatusKey(status: Quarter['status']) {
+  return status === 'trwa' ? 'active' : status === 'zakończona' ? 'done' : 'upcoming';
+}
 
 // ikonki chipów FPL do badge'y — czysto kosmetyczne, kod chipa i tak jest w tooltipie
 const CHIP_ICON: Record<string, string> = {

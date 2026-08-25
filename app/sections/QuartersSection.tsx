@@ -1,11 +1,7 @@
 'use client';
 import React from 'react';
 import type { Quarter, QuarterTopRow, QuarterHitsRow } from '../lib/types';
-import { rankBadge } from '../components/shared';
-
-function quarterStatusKey(status: Quarter['status']) {
-  return status === 'trwa' ? 'active' : status === 'zakończona' ? 'done' : 'upcoming';
-}
+import { rankBadge, quarterStatusKey } from '../components/shared';
 
 type Props = {
   quarters: Quarter[];
