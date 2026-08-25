@@ -73,6 +73,7 @@ export type BootstrapSlim = {
   elementsById: Record<number, { web_name: string; team: number; element_type: number; code: number }>;
   teamsById: Record<number, { short_name: string; name: string; code: number }>;
   currentGw: number; // is_current, albo ostatni z deadline_time w przeszłości, albo 1
+  nextDeadline: { gw: number; deadline: string } | null; // najbliższy deadline_time w przyszłości (ISO), do TimerBadge
 };
 
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
@@ -188,7 +189,14 @@ async function fetchBootstrapRaw(): Promise<BootstrapSlim> {
   const current = events.find((e) => e.is_current) ?? events.find((e) => e.is_next);
   const currentGw = current ? current.id : 1;
 
-  return { elementsById, teamsById, currentGw };
+  // najbliższy deadline_time, który jeszcze nie minął — do licznika w TimerBadge
+  const now = Date.now();
+  const upcoming = events
+    .filter((e) => e.deadline_time && new Date(e.deadline_time).getTime() > now)
+    .sort((a, b) => new Date(a.deadline_time).getTime() - new Date(b.deadline_time).getTime())[0];
+  const nextDeadline = upcoming ? { gw: upcoming.id, deadline: upcoming.deadline_time } : null;
+
+  return { elementsById, teamsById, currentGw, nextDeadline };
 }
 
 // Słownik zawodników/drużyn + numer bieżącej kolejki, z dłuższym cache TTL (dane rzadko się zmieniają).

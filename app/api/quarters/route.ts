@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchBootstrapCached } from '../_lib/fpl';
 export const revalidate = 0;
 
 // GW start days — sezon 2026/27 (deadline_time z /api/bootstrap-static/)
@@ -71,5 +72,15 @@ export async function GET(){
   // Id obecnej ćwiartki (pre‑season → Q1)
   const current = quarters.find(q => q.is_current) ?? quarters[0];
 
-  return NextResponse.json({ quarters, current: current?.id });
+  // Najbliższy deadline kolejki (transferowy) — do TimerBadge w headerze. Osobny try/catch,
+  // żeby przejściowy błąd FPL nie wywalał całego widoku ćwiartek, tylko sam licznik deadline'u.
+  let nextGwDeadline: { gw: number; deadline: string } | null = null;
+  try {
+    const bootstrap = await fetchBootstrapCached();
+    nextGwDeadline = bootstrap.nextDeadline;
+  } catch {
+    nextGwDeadline = null;
+  }
+
+  return NextResponse.json({ quarters, current: current?.id, nextGwDeadline });
 }

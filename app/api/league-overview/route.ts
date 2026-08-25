@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   fetchLeagueEntries,
   fetchEntryPicksCached,
+  fetchEventLiveCached,
   fetchBootstrapCached,
   playerPhotoUrl,
   clubBadgeUrl,
@@ -30,7 +31,10 @@ export async function GET(req: NextRequest) {
     }
 
     const leagueEntries = await fetchLeagueEntries(leagueId);
-    const allPicks = await Promise.all(leagueEntries.map(e => fetchEntryPicksCached(e.entry, gw)));
+    const [allPicks, live] = await Promise.all([
+      Promise.all(leagueEntries.map(e => fetchEntryPicksCached(e.entry, gw))),
+      fetchEventLiveCached(gw),
+    ]);
     const leagueSize = leagueEntries.length;
 
     // Użycie chipów w tej kolejce
@@ -80,7 +84,27 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.eoPct - a.eoPct || b.ownedCount - a.ownedCount)
       .slice(0, 12);
 
-    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned });
+    // Captaincy Stats — każdy wybór kapitana w lidze: kto go zagrał (%), ile dał punktów
+    const captaincy = Object.entries(captainCount)
+      .map(([elementStr, count]) => {
+        const element = Number(elementStr);
+        const el = bootstrap.elementsById[element];
+        const team = el ? bootstrap.teamsById[el.team] : undefined;
+        return {
+          element,
+          name: el?.web_name ?? '—',
+          team: team?.short_name ?? '',
+          teamBadgeUrl: team ? clubBadgeUrl(team.code) : '',
+          position: el ? POSITION_LABEL[el.element_type] ?? '' : '',
+          photoUrl: el ? playerPhotoUrl(el.code) : '',
+          points: live[element] ?? 0,
+          captainCount: count,
+          captainPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.captainCount - a.captainCount || b.points - a.points);
+
+    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned, captaincy });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || 'fetch_failed', leagueId },

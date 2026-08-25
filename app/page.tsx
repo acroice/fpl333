@@ -95,7 +95,15 @@ type TopOwnedRow = {
   ownedCount: number; ownedPct: number; captainCount: number; eoPct: number;
 };
 
-type LeagueOverview = { gw: number; leagueSize: number; chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[] };
+type CaptaincyRow = {
+  element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
+  points: number; captainCount: number; captainPct: number;
+};
+
+type LeagueOverview = {
+  gw: number; leagueSize: number;
+  chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[]; captaincy: CaptaincyRow[];
+};
 
 // ikonki chipów FPL do badge'y — czysto kosmetyczne, kod chipa i tak jest w tooltipie
 const CHIP_ICON: Record<string, string> = {
@@ -722,7 +730,7 @@ export default function Home() {
                   </div>
 
                   <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                    Najczęściej wybierani zawodnicy (Effective Ownership):
+                    Najczęściej wybierani (EO):
                   </div>
                   {overview.topOwned.map(p => (
                     <div key={p.element} className="squadplayer">
@@ -732,7 +740,21 @@ export default function Home() {
                         {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                         {p.captainCount > 0 && ` — (C) u ${p.captainCount}`}
                       </span>
-                      <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize} ma</span>
+                      <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize}</span>
+                    </div>
+                  ))}
+
+                  <div style={{ fontWeight: 600, margin: '12px 0 6px' }}>
+                    Captaincy Stats:
+                  </div>
+                  {overview.captaincy.map(p => (
+                    <div key={p.element} className="squadplayer">
+                      <span className="squadplayer-name">
+                        <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                        <span className="pill">{p.position}</span>
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                      </span>
+                      <span>{p.points} pkt · {p.captainPct}% C</span>
                     </div>
                   ))}
                 </>
