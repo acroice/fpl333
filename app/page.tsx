@@ -42,7 +42,7 @@ type GwPoint = { gw: number; pts: number };
 
 type CaptainInfo = { element: number; name: string; photoUrl: string; points: number } | null;
 
-type TeamInfo = { value: number; transfers: number; transfersCost: number };
+type TeamInfo = { value: number; transfers: number; transfersCost: number; played: number; playedTotal: number };
 
 type ChipInfo = { code: string; label: string; name?: string };
 
@@ -1053,11 +1053,11 @@ export default function Home() {
                               className="small teaminfo"
                               title={
                                 teamInfo[e.entry].transfersCost > 0
-                                  ? `Transfery w tej kolejce: ${teamInfo[e.entry].transfers} (-${teamInfo[e.entry].transfersCost} pkt)`
-                                  : `Transfery w tej kolejce: ${teamInfo[e.entry].transfers}`
+                                  ? `FT: transfery w tej kolejce (-${teamInfo[e.entry].transfersCost} pkt) • TV: wartość drużyny • PLAYED: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
+                                  : `FT: transfery w tej kolejce • TV: wartość drużyny • PLAYED: ilu z liczącego się składu (${teamInfo[e.entry].playedTotal}) faktycznie zagrało`
                               }
                             >
-                              £{(teamInfo[e.entry].value / 10).toFixed(1)}m · {teamInfo[e.entry].transfers} transf.
+                              FT: {teamInfo[e.entry].transfers} · TV: £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLAYED: {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
                             </div>
                           )}
                         </td>

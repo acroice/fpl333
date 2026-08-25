@@ -4,6 +4,7 @@ import {
   fetchEntryHistoryCached,
   fetchEntryPicksCached,
   fetchEventLiveCached,
+  fetchEventMinutesCached,
   fetchBootstrapCached,
   playerPhotoUrl,
   CHIP_LABELS,
@@ -233,9 +234,10 @@ export async function GET(req: NextRequest){
     // i do analizy kapitanów (Best Captain). Jedno pobranie, cache'owane per entry+gw — jeśli
     // ktoś już zaglądał w /api/squad albo /api/league-overview w tej kolejce, nic się nie dubluje.
     const bootstrap = await fetchBootstrapCached();
-    const [allPicksLatest, live] = await Promise.all([
+    const [allPicksLatest, live, minutes] = await Promise.all([
       Promise.all(leagueEntries.map(plr => fetchEntryPicksCached(plr.entry, latestGw))),
       fetchEventLiveCached(latestGw),
+      fetchEventMinutesCached(latestGw),
     ]);
 
     // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — policzalny dla BB (suma pkt
@@ -269,15 +271,30 @@ export async function GET(req: NextRequest){
       captainByEntry[plr.entry] = cap ? cap.element : null;
       if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
     });
-    // Wartość drużyny + liczba transferów zagranych w latestGw (subtelny wgląd pod nazwą teamu
-    // w głównej tabeli) — z danych, które i tak już mamy z allPicksLatest, zero dodatkowych zapytań
-    const teamInfo: Record<number, { value: number; transfers: number; transfersCost: number }> = {};
+    // Wartość drużyny (TV) + transfery zagrane (FT) + ile ze "składu, który się liczy" faktycznie
+    // zagrało (PLAYED) w latestGw — subtelny wgląd pod nazwą teamu w głównej tabeli. Skład, który
+    // się liczy, to zwykle podstawowa 11 — ale przy Bench Boost liczy się cała 15, więc PLAYED
+    // wtedy sprawdza wszystkich 15. Wszystko z danych, które i tak już mamy (allPicksLatest +
+    // minuty z tej samej kolejki), zero dodatkowych zapytań poza jednym tanim fetchEventMinutesCached.
+    const teamInfo: Record<number, {
+      value: number; transfers: number; transfersCost: number;
+      played: number; playedTotal: number;
+    }> = {};
     leagueEntries.forEach((plr, idx) => {
       const eh = allPicksLatest[idx].entryHistory;
+      const picks = allPicksLatest[idx].picks;
+      const chip = latestChip[plr.entry];
+      const playedTotal = chip?.code === 'bboost' ? 15 : 11;
+      const played = picks
+        .filter(p => p.position <= playedTotal)
+        .filter(p => (minutes[p.element] ?? 0) > 0)
+        .length;
       teamInfo[plr.entry] = {
         value: eh.value,
         transfers: eh.eventTransfers,
         transfersCost: eh.eventTransfersCost,
+        played,
+        playedTotal,
       };
     });
 
@@ -374,7 +391,7 @@ export async function GET(req: NextRequest){
       awards,                  // Awards of the Week dla latestGw
       gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
       captainInfo,             // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
-      teamInfo                 // { entryId: {value,transfers,transfersCost} } — TV + transfery w latestGw
+      teamInfo                 // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —
