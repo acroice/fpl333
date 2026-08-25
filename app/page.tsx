@@ -734,7 +734,7 @@ export default function Home() {
                   <div className="awardsrow" style={{ marginBottom: 12 }}>
                     {overview.chipUsage.map(c => (
                       <span key={c.code} className="awardpill" title={c.name}>
-                        {c.label}: {c.count} ({c.pct}%)
+                        {c.code !== 'none' && `${chipIcon(c.code)} `}{c.label}: {c.count} ({c.pct}%)
                       </span>
                     ))}
                   </div>
@@ -781,7 +781,7 @@ export default function Home() {
                           <span className="pill">{p.position}</span>
                           {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                         </span>
-                        <span>{p.points} pkt · {p.ownedPct}% obstawy ({p.ownedCount}/{overview.leagueSize})</span>
+                        <span>{p.points} pkt · obstawy ({p.ownedCount}/{overview.leagueSize})</span>
                       </div>
                     ))
                   )}
