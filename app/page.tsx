@@ -118,6 +118,19 @@ function chipIcon(code: string) {
   return CHIP_ICON[code] || '🔹';
 }
 
+// medal/pozycja dla rankingów w kafelku ćwiartki (Top3, minusowe pkt)
+function rankBadge(i: number) {
+  return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+}
+
+// klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu)
+function quarterStatusKey(status: Quarter['status']) {
+  return status === 'trwa' ? 'active' : status === 'zakończona' ? 'done' : 'upcoming';
+}
+const QUARTER_STATUS_ICON: Record<Quarter['status'], string> = {
+  trwa: '▶', zakończona: '✓', wkrótce: '⏳',
+};
+
 // mały okrągły awatar zawodnika (oficjalne zdjęcie z CDN Premier League) — jeśli się nie
 // załaduje (np. zawodnik bez zdjęcia), po prostu znika, żeby nie zostawiać "złamanej" ikonki
 function PlayerAvatar({ src, alt }: { src: string; alt: string }) {
@@ -1162,15 +1175,42 @@ export default function Home() {
               Minusowe pkt
             </button>
           </div>
+
           {sideError ? (
             <div className="small" style={{ color: '#ff9b9b' }}>{sideError}</div>
           ) : (
-          <div className="qgrid">
+          <>
+            {/* pasek sezonu: 4 segmenty proporcjonalne do liczby kolejek w ćwiartce (10/9/9/10),
+                z paskiem postępu wewnątrz tej, która aktualnie trwa — jednym spojrzeniem widać,
+                gdzie w sezonie jesteśmy. Klikalny tak samo jak kafelki niżej. */}
+            <div className="seasonbar" role="group" aria-label="Postęp sezonu wg ćwiartek">
+              {quarters.map(q => {
+                const key = quarterStatusKey(q.status);
+                const isLocked = q.status === 'wkrótce';
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    className={`seasonbar-seg seasonbar-seg--${key}${openQuarter === q.id ? ' is-selected' : ''}`}
+                    style={{ flexGrow: q.games }}
+                    onClick={() => toggleQuarterOpen(q.id, isLocked)}
+                    title={`${q.id} • GW${q.gw_from}–${q.gw_to} • ${q.status}`}
+                  >
+                    {key === 'active' && (
+                      <span className="seasonbar-fill" style={{ width: `${q.progress ?? 0}%` }} />
+                    )}
+                    <span className="seasonbar-label">{q.id}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="quartersgrid">
             {quarters.map((q) => {
               const winners = winnersByQuarter[q.id] || [];
               const winnerLabel =
                 q.status === 'zakończona' && winners.length
-                  ? 'Zwycięzca: ' + winners.map(w => {
+                  ? winners.map(w => {
                       const who = entryIndex[w.entry];
                       const pts = w.points || 0;
                       return `${who?.manager ?? '—'} (${who?.team ?? '—'}) – ${pts} pkt`;
@@ -1180,54 +1220,60 @@ export default function Home() {
               const statusClass =
                 q.status === 'trwa' ? 'qactive' :
                 q.status === 'zakończona' ? 'qdone' : '';
+              const statusKey = quarterStatusKey(q.status);
 
               const isLocked = q.status === 'wkrótce';
               const isOpen = !isLocked && openQuarter === q.id;
               const topRows = isOpen ? (quarterTop[q.id] || []) : [];
               const hitsRows = isOpen && showHits ? (quarterHitsTop[q.id] || []) : [];
+              const maxTopPts = Math.max(1, ...topRows.map(r => r.points));
+              const maxHitPts = Math.max(1, ...hitsRows.map(r => r.hits));
 
               return (
                 <div
                   key={q.id}
                   className={`card ${statusClass} qcard-clickable`}
                   style={{
-                    padding: '12px',
+                    padding: '14px',
                     cursor: isLocked ? 'default' : 'pointer',
-                    opacity: isLocked ? 0.8 : 1
+                    opacity: isLocked ? 0.85 : 1
                   }}
                   onClick={()=>toggleQuarterOpen(q.id, isLocked)}
                 >
-                  <div className="qtitle" style={{display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px'}}>
+                  <div className="qtitle" style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                      <span>{q.id}</span>
-                      <span className="pill">{q.gw_from}–{q.gw_to}</span>
+                      <span style={{ fontSize: 16 }}>{q.id}</span>
+                      <span className="pill">GW {q.gw_from}–{q.gw_to}</span>
                     </div>
-                    <span className="qchevron">
-                      {isLocked ? '' : (isOpen ? '▲' : '▼')}
+                    <span className={`qstatuspill qstatuspill--${statusKey}`}>
+                      {QUARTER_STATUS_ICON[q.status]} {q.status}
                     </span>
                   </div>
 
-                  <div className="small">Kolejki: {q.games}</div>
-                  <div className="small">{q.from} → {q.to}</div>
-                  <div className="status">Status: {q.status}</div>
-                  <div className="small">{q.note}</div>
+                  <div className="small" style={{ marginTop: 6 }}>
+                    {q.games} kolejek • {q.from} → {q.to}
+                  </div>
+                  <div className="small">
+                    {q.note}
+                    {!isLocked && <span className="qchevron">{isOpen ? '▲' : '▼'}</span>}
+                  </div>
 
-                  {winnerLabel && (
-                    <div className="small" style={{ marginTop: 6 }}>
-                      🏆 {winnerLabel}
+                  {/* Pasek postępu trwającej ćwiartki — realny % upływu czasu z API */}
+                  {q.status === 'trwa' && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
+                      <div className="qprogress" style={{ flex: 1 }}>
+                        <div className="qprogress-fill" style={{ width: `${q.progress ?? 0}%` }} />
+                      </div>
+                      <span className="small" style={{ flexShrink: 0 }}>{q.progress ?? 0}%</span>
                     </div>
                   )}
-                  {/* Pasek postępu trwającej ćwiartki — realny % upływu czasu z API */}
-                    {q.status === 'trwa' && (
-                      <div className="qprogress">
-                        <div
-                          className="qprogress-fill"
-                          style={{
-                            width: `${q.progress ?? 0}%`
-                          }}
-                        />
-                      </div>
-                    )}
+
+                  {winnerLabel && (
+                    <div className="small" style={{ marginTop: 8 }}>
+                      🏆 <strong style={{ color: 'var(--text)' }}>Zwycięzca:</strong> {winnerLabel}
+                    </div>
+                  )}
+
                   {isOpen && (
                     <div
                       className="small"
@@ -1238,30 +1284,54 @@ export default function Home() {
                         lineHeight: 1.4
                       }}
                     >
-                      <div style={{fontWeight:600, marginBottom:4}}>
-                        Top 3 {q.id}:
+                      <div style={{fontWeight:600, marginBottom:6}}>
+                        Top 3 {q.id}
                       </div>
                       {topRows.length === 0 ? (
                         <div>Brak danych</div>
                       ) : (
                         topRows.map((row, i) => (
-                          <div key={row.entry} style={{marginBottom:4}}>
-                            {i+1}. {row.player_name} ({row.entry_name}) – {row.points} pkt
+                          <div key={row.entry} className="rankbar">
+                            <div className="rankbar-top">
+                              <span className="rankbar-rank">{rankBadge(i)}</span>
+                              <span className="rankbar-name">
+                                {row.player_name} <span className="small">({row.entry_name})</span>
+                              </span>
+                              <span className="rankbar-pts">{row.points}</span>
+                            </div>
+                            <div className="rankbar-track">
+                              <div
+                                className="rankbar-fill rankbar-fill--good"
+                                style={{ width: `${Math.round((row.points / maxTopPts) * 100)}%` }}
+                              />
+                            </div>
                           </div>
                         ))
                       )}
 
                       {showHits && (
                         <>
-                          <div style={{fontWeight:600, marginTop:10, marginBottom:4}}>
-                            ⚡ Minusowe pkt {q.id}:
+                          <div style={{fontWeight:600, marginTop:12, marginBottom:6}}>
+                            ⚡ Minusowe pkt {q.id}
                           </div>
                           {hitsRows.length === 0 ? (
                             <div>Nikt nie miał minusowych punktów w tej ćwiartce</div>
                           ) : (
-                            hitsRows.map((row) => (
-                              <div key={row.entry} style={{marginBottom:4, color:'#ff9b9b'}}>
-                                {row.player_name} ({row.entry_name}) – -{row.hits} pkt
+                            hitsRows.map((row, i) => (
+                              <div key={row.entry} className="rankbar">
+                                <div className="rankbar-top">
+                                  <span className="rankbar-rank">{i + 1}.</span>
+                                  <span className="rankbar-name">
+                                    {row.player_name} <span className="small">({row.entry_name})</span>
+                                  </span>
+                                  <span className="rankbar-pts" style={{ color:'#ff9b9b' }}>-{row.hits}</span>
+                                </div>
+                                <div className="rankbar-track">
+                                  <div
+                                    className="rankbar-fill rankbar-fill--bad"
+                                    style={{ width: `${Math.round((row.hits / maxHitPts) * 100)}%` }}
+                                  />
+                                </div>
                               </div>
                             ))
                           )}
@@ -1272,7 +1342,8 @@ export default function Home() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          </>
           )}
         </section>
       )}
