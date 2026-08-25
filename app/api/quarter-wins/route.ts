@@ -8,6 +8,7 @@ import {
   fetchBootstrapCached,
   playerPhotoUrl,
   CHIP_LABELS,
+  CHIP_NAMES,
 } from '../_lib/fpl';
 
 export const revalidate = 0;
@@ -127,13 +128,29 @@ export async function GET(req: NextRequest){
       }
     });
 
-    // historia GW-po-GW per manager (posortowana), do sparkline'a formy na froncie —
-    // dane, które już mamy w pamięci z powyższej pętli, zero dodatkowych zapytań
-    const gwPoints: Record<number, { gw: number; pts: number }[]> = {};
+    // historia GW-po-GW per manager (posortowana) — do sparkline'a formy w tabeli (pts), ale
+    // też do sekcji Sezon/Statystyki (cost/value/benchPoints), z danych które już mamy w
+    // pamięci z powyższej pętli, zero dodatkowych zapytań. Addytywne wzbogacenie — istniejący
+    // front, który czyta tylko .pts, działa bez zmian.
+    const gwPoints: Record<number, { gw: number; pts: number; cost: number; value: number; benchPoints: number }[]> = {};
     leagueEntries.forEach((plr, idx) => {
       gwPoints[plr.entry] = histories[idx].current
-        .map(x => ({ gw: x.gw, pts: x.pts }))
+        .map(x => ({ gw: x.gw, pts: x.pts, cost: x.cost, value: x.value, benchPoints: x.benchPoints }))
         .sort((a, b) => a.gw - b.gw);
+    });
+
+    // pełna historia chipów w sezonie per manager (nie tylko latestGw) — do modułu Chips
+    // w Statystykach. Też już mamy w pamięci (histories[idx].chips), zero nowych zapytań.
+    const chipHistory: Record<number, { code: string; label: string; name: string; event: number }[]> = {};
+    leagueEntries.forEach((plr, idx) => {
+      chipHistory[plr.entry] = histories[idx].chips
+        .map(c => ({
+          code: c.name,
+          label: CHIP_LABELS[c.name] || c.name,
+          name: CHIP_NAMES[c.name] || c.name,
+          event: c.event,
+        }))
+        .sort((a, b) => a.event - b.event);
     });
 
     // teraz z quarterScores możemy ustalić zwycięzców zakończonych ćwiartek,
@@ -391,7 +408,8 @@ export async function GET(req: NextRequest){
       awards,                  // Awards of the Week dla latestGw
       gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
       captainInfo,             // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
-      teamInfo                 // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
+      teamInfo,                // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
+      chipHistory               // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

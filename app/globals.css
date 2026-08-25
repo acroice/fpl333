@@ -540,3 +540,206 @@ body.retro .qdone {
      (ten sam poziom specyficzności — wygrywa kolejność w kodzie) */
   .teaminfo { font-size: 10px; }
 }
+
+/* ============================================================
+   Nawigacja: górny pasek (desktop) + dolny fixed nav (mobile).
+   Oba renderują się zawsze w DOM, media queries decydują co widać —
+   patrz komentarze przy każdym poniżej.
+   ============================================================ */
+.mainnav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.mainnav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #0f2029;
+  border: 1px solid #16313f;
+  border-radius: 8px;
+  color: #9fd9ff;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.mainnav-item:hover { border-color: #22405a; }
+.mainnav-item.is-active {
+  background: #152a1c;
+  border-color: #2f5a3d;
+  color: #8fe6b3;
+}
+.mainnav-icon { font-size: 15px; }
+
+.bottomnav { display: none; } /* domyślnie ukryty — pokazywany dopiero w media query ≤600px */
+
+/* --- GW Center / Rekordy sezonu: siatka kompaktowych kart statystyk --- */
+.gwcenter-grid, .records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.record-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.005));
+  border: 1px solid #1c2430;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.record-item b { font-size: 17px; color: var(--text); font-weight: 700; }
+
+/* --- Porównaj: pasek statystyk obok siebie + H2H --- */
+.comparestats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.comparestats-col {
+  background: rgba(255,255,255,.02);
+  border: 1px solid #1c2430;
+  border-radius: 10px;
+  padding: 12px;
+}
+.comparestats-name { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.comparestats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 3px 0;
+}
+.comparestats-row b { color: var(--text); font-weight: 700; }
+
+.h2hscore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.h2hscore-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.h2hlist {
+  margin-top: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px solid #1c2430;
+}
+.h2hlist-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #1c2430;
+  font-size: 12.5px;
+}
+
+/* --- Ćwiartki: pasek zwycięzców Q1|Q2|Q3|Q4 --- */
+.qwinnersrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.qwinner {
+  background: rgba(255,255,255,.02);
+  border: 1px solid #1c2430;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.qwinner-id { font-weight: 700; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+.qwinner-name { color: var(--text); font-weight: 600; }
+.qwinner-name--pending { color: var(--muted); font-weight: 400; }
+
+/* --- Sezon: hand-rolled SVG chart + legenda tappable --- */
+.seasonchart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.seasonchart-grid { stroke: #1c2430; stroke-width: 1; }
+.seasonchart-axis { fill: var(--muted); font-size: 9px; }
+.seasonchart-series { cursor: pointer; transition: opacity .15s ease; }
+.seasonchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.seasonchart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f2029;
+  border: 1px solid #16313f;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 11.5px;
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+}
+.seasonchart-legend-item.is-active {
+  border-color: #2f5a3d;
+  background: #152a1c;
+  color: #8fe6b3;
+}
+.seasonchart-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ============================================================
+   Mobile (≤600px): dolny fixed nav zamiast górnego paska + dodatkowe
+   dostosowania nowych sekcji. Ostatni blok w pliku celowo — musi
+   wygrać z wcześniejszymi regułami tej samej specyficzności.
+   ============================================================ */
+@media (max-width: 600px) {
+  .mainnav { display: none; }
+  .bottomnav {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    background: #0d141c;
+    border-top: 1px solid #1c2430;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .bottomnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 6px 2px;
+    cursor: pointer;
+  }
+  .bottomnav-item.is-active { color: #8fe6b3; }
+  .bottomnav-icon { font-size: 18px; line-height: 1; }
+  .bottomnav-label { line-height: 1; }
+
+  /* miejsce na dolny nav, żeby nic się pod nim nie chowało */
+  .container { padding-bottom: 76px; }
+
+  .comparestats { grid-template-columns: 1fr; }
+  .gwcenter-grid, .records-grid { grid-template-columns: 1fr 1fr; }
+  .qwinnersrow { grid-template-columns: 1fr 1fr; }
+}
