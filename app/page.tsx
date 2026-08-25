@@ -254,6 +254,9 @@ export default function Home() {
   // który kafelek Q jest rozwinięty
   const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
 
+  // sekcja "Ćwiartki" (przeniesiona na dół strony) — domyślnie widoczna, chowana kafelkiem
+  const [showQuarters, setShowQuarters] = React.useState(true);
+
   // retro easter egg UI
   const [showRetroBanner, setShowRetroBanner] = React.useState(false);
 
@@ -572,7 +575,7 @@ export default function Home() {
     <>
       {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
 
-      <div className="grid">
+      <div className="grid grid--single">
         <section className="card">
           <div
             className="headline"
@@ -591,6 +594,14 @@ export default function Home() {
             </div>
 
             <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+              <button
+                onClick={() => setShowQuarters(v => !v)}
+                title="Podsumowanie ćwiartek sezonu (Q1–Q4) — na dole strony"
+                className={`toggle-btn${showQuarters ? ' is-active' : ''}`}
+              >
+                <span className="dot" />
+                Ćwiartki
+              </button>
               <button
                 onClick={() => setShowHits(v => !v)}
                 title="Pkt stracone na hitach (transfery ponad darmowy limit) w bieżącej ćwiartce"
@@ -1073,8 +1084,10 @@ export default function Home() {
             </table>
           )}
         </section>
+      </div>
 
-        <aside className="card">
+      {showQuarters && (
+        <section className="card" style={{ marginTop: 16 }}>
           <div className="headline">Quarter Rankings</div>
           {sideError ? (
             <div className="small" style={{ color: '#ff9b9b' }}>{sideError}</div>
@@ -1188,8 +1201,8 @@ export default function Home() {
             })}
           </div>
           )}
-        </aside>
-      </div>
+        </section>
+      )}
     </>
   );
 }
