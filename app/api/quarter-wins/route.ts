@@ -124,6 +124,15 @@ export async function GET(req: NextRequest){
       }
     });
 
+    // historia GW-po-GW per manager (posortowana), do sparkline'a formy na froncie —
+    // dane, które już mamy w pamięci z powyższej pętli, zero dodatkowych zapytań
+    const gwPoints: Record<number, { gw: number; pts: number }[]> = {};
+    leagueEntries.forEach((plr, idx) => {
+      gwPoints[plr.entry] = histories[idx].current
+        .map(x => ({ gw: x.gw, pts: x.pts }))
+        .sort((a, b) => a.gw - b.gw);
+    });
+
     // teraz z quarterScores możemy ustalić zwycięzców zakończonych ćwiartek,
     // oraz trofea
     const winnersByQuarter: Record<string, { entry:number; points:number }[]> = {};
@@ -285,7 +294,8 @@ export async function GET(req: NextRequest){
       quarterHitsTop,         // { Q1:[{entry,player_name,entry_name,hits}, ... up to 5, hits>0], ...}
       latestGw,                // numer ostatniej kolejki z danymi
       latestChip,              // { entryId: {code,label} | null } — chip zagrany w latestGw
-      awards                   // Awards of the Week dla latestGw
+      awards,                  // Awards of the Week dla latestGw
+      gwPoints                 // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

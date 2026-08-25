@@ -134,6 +134,25 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
 .countmark--on { color:#5ee1a2; }
 .countmark--off { color:#4a5b6c; }
 
+/* dropdown wyboru managera w porównywarce */
+.compare-select {
+  background:#0f2029;
+  border:1px solid #16313f;
+  border-radius:6px;
+  color:var(--text);
+  font-size:12px;
+  padding:6px 8px;
+  max-width: 220px;
+}
+.compare-select:focus { outline: 1px solid #3a5a7a; }
+
+/* sparkline formy w tabeli głównej */
+.sparkline { display:block; flex-shrink:0; }
+.formtrend { font-size:11px; font-weight:700; }
+.formtrend--up { color:#5ee1a2; }
+.formtrend--down { color:#ff9b9b; }
+.formtrend--flat { color:#8aa0b6; }
+
 /* strzałki zmiany pozycji w tabeli głównej (last_rank vs rank) */
 .rankup { color:#5ee1a2; font-size:11px; font-weight:600; }
 .rankdown { color:#ff9b9b; font-size:11px; font-weight:600; }

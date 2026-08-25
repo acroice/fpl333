@@ -38,6 +38,8 @@ type QuarterHitsRow = {
   hits: number; // pkt stracone na transferach ponad darmowy limit w tej ćwiartce
 };
 
+type GwPoint = { gw: number; pts: number };
+
 type ChipInfo = { code: string; label: string; name?: string };
 
 type SquadPlayer = {
@@ -119,6 +121,46 @@ function PlayerAvatar({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+// trend formy: średnia z ostatnich kolejek vs średnia z tych wcześniejszych. Potrzebuje min.
+// 2 rozegranych GW (czyli realnie ruszy od GW2/3) — przy mniejszej ilości danych zwraca null,
+// żeby front mógł to po prostu schować zamiast pokazywać mylący wynik na jednej kolejce.
+function computeForm(points: number[]): 'up' | 'down' | 'flat' | null {
+  if (points.length < 2) return null;
+  const recentN = Math.min(3, points.length - 1);
+  const recent = points.slice(points.length - recentN);
+  const prior = points.slice(0, points.length - recentN);
+  const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const diff = avg(recent) - avg(prior);
+  if (diff > 2) return 'up';
+  if (diff < -2) return 'down';
+  return 'flat';
+}
+
+// kompaktowy sparkline (SVG, bez zależności) — trend punktów managera z rozegranych kolejek
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const w = 56, h = 18, pad = 2;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = Math.max(max - min, 1);
+  const stepX = (w - pad * 2) / (points.length - 1);
+  const coords = points
+    .map((p, i) => {
+      const x = pad + i * stepX;
+      const y = h - pad - ((p - min) / range) * (h - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const lastX = pad + (points.length - 1) * stepX;
+  const lastY = h - pad - ((points[points.length - 1] - min) / range) * (h - pad * 2);
+  return (
+    <svg width={w} height={h} className="sparkline" aria-hidden="true">
+      <polyline points={coords} fill="none" stroke="#5ee1a2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r="1.8" fill="#5ee1a2" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
   const [leagueName, setLeagueName] = React.useState<string>('');
@@ -160,18 +202,27 @@ export default function Home() {
   const [latestChip, setLatestChip] = React.useState<Record<number, ChipInfo | null>>({});
   // Awards of the Week dla najświeższej kolejki
   const [awards, setAwards] = React.useState<Awards | null>(null);
+  // historia GW-po-GW per manager (do sparkline'a i wskaźnika formy w tabeli)
+  const [gwPoints, setGwPoints] = React.useState<Record<number, GwPoint[]>>({});
 
-  // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania
+  // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
+  // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
+  // ładować różne składy równolegle.
   const [openManagerEntry, setOpenManagerEntry] = React.useState<number | null>(null);
   const [squadCache, setSquadCache] = React.useState<Record<number, SquadData>>({});
-  const [squadLoadingEntry, setSquadLoadingEntry] = React.useState<number | null>(null);
-  const [squadError, setSquadError] = React.useState<string | null>(null);
+  const [squadLoading, setSquadLoading] = React.useState<Record<number, boolean>>({});
+  const [squadErrors, setSquadErrors] = React.useState<Record<number, string | null>>({});
 
   // przegląd całej ligi (chipy + top ownership) — opcjonalny, ładowany na żądanie po kliknięciu
   const [showOverview, setShowOverview] = React.useState(false);
   const [overview, setOverview] = React.useState<LeagueOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = React.useState(false);
   const [overviewError, setOverviewError] = React.useState<string | null>(null);
+
+  // porównywarka dwóch managerów — opcjonalna, korzysta z tego samego squadCache co drill-down
+  const [showCompare, setShowCompare] = React.useState(false);
+  const [compareA, setCompareA] = React.useState<number | null>(null);
+  const [compareB, setCompareB] = React.useState<number | null>(null);
 
   // który kafelek Q jest rozwinięty
   const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
@@ -256,6 +307,7 @@ export default function Home() {
         setQuarterHitsTop(wData.quarterHitsTop || {});
         setLatestChip(wData.latestChip || {});
         setAwards(wData.awards || null);
+        setGwPoints(wData.gwPoints || {});
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -373,19 +425,14 @@ export default function Home() {
     setOpenQuarter(prev => (prev === id ? null : id));
   }
 
-  // kliknięcie wiersza managera w tabeli — rozwija/zwija drill-down składu (na żądanie,
-  // z cache po entryId, żeby ponowne kliknięcie nie odpytywało FPL jeszcze raz)
-  async function toggleManager(entry: number) {
-    if (openManagerEntry === entry) {
-      setOpenManagerEntry(null);
-      return;
-    }
-    setOpenManagerEntry(entry);
-    setSquadError(null);
-
+  // pobiera skład managera (bieżąca kolejka) i wrzuca do wspólnego cache, jeśli jeszcze go nie ma.
+  // Współdzielone przez drill-down w tabeli i porównywarkę — ten sam manager kliknięty w obu
+  // miejscach nie dociąga danych drugi raz.
+  async function ensureSquadLoaded(entry: number) {
     if (squadCache[entry]) return; // już mamy w cache
 
-    setSquadLoadingEntry(entry);
+    setSquadLoading(prev => ({ ...prev, [entry]: true }));
+    setSquadErrors(prev => ({ ...prev, [entry]: null }));
     try {
       const res = await fetch(`/api/squad?leagueId=1078207&entryId=${entry}`, { cache: 'no-store' });
       const data = await res.json();
@@ -393,10 +440,20 @@ export default function Home() {
       setSquadCache(prev => ({ ...prev, [entry]: data }));
     } catch (err: any) {
       console.error('squad load error:', err?.message);
-      setSquadError('nie udało się pobrać składu (spróbuj ponownie)');
+      setSquadErrors(prev => ({ ...prev, [entry]: 'nie udało się pobrać składu (spróbuj ponownie)' }));
     } finally {
-      setSquadLoadingEntry(null);
+      setSquadLoading(prev => ({ ...prev, [entry]: false }));
     }
+  }
+
+  // kliknięcie wiersza managera w tabeli — rozwija/zwija drill-down składu
+  function toggleManager(entry: number) {
+    if (openManagerEntry === entry) {
+      setOpenManagerEntry(null);
+      return;
+    }
+    setOpenManagerEntry(entry);
+    ensureSquadLoaded(entry);
   }
 
   // przełącznik przeglądu ligi (chipy + top ownership) — ładowany leniwie przy pierwszym otwarciu
@@ -418,6 +475,12 @@ export default function Home() {
     } finally {
       setOverviewLoading(false);
     }
+  }
+
+  // wybór managera do porównywarki (slot A lub B) — od razu doładowuje jego skład
+  function selectCompare(slot: 'A' | 'B', entry: number | null) {
+    if (slot === 'A') setCompareA(entry); else setCompareB(entry);
+    if (entry != null) ensureSquadLoaded(entry);
   }
 
   // eksport CSV (zostawiam tak jak mamy)
@@ -515,6 +578,14 @@ export default function Home() {
               >
                 <span className="dot" />
                 Wgląd w ligę
+              </button>
+              <button
+                onClick={() => setShowCompare(v => !v)}
+                title="Porównaj składy dwóch managerów w bieżącej kolejce"
+                className={`toggle-btn${showCompare ? ' is-active' : ''}`}
+              >
+                <span className="dot" />
+                Porównaj
               </button>
               <button
                 onClick={downloadCsv}
@@ -646,6 +717,100 @@ export default function Home() {
             </div>
           )}
 
+          {showCompare && (
+            <div className="small" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #1c2430' }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom: 12 }}>
+                <select
+                  value={compareA ?? ''}
+                  onChange={e => selectCompare('A', e.target.value ? Number(e.target.value) : null)}
+                  className="compare-select"
+                >
+                  <option value="">Manager A…</option>
+                  {league.map(e => (
+                    <option key={e.entry} value={e.entry}>{e.player_name} ({e.entry_name})</option>
+                  ))}
+                </select>
+                <span style={{ color: 'var(--muted)' }}>vs</span>
+                <select
+                  value={compareB ?? ''}
+                  onChange={e => selectCompare('B', e.target.value ? Number(e.target.value) : null)}
+                  className="compare-select"
+                >
+                  <option value="">Manager B…</option>
+                  {league.map(e => (
+                    <option key={e.entry} value={e.entry}>{e.player_name} ({e.entry_name})</option>
+                  ))}
+                </select>
+              </div>
+
+              {compareA == null || compareB == null ? (
+                <div>Wybierz dwóch managerów, żeby porównać ich składy w bieżącej kolejce.</div>
+              ) : compareA === compareB ? (
+                <div>Wybierz dwóch różnych managerów.</div>
+              ) : squadLoading[compareA] || squadLoading[compareB] ? (
+                <div>Ładowanie składów…</div>
+              ) : squadErrors[compareA] || squadErrors[compareB] ? (
+                <div style={{ color: '#ff9b9b' }}>{squadErrors[compareA] || squadErrors[compareB]}</div>
+              ) : !squadCache[compareA] || !squadCache[compareB] ? (
+                <div>Brak danych</div>
+              ) : (() => {
+                const sqA = squadCache[compareA];
+                const sqB = squadCache[compareB];
+                const bElements = new Set(sqB.squad.map(p => p.element));
+                const aElements = new Set(sqA.squad.map(p => p.element));
+                const onlyA = sqA.squad.filter(p => !bElements.has(p.element));
+                const onlyB = sqB.squad.filter(p => !aElements.has(p.element));
+                const commonCount = sqA.squad.length - onlyA.length;
+                const capA = sqA.squad.find(p => p.isCaptain);
+                const capB = sqB.squad.find(p => p.isCaptain);
+
+                const renderList = (rows: SquadPlayer[]) =>
+                  rows.length === 0 ? (
+                    <div>Brak</div>
+                  ) : (
+                    rows.map(p => (
+                      <div key={p.element} className="squadplayer">
+                        <span className="squadplayer-name">
+                          <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                          <span className="pill">{p.position}</span>
+                          {p.name} ({p.team})
+                          {p.isCaptain && ' (C)'}
+                        </span>
+                        <span>{p.total} pkt</span>
+                      </div>
+                    ))
+                  );
+
+                return (
+                  <>
+                    <div style={{ marginBottom: 10 }}>
+                      Kapitan: <strong>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
+                      {' '}vs{' '}
+                      <strong>{sqB.playerName}</strong>: {capB ? `${capB.name} · ${capB.total} pkt` : '—'}
+                    </div>
+                    <div className="qgrid">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                          Tylko u {sqA.playerName} ({onlyA.length}):
+                        </div>
+                        {renderList(onlyA)}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                          Tylko u {sqB.playerName} ({onlyB.length}):
+                        </div>
+                        {renderList(onlyB)}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, color: 'var(--muted)' }}>
+                      Wspólnych zawodników: {commonCount}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
           {loading ? (
             <div>Loading…</div>
           ) : error ? (
@@ -674,6 +839,7 @@ export default function Home() {
                   >
                     GW Pts {sortArrow('gw')}
                   </th>
+                  <th title="Trend z rozegranych kolejek">Forma</th>
                   <th
                     style={{cursor:'pointer'}}
                     onClick={()=>toggleSort('currentQ')}
@@ -693,6 +859,8 @@ export default function Home() {
                   const isOpenManager = openManagerEntry === e.entry;
                   const chip = latestChip[e.entry];
                   const squad = squadCache[e.entry];
+                  const ptsHistory = (gwPoints[e.entry] || []).map(g => g.pts);
+                  const form = computeForm(ptsHistory);
 
                   return (
                     <React.Fragment key={e.entry}>
@@ -726,6 +894,14 @@ export default function Home() {
                         <td>{e.total}</td>
                         <td>{e.event_total}</td>
                         <td>
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                            <Sparkline points={ptsHistory} />
+                            {form === 'up' && <span className="formtrend formtrend--up" title="Forma w górę (ostatnie kolejki powyżej wcześniejszej średniej)">▲</span>}
+                            {form === 'down' && <span className="formtrend formtrend--down" title="Forma w dół (ostatnie kolejki poniżej wcześniejszej średniej)">▼</span>}
+                            {form === 'flat' && <span className="formtrend formtrend--flat" title="Stabilna forma">→</span>}
+                          </span>
+                        </td>
+                        <td>
                           {currentScores[e.entry] ?? 0}
                           {showHits && (currentHits[e.entry] ?? 0) > 0 && (
                             <span
@@ -741,11 +917,11 @@ export default function Home() {
 
                       {isOpenManager && (
                         <tr>
-                          <td colSpan={7} style={{ background: 'rgba(255,255,255,0.015)' }}>
-                            {squadLoadingEntry === e.entry ? (
+                          <td colSpan={8} style={{ background: 'rgba(255,255,255,0.015)' }}>
+                            {squadLoading[e.entry] ? (
                               <div className="small">Ładowanie składu…</div>
-                            ) : squadError ? (
-                              <div className="small" style={{ color: '#ff9b9b' }}>{squadError}</div>
+                            ) : squadErrors[e.entry] ? (
+                              <div className="small" style={{ color: '#ff9b9b' }}>{squadErrors[e.entry]}</div>
                             ) : !squad ? (
                               <div className="small">Brak danych</div>
                             ) : (
