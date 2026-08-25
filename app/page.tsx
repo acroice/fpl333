@@ -1008,6 +1008,13 @@ export default function Home() {
                               const displaySquad = showingProjected && squad.projectedSquad ? squad.projectedSquad : squad.squad;
                               const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.entryHistory.points;
 
+                              // punkty ławki liczone z samego składu (nie z FPL entryHistory.pointsOnBench,
+                              // które przy Bench Boost pokazuje 0 — bo nic się "nie zmarnowało", a nie że
+                              // ławka nie zdobyła punktów). benchCounted > 0, gdy chip BB je wliczył do total.
+                              const benchList = displaySquad.filter(p => p.isBench);
+                              const benchRawPoints = benchList.reduce((sum, p) => sum + p.points, 0);
+                              const benchCountedPoints = benchList.reduce((sum, p) => sum + p.total, 0);
+
                               return (
                               <div className="small" style={{ lineHeight: 1.5 }}>
                                 <div style={{ marginBottom: 8 }}>
@@ -1015,7 +1022,15 @@ export default function Home() {
                                   {showingProjected && <span className="chipbadge" title="Projekcja na podstawie danych live — FPL policzy to oficjalnie po zamknięciu kolejki">🔮 projekcja</span>}
                                   {' • '}Transfery: {squad.entryHistory.eventTransfers}
                                   {squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost} pkt)`}
-                                  {' • '}Ławka: {squad.entryHistory.pointsOnBench} pkt
+                                  {' • '}Ławka: {benchRawPoints} pkt
+                                  {benchCountedPoints > 0 && (
+                                    <span
+                                      className="benchcountbadge"
+                                      title="Punkty z ławki wliczone do total dzięki Bench Boost (lub autosubowi)"
+                                    >
+                                      ✓ liczy się (+{benchCountedPoints})
+                                    </span>
+                                  )}
                                   {' • '}Wartość: £{(squad.entryHistory.value / 10).toFixed(1)}m
                                   {squad.activeChip && (
                                     <span className="chipbadge" title={squad.activeChip.name}>
@@ -1052,7 +1067,7 @@ export default function Home() {
 
                                 <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
                                 {displaySquad.filter(p => p.isBench).map(p => (
-                                  <div key={p.element} className="squadplayer" style={{ opacity: 0.7 }}>
+                                  <div key={p.element} className="squadplayer" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }}>
                                     <span className="squadplayer-name">
                                       <PlayerAvatar src={p.photoUrl} alt={p.name} />
                                       <span className="pill">{p.position}</span>

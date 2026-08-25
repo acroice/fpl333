@@ -227,6 +227,20 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   vertical-align:middle;
 }
 
+/* badge: punkty z ławki wliczone do total (Bench Boost / autosub) — obok "Ławka: X pkt" */
+.benchcountbadge {
+  display:inline-block;
+  margin-left:6px;
+  padding:1px 7px;
+  border-radius:999px;
+  background:#152a1c;
+  border:1px solid #2f5a3d;
+  color:#8fe6b3;
+  font-size:11px;
+  font-weight:600;
+  vertical-align:middle;
+}
+
 .qcurrent {
   border-color:#2a7a58;
   box-shadow: 0 0 0 1px rgba(94,225,162,.25) inset;

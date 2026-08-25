@@ -49,7 +49,15 @@ function buildSquad(
         total: rawPoints * mult,    // to, co faktycznie wliczyło się (lub wliczy) do wyniku
         isCaptain: p.isCaptain,
         isViceCaptain: p.isViceCaptain,
-        isBench: mult === 0,        // nie w efektywnej 11 -> ławka (nieużyta albo wypadnięta)
+        // Ławka = oryginalny slot w składzie (12-15), niezależnie od chipa — Bench Boost daje
+        // ławce mnożnik 1 (bo się liczy), ale to wciąż wizualnie "ławka", nie "podstawowa 11".
+        // Autosub owszem przesuwa grupowanie: kto wszedł, pokazujemy jako podstawę; kto wypadł
+        // (nie zagrał), pokazujemy jako ławkę — dokładnie jak wcześniej.
+        isBench: subbedIn.has(p.element)
+          ? false
+          : subbedOut.has(p.element)
+            ? true
+            : p.position > 11,
         subbedIn: subbedIn.has(p.element),
         subbedOut: subbedOut.has(p.element),
         multiplier: mult,
