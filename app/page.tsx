@@ -850,23 +850,36 @@ export default function Home() {
                 const onlyBSum = onlyB.reduce((sum, p) => sum + p.total, 0);
                 const diffSwing = onlyASum - onlyBSum;
 
-                const renderList = (rows: SquadPlayer[]) =>
-                  rows.length === 0 ? (
-                    <div>Brak</div>
-                  ) : (
-                    rows.map(p => (
-                      <div key={p.element} className="squadplayer">
-                        <span className="squadplayer-name">
-                          <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                          <span className="pill">{p.position}</span>
-                          {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-                          {p.isCaptain && ' (C)'}
-                          {p.isBench && <span className="subbadge" title="Na ławce">ław.</span>}
-                        </span>
-                        <span>{p.total} pkt</span>
-                      </div>
-                    ))
-                  );
+                // Top różnicowy: zawodnik z największym wpływem na wynik spośród wszystkich
+                // różnic (obu stron łącznie) — ten jeden pick, który najbardziej rozjeżdża wyniki
+                const topDiff = [...onlyA, ...onlyB].sort((a, b) => b.total - a.total)[0] ?? null;
+                const topDiffOwner = topDiff && onlyA.includes(topDiff) ? sqA.playerName : sqB.playerName;
+
+                // pełny skład jednej strony, posortowany wg wpływu na wynik — różnicowi zawodnicy
+                // (ci, których nie ma u przeciwnika) renderują się normalnie, wspólni są wyblakli,
+                // żeby różnice od razu rzucały się w oczy zamiast ginąć w 15-osobowej liście
+                const renderSquad = (rows: SquadPlayer[], otherElements: Set<number>) =>
+                  [...rows]
+                    .sort((a, b) => b.total - a.total)
+                    .map(p => {
+                      const isDiff = !otherElements.has(p.element);
+                      return (
+                        <div
+                          key={p.element}
+                          className="squadplayer"
+                          style={isDiff ? undefined : { opacity: 0.4 }}
+                        >
+                          <span className="squadplayer-name">
+                            <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                            <span className="pill">{p.position}</span>
+                            {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                            {p.isCaptain && ' (C)'}
+                            {p.isBench && <span className="subbadge" title="Na ławce">ław.</span>}
+                          </span>
+                          <span>{p.total} pkt</span>
+                        </div>
+                      );
+                    });
 
                 return (
                   <>
@@ -892,6 +905,18 @@ export default function Home() {
                       )}
                     </div>
 
+                    {topDiff && (
+                      <div className="statchip statchip--special" style={{ marginBottom: 10 }}>
+                        <span className="statchip-icon">🎯</span>
+                        <span className="statchip-text">
+                          <span className="statchip-label">Top różnicowy</span>
+                          <span className="statchip-value">
+                            {topDiff.name} <span className="small">({topDiff.team})</span> · <b>{topDiff.total} pkt</b> — tylko u {topDiffOwner}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
                     <div style={{ marginBottom: 10 }}>
                       Kapitan: <strong>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
                       {' '}vs{' '}
@@ -901,15 +926,15 @@ export default function Home() {
                     <div className="qgrid">
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                          Tylko u {sqA.playerName} ({onlyA.length}) · suma: {onlyASum} pkt
+                          {sqA.playerName} — różnic: {onlyA.length} · suma: {onlyASum} pkt
                         </div>
-                        {renderList(onlyA)}
+                        {renderSquad(sqA.squad, bElements)}
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                          Tylko u {sqB.playerName} ({onlyB.length}) · suma: {onlyBSum} pkt
+                          {sqB.playerName} — różnic: {onlyB.length} · suma: {onlyBSum} pkt
                         </div>
-                        {renderList(onlyB)}
+                        {renderSquad(sqB.squad, aElements)}
                       </div>
                     </div>
 
