@@ -481,24 +481,21 @@ body.retro .qdone {
 .qstatuspill--done { background: #171d26; border: 1px solid #263140; color: var(--muted); }
 .qstatuspill--upcoming { background: transparent; border: 1px dashed #263140; color: var(--muted); }
 
-/* mini-wykres słupkowy dla rankingów wewnątrz rozwiniętego kafelka (Top3, minusowe pkt) */
-.rankbar { margin-bottom: 8px; }
+/* rankingi wewnątrz rozwiniętego kafelka (Top3, minusowe pkt): rząd z pozycją/nazwą/wynikiem,
+   a pod nim subtelna informacja o dystansie do lidera tej ćwiartki (zamiast paska postępu) */
+.rankbar { margin-bottom: 7px; }
 .rankbar:last-child { margin-bottom: 0; }
 .rankbar-top {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-bottom: 3px;
 }
 .rankbar-rank { font-weight: 700; color: var(--muted); font-size: 11px; flex-shrink: 0; }
 .rankbar-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); }
 .rankbar-pts { font-weight: 700; font-size: 12.5px; flex-shrink: 0; color: var(--text); }
-.rankbar-track {
-  height: 6px;
-  border-radius: 3px;
-  background: #1c2430;
-  overflow: hidden;
+.rankbar-gap {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 1px;
 }
-.rankbar-fill { height: 100%; border-radius: 3px; transition: width .3s ease; }
-.rankbar-fill--good { background: #5ee1a2; }
-.rankbar-fill--bad { background: #ff9b9b; }

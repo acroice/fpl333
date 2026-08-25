@@ -1165,7 +1165,7 @@ export default function Home() {
             className="headline"
             style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', rowGap:'8px', columnGap:'12px' }}
           >
-            <div>Quarter Rankings</div>
+            <div>Podsumowanie ćwiartek</div>
             <button
               onClick={() => setShowHits(v => !v)}
               title="Pokaż ranking minusowych punktów (transfery ponad darmowy limit) w rozwiniętej ćwiartce"
@@ -1226,8 +1226,10 @@ export default function Home() {
               const isOpen = !isLocked && openQuarter === q.id;
               const topRows = isOpen ? (quarterTop[q.id] || []) : [];
               const hitsRows = isOpen && showHits ? (quarterHitsTop[q.id] || []) : [];
-              const maxTopPts = Math.max(1, ...topRows.map(r => r.points));
-              const maxHitPts = Math.max(1, ...hitsRows.map(r => r.hits));
+              // wartość lidera każdej listy (obie są już posortowane malejąco z API) — używana
+              // do subtelnego "X pkt do lidera" przy pozostałych wierszach zamiast paska postępu
+              const maxTopPts = topRows[0]?.points ?? 0;
+              const maxHitPts = hitsRows[0]?.hits ?? 0;
 
               return (
                 <div
@@ -1299,12 +1301,9 @@ export default function Home() {
                               </span>
                               <span className="rankbar-pts">{row.points}</span>
                             </div>
-                            <div className="rankbar-track">
-                              <div
-                                className="rankbar-fill rankbar-fill--good"
-                                style={{ width: `${Math.round((row.points / maxTopPts) * 100)}%` }}
-                              />
-                            </div>
+                            {i > 0 && (
+                              <div className="rankbar-gap">-{maxTopPts - row.points} pkt do lidera</div>
+                            )}
                           </div>
                         ))
                       )}
@@ -1326,12 +1325,9 @@ export default function Home() {
                                   </span>
                                   <span className="rankbar-pts" style={{ color:'#ff9b9b' }}>-{row.hits}</span>
                                 </div>
-                                <div className="rankbar-track">
-                                  <div
-                                    className="rankbar-fill rankbar-fill--bad"
-                                    style={{ width: `${Math.round((row.hits / maxHitPts) * 100)}%` }}
-                                  />
-                                </div>
+                                {i > 0 && (
+                                  <div className="rankbar-gap">-{maxHitPts - row.hits} pkt mniej niż lider</div>
+                                )}
                               </div>
                             ))
                           )}
