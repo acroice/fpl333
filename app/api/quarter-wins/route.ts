@@ -269,6 +269,18 @@ export async function GET(req: NextRequest){
       captainByEntry[plr.entry] = cap ? cap.element : null;
       if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
     });
+    // Wartość drużyny + liczba transferów zagranych w latestGw (subtelny wgląd pod nazwą teamu
+    // w głównej tabeli) — z danych, które i tak już mamy z allPicksLatest, zero dodatkowych zapytań
+    const teamInfo: Record<number, { value: number; transfers: number; transfersCost: number }> = {};
+    leagueEntries.forEach((plr, idx) => {
+      const eh = allPicksLatest[idx].entryHistory;
+      teamInfo[plr.entry] = {
+        value: eh.value,
+        transfers: eh.eventTransfers,
+        transfersCost: eh.eventTransfersCost,
+      };
+    });
+
     // Kapitan każdego managera w latestGw (do kolumny "Kapitan" w głównej tabeli) — nazwa,
     // zdjęcie, punkty na żywo. Ta sama informacja co powyżej (captainByEntry), tylko wzbogacona
     // o dane do wyświetlenia, bez dodatkowych zapytań do FPL.
@@ -361,7 +373,8 @@ export async function GET(req: NextRequest){
       latestChip,              // { entryId: {code,label} | null } — chip zagrany w latestGw
       awards,                  // Awards of the Week dla latestGw
       gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
-      captainInfo              // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
+      captainInfo,             // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
+      teamInfo                 // { entryId: {value,transfers,transfersCost} } — TV + transfery w latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

@@ -42,6 +42,8 @@ type GwPoint = { gw: number; pts: number };
 
 type CaptainInfo = { element: number; name: string; photoUrl: string; points: number } | null;
 
+type TeamInfo = { value: number; transfers: number; transfersCost: number };
+
 type ChipInfo = { code: string; label: string; name?: string };
 
 type SquadPlayer = {
@@ -245,6 +247,8 @@ export default function Home() {
   const [gwPoints, setGwPoints] = React.useState<Record<number, GwPoint[]>>({});
   // kapitan każdego managera w najświeższej kolejce (do kolumny "Kapitan" w tabeli)
   const [captainInfo, setCaptainInfo] = React.useState<Record<number, CaptainInfo>>({});
+  // wartość drużyny + transfery w najświeższej kolejce (subtelny wgląd pod nazwą teamu)
+  const [teamInfo, setTeamInfo] = React.useState<Record<number, TeamInfo>>({});
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -357,6 +361,7 @@ export default function Home() {
         setAwards(wData.awards || null);
         setGwPoints(wData.gwPoints || {});
         setCaptainInfo(wData.captainInfo || {});
+        setTeamInfo(wData.teamInfo || {});
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -1042,6 +1047,18 @@ export default function Home() {
                             <span className="chipbadge" title={chip.name || chip.label}>
                               {chipIcon(chip.code)} {chip.label}
                             </span>
+                          )}
+                          {teamInfo[e.entry] && (
+                            <div
+                              className="small teaminfo"
+                              title={
+                                teamInfo[e.entry].transfersCost > 0
+                                  ? `Transfery w tej kolejce: ${teamInfo[e.entry].transfers} (-${teamInfo[e.entry].transfersCost} pkt)`
+                                  : `Transfery w tej kolejce: ${teamInfo[e.entry].transfers}`
+                              }
+                            >
+                              £{(teamInfo[e.entry].value / 10).toFixed(1)}m · {teamInfo[e.entry].transfers} transf.
+                            </div>
                           )}
                         </td>
                         <td>

@@ -56,6 +56,10 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 
 .small { font-size: 12.5px; color: var(--muted); }
 
+/* subtelny wgląd w wartość drużyny + transfery pod nazwą teamu w głównej tabeli — celowo
+   przygaszony (niższa opacity) względem reszty .small, żeby nie konkurował wizualnie z nazwą */
+.teaminfo { opacity: .6; margin-top: 1px; }
+
 /* kompaktowy pasek "Awards of the Week" nad tabelą ligi */
 .awardsrow {
   display:flex;
