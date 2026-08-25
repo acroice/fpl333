@@ -40,6 +40,8 @@ type QuarterHitsRow = {
 
 type GwPoint = { gw: number; pts: number };
 
+type CaptainInfo = { element: number; name: string; photoUrl: string; points: number } | null;
+
 type ChipInfo = { code: string; label: string; name?: string };
 
 type SquadPlayer = {
@@ -73,6 +75,9 @@ type SquadData = {
   };
   squad: SquadPlayer[];
   leagueSize: number;
+  hasProjection: boolean;              // czy symulacja przewiduje realną zamianę/opaskę
+  projectedSquad: SquadPlayer[] | null; // skład po symulowanych autosubach; null gdy hasProjection=false
+  projectedTotal: number | null;
 };
 
 type Award = {
@@ -221,6 +226,8 @@ export default function Home() {
   const [awards, setAwards] = React.useState<Awards | null>(null);
   // historia GW-po-GW per manager (do sparkline'a i wskaźnika formy w tabeli)
   const [gwPoints, setGwPoints] = React.useState<Record<number, GwPoint[]>>({});
+  // kapitan każdego managera w najświeższej kolejce (do kolumny "Kapitan" w tabeli)
+  const [captainInfo, setCaptainInfo] = React.useState<Record<number, CaptainInfo>>({});
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -229,6 +236,9 @@ export default function Home() {
   const [squadCache, setSquadCache] = React.useState<Record<number, SquadData>>({});
   const [squadLoading, setSquadLoading] = React.useState<Record<number, boolean>>({});
   const [squadErrors, setSquadErrors] = React.useState<Record<number, string | null>>({});
+  // czy pokazywać projekcję autosubów zamiast "jak wybrany" skład — domyślnie włączona, gdy
+  // dostępna (żeby od razu widzieć realny wynik, bez czekania aż FPL to oficjalnie policzy)
+  const [useProjection, setUseProjection] = React.useState<Record<number, boolean>>({});
 
   // przegląd całej ligi (chipy + top ownership) — opcjonalny, ładowany na żądanie po kliknięciu
   const [showOverview, setShowOverview] = React.useState(false);
@@ -325,6 +335,7 @@ export default function Home() {
         setLatestChip(wData.latestChip || {});
         setAwards(wData.awards || null);
         setGwPoints(wData.gwPoints || {});
+        setCaptainInfo(wData.captainInfo || {});
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -872,6 +883,7 @@ export default function Home() {
                   </th>
                   <th>Manager</th>
                   <th>Team</th>
+                  <th title="Kapitan w bieżącej kolejce">Kapitan</th>
                   <th
                     style={{cursor:'pointer'}}
                     onClick={()=>toggleSort('total')}
@@ -906,6 +918,7 @@ export default function Home() {
                   const squad = squadCache[e.entry];
                   const ptsHistory = (gwPoints[e.entry] || []).map(g => g.pts);
                   const form = computeForm(ptsHistory);
+                  const captain = captainInfo[e.entry];
 
                   return (
                     <React.Fragment key={e.entry}>
@@ -936,6 +949,16 @@ export default function Home() {
                             </span>
                           )}
                         </td>
+                        <td>
+                          {captain ? (
+                            <span className="squadplayer-name" title={`${captain.name} — ${captain.points} pkt`}>
+                              <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
+                              {captain.name}
+                            </span>
+                          ) : (
+                            <span className="small">—</span>
+                          )}
+                        </td>
                         <td>{e.total}</td>
                         <td>{e.event_total}</td>
                         <td>
@@ -962,17 +985,23 @@ export default function Home() {
 
                       {isOpenManager && (
                         <tr>
-                          <td colSpan={8} style={{ background: 'rgba(255,255,255,0.015)' }}>
+                          <td colSpan={9} style={{ background: 'rgba(255,255,255,0.015)' }}>
                             {squadLoading[e.entry] ? (
                               <div className="small">Ładowanie składu…</div>
                             ) : squadErrors[e.entry] ? (
                               <div className="small" style={{ color: '#ff9b9b' }}>{squadErrors[e.entry]}</div>
                             ) : !squad ? (
                               <div className="small">Brak danych</div>
-                            ) : (
+                            ) : (() => {
+                              const showingProjected = squad.hasProjection && (useProjection[e.entry] ?? true);
+                              const displaySquad = showingProjected && squad.projectedSquad ? squad.projectedSquad : squad.squad;
+                              const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.entryHistory.points;
+
+                              return (
                               <div className="small" style={{ lineHeight: 1.5 }}>
                                 <div style={{ marginBottom: 8 }}>
-                                  GW{squad.gw} • Total: <strong>{squad.entryHistory.points} pkt</strong>
+                                  GW{squad.gw} • Total: <strong>{displayTotal} pkt</strong>
+                                  {showingProjected && <span className="chipbadge" title="Projekcja na podstawie danych live — FPL policzy to oficjalnie po zamknięciu kolejki">🔮 projekcja</span>}
                                   {' • '}Transfery: {squad.entryHistory.eventTransfers}
                                   {squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost} pkt)`}
                                   {' • '}Ławka: {squad.entryHistory.pointsOnBench} pkt
@@ -982,10 +1011,21 @@ export default function Home() {
                                       {chipIcon(squad.activeChip.code)} {squad.activeChip.label}
                                     </span>
                                   )}
+                                  {squad.hasProjection && (
+                                    <button
+                                      onClick={() => setUseProjection(prev => ({ ...prev, [e.entry]: !showingProjected }))}
+                                      title="Ktoś w tym składzie na pewno nie zagrał (mecz się skończył) — przełącz między projekcją autosubów a surowym wyborem"
+                                      className={`toggle-btn${showingProjected ? ' is-active' : ''}`}
+                                      style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }}
+                                    >
+                                      <span className="dot" />
+                                      Autosuby: projekcja
+                                    </button>
+                                  )}
                                 </div>
 
                                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
-                                {squad.squad.filter(p => !p.isBench).map(p => (
+                                {displaySquad.filter(p => !p.isBench).map(p => (
                                   <div key={p.element} className="squadplayer">
                                     <span className="squadplayer-name">
                                       <PlayerAvatar src={p.photoUrl} alt={p.name} />
@@ -1000,7 +1040,7 @@ export default function Home() {
                                 ))}
 
                                 <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
-                                {squad.squad.filter(p => p.isBench).map(p => (
+                                {displaySquad.filter(p => p.isBench).map(p => (
                                   <div key={p.element} className="squadplayer" style={{ opacity: 0.7 }}>
                                     <span className="squadplayer-name">
                                       <PlayerAvatar src={p.photoUrl} alt={p.name} />
@@ -1021,7 +1061,8 @@ export default function Home() {
                                   </div>
                                 ))}
                               </div>
-                            )}
+                              );
+                            })()}
                           </td>
                         </tr>
                       )}

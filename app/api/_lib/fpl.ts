@@ -46,6 +46,8 @@ export type LeagueEntryBasic = { entry: number; player_name: string; entry_name:
 
 export type AutomaticSub = { elementIn: number; elementOut: number };
 
+export type LiveElementStats = { points: number; minutes: number };
+
 export type PicksData = {
   activeChip: string | null;
   entryHistory: {
@@ -79,7 +81,8 @@ export type BootstrapSlim = {
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
 const historyCache = new Map<number, CacheEntry<EntryHistoryData>>();
 const picksCache = new Map<string, CacheEntry<PicksData>>(); // klucz: `${entryId}:${gw}`
-const liveCache = new Map<number, CacheEntry<Record<number, number>>>(); // klucz: gw -> {elementId: points}
+const liveFullCache = new Map<number, CacheEntry<Record<number, LiveElementStats>>>(); // klucz: gw
+const finishedTeamsCache = new Map<number, CacheEntry<Set<number>>>(); // klucz: gw
 let bootstrapCache: CacheEntry<BootstrapSlim> | null = null;
 
 async function fetchClassicStandingsRaw(leagueId: string): Promise<StandingsRaw> {
@@ -262,26 +265,161 @@ export async function fetchEntryPicksCached(entryId: number, gw: number): Promis
   return data;
 }
 
-async function fetchEventLiveRaw(gw: number): Promise<Record<number, number>> {
+async function fetchEventLiveRaw(gw: number): Promise<Record<number, LiveElementStats>> {
   const url = `https://fantasy.premierleague.com/api/event/${gw}/live/`;
   const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
   if (!res.ok) return {};
   const data = await res.json();
-  const byElement: Record<number, number> = {};
+  const byElement: Record<number, LiveElementStats> = {};
   for (const el of data?.elements ?? []) {
-    byElement[el.id] = Number(el?.stats?.total_points ?? 0);
+    byElement[el.id] = {
+      points: Number(el?.stats?.total_points ?? 0),
+      minutes: Number(el?.stats?.minutes ?? 0),
+    };
   }
   return byElement;
 }
 
-// Punkty każdego zawodnika w danej kolejce (na żywo w trakcie GW), z cache TTL po gw.
-export async function fetchEventLiveCached(gw: number): Promise<Record<number, number>> {
-  const hit = liveCache.get(gw);
+async function fetchEventLiveFullCached(gw: number): Promise<Record<number, LiveElementStats>> {
+  const hit = liveFullCache.get(gw);
   if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
 
   const data = await fetchEventLiveRaw(gw);
-  liveCache.set(gw, { data, ts: Date.now() });
+  liveFullCache.set(gw, { data, ts: Date.now() });
   return data;
+}
+
+// Punkty każdego zawodnika w danej kolejce (na żywo w trakcie GW), z cache TTL po gw.
+export async function fetchEventLiveCached(gw: number): Promise<Record<number, number>> {
+  const full = await fetchEventLiveFullCached(gw);
+  const points: Record<number, number> = {};
+  for (const id in full) points[id] = full[id].points;
+  return points;
+}
+
+// Minuty każdego zawodnika w danej kolejce — do wykrywania "na pewno nie zagra" (0 minut + mecz
+// zakończony) przy projekcji autosubów. Ten sam cache'owany fetch co punkty (jedno zapytanie).
+export async function fetchEventMinutesCached(gw: number): Promise<Record<number, number>> {
+  const full = await fetchEventLiveFullCached(gw);
+  const minutes: Record<number, number> = {};
+  for (const id in full) minutes[id] = full[id].minutes;
+  return minutes;
+}
+
+async function fetchFixturesRaw(gw: number): Promise<Set<number>> {
+  const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gw}`;
+  const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
+  if (!res.ok) return new Set();
+  const data = await res.json();
+  const finished = new Set<number>();
+  for (const f of data ?? []) {
+    if (f?.finished) {
+      if (f.team_h != null) finished.add(f.team_h);
+      if (f.team_a != null) finished.add(f.team_a);
+    }
+  }
+  return finished;
+}
+
+// Zbiór ID drużyn, których mecz w danej kolejce już się zakończył — do projekcji autosubów
+// (dopiero po zakończeniu meczu 0 minut oznacza "na pewno nie zagra", a nie "jeszcze nie grał").
+export async function fetchFinishedTeamsCached(gw: number): Promise<Set<number>> {
+  const hit = finishedTeamsCache.get(gw);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
+
+  const data = await fetchFixturesRaw(gw);
+  finishedTeamsCache.set(gw, { data, ts: Date.now() });
+  return data;
+}
+
+export type SimulatedSub = { elementOut: number; elementIn: number };
+
+export type AutosubSimResult = {
+  effectiveMultiplier: Record<number, number>; // element -> mnożnik PO symulowanych zamianach (0/1/2/3)
+  subs: SimulatedSub[];
+  captainChanged: boolean; // opaska przeszła na wicekapitana (kapitan na pewno nie zagrał)
+};
+
+// Symuluje automatyczne zamiany FPL na podstawie danych na żywo (minuty + zakończone mecze),
+// zanim samo FPL je oficjalnie policzy (robi to dopiero po zamknięciu kolejki). To PROJEKCJA —
+// naśladuje realne zasady FPL (kolejność ławki, poprawność formacji, przeniesienie opaski
+// kapitana na wicekapitana gdy kapitan na pewno nie zagrał), ale to nie jest źródło prawdy —
+// gdy FPL poda własne automatic_subs, są one zawsze priorytetowe (patrz squad/route.ts).
+export function simulateAutosubs(
+  picks: PicksData['picks'],
+  minutesByElement: Record<number, number>,
+  finishedTeams: Set<number>,
+  elementsById: BootstrapSlim['elementsById']
+): AutosubSimResult {
+  const didNotPlay = (element: number) => {
+    const mins = minutesByElement[element] ?? 0;
+    const team = elementsById[element]?.team;
+    return mins === 0 && team != null && finishedTeams.has(team);
+  };
+
+  const starters = picks.filter(p => p.position <= 11);
+  const bench = picks.filter(p => p.position > 11).sort((a, b) => a.position - b.position);
+
+  let xi = starters.map(p => ({ element: p.element, elementType: elementsById[p.element]?.element_type ?? 0 }));
+  const subs: SimulatedSub[] = [];
+  const usedBench = new Set<number>();
+
+  function formationValid(list: { elementType: number }[]) {
+    const c: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const p of list) c[p.elementType] = (c[p.elementType] || 0) + 1;
+    return c[1] === 1 && c[2] >= 3 && c[3] >= 2 && c[4] >= 1 && c[2] + c[3] + c[4] === 10;
+  }
+
+  // 1) bramkarz — rezerwowy bramkarz (slot 12) wchodzi TYLKO za bramkarza
+  const gkBenchPick = bench.find(p => p.position === 12);
+  const gkStarter = xi.find(p => p.elementType === 1);
+  if (gkStarter && didNotPlay(gkStarter.element) && gkBenchPick && (minutesByElement[gkBenchPick.element] ?? 0) > 0) {
+    xi = xi.map(p => (p.element === gkStarter.element ? { element: gkBenchPick.element, elementType: 1 } : p));
+    subs.push({ elementOut: gkStarter.element, elementIn: gkBenchPick.element });
+    usedBench.add(gkBenchPick.element);
+  }
+
+  // 2) zawodnicy z pola — ławka w kolejności priorytetu (13, 14, 15), tylko jeśli sam grał i po
+  // zamianie formacja nadal jest poprawna
+  for (const benchPick of bench.filter(p => p.position > 12)) {
+    if (usedBench.has(benchPick.element)) continue;
+    if ((minutesByElement[benchPick.element] ?? 0) === 0) continue;
+
+    const benchType = elementsById[benchPick.element]?.element_type ?? 0;
+    for (const starter of xi) {
+      if (starter.elementType === 1) continue; // bramkarz obsłużony osobno
+      if (!didNotPlay(starter.element)) continue;
+      const trial = xi.map(p => (p.element === starter.element ? { element: benchPick.element, elementType: benchType } : p));
+      if (formationValid(trial)) {
+        xi = trial;
+        subs.push({ elementOut: starter.element, elementIn: benchPick.element });
+        usedBench.add(benchPick.element);
+        break;
+      }
+    }
+  }
+
+  // 3) mnożniki: xi (po zamianach) = 1, reszta = 0
+  const effectiveMultiplier: Record<number, number> = {};
+  for (const p of picks) effectiveMultiplier[p.element] = 0;
+  for (const p of xi) effectiveMultiplier[p.element] = 1;
+
+  // 4) kapitan: jeśli oryginalny kapitan NA PEWNO nie zagrał, opaska przechodzi na
+  // wicekapitana — ale tylko gdy wicekapitan finalnie jest w składzie (sam zagrał albo wszedł)
+  const captainPick = picks.find(p => p.isCaptain);
+  const vicePick = picks.find(p => p.isViceCaptain);
+  const inXi = (element: number) => xi.some(p => p.element === element);
+
+  let captainElement = captainPick?.element;
+  if (captainPick && didNotPlay(captainPick.element)) {
+    captainElement = vicePick && inXi(vicePick.element) ? vicePick.element : undefined;
+  }
+  if (captainElement != null && inXi(captainElement)) {
+    effectiveMultiplier[captainElement] = 2;
+  }
+  const captainChanged = captainElement !== captainPick?.element;
+
+  return { effectiveMultiplier, subs, captainChanged };
 }
 
 // Czytelne etykiety chipów FPL, do wyświetlenia jako badge.

@@ -5,6 +5,7 @@ import {
   fetchEntryPicksCached,
   fetchEventLiveCached,
   fetchBootstrapCached,
+  playerPhotoUrl,
   CHIP_LABELS,
 } from '../_lib/fpl';
 
@@ -268,6 +269,25 @@ export async function GET(req: NextRequest){
       captainByEntry[plr.entry] = cap ? cap.element : null;
       if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
     });
+    // Kapitan każdego managera w latestGw (do kolumny "Kapitan" w głównej tabeli) — nazwa,
+    // zdjęcie, punkty na żywo. Ta sama informacja co powyżej (captainByEntry), tylko wzbogacona
+    // o dane do wyświetlenia, bez dodatkowych zapytań do FPL.
+    const captainInfo: Record<number, { element: number; name: string; photoUrl: string; points: number } | null> = {};
+    leagueEntries.forEach(plr => {
+      const capElement = captainByEntry[plr.entry];
+      if (capElement == null) {
+        captainInfo[plr.entry] = null;
+        return;
+      }
+      const el = bootstrap.elementsById[capElement];
+      captainInfo[plr.entry] = {
+        element: capElement,
+        name: el?.web_name ?? '—',
+        photoUrl: el ? playerPhotoUrl(el.code) : '',
+        points: live[capElement] ?? 0,
+      };
+    });
+
     const templateCaptainEntry = Object.entries(captainCounts).sort((a, b) => b[1] - a[1])[0];
     const templateCaptainElement = templateCaptainEntry ? Number(templateCaptainEntry[0]) : null;
     const templateCaptainPts = templateCaptainElement != null ? (live[templateCaptainElement] ?? 0) : 0;
@@ -340,7 +360,8 @@ export async function GET(req: NextRequest){
       latestGw,                // numer ostatniej kolejki z danymi
       latestChip,              // { entryId: {code,label} | null } — chip zagrany w latestGw
       awards,                  // Awards of the Week dla latestGw
-      gwPoints                 // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
+      gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
+      captainInfo              // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —
