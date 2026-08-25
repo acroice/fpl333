@@ -23,6 +23,7 @@ type CacheEntry<T> = { data: T; ts: number };
 export type StandingsRaw = {
   results: any[]; // wszystkie strony standings.results, sklejone
   newEntries: any[]; // new_entries.results z ostatniej strony (przedsezonowe zapisy)
+  leagueName: string; // nazwa ligi, tak jak ustawiona w FPL (league.name)
 };
 
 export type GwHistory = {
@@ -86,7 +87,11 @@ async function fetchClassicStandingsRaw(leagueId: string): Promise<StandingsRaw>
     else break;
   }
 
-  return { results, newEntries: lastData?.new_entries?.results ?? [] };
+  return {
+    results,
+    newEntries: lastData?.new_entries?.results ?? [],
+    leagueName: lastData?.league?.name ?? '',
+  };
 }
 
 // Standings ligi (wszystkie strony + new_entries), z cache TTL po leagueId.

@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const leagueId = (searchParams.get('leagueId') || '1078207').trim();
 
   try {
-    const { results, newEntries } = await fetchClassicStandingsCached(leagueId);
+    const { results, newEntries, leagueName } = await fetchClassicStandingsCached(leagueId);
 
     // dorzucamy new_entries (przedsezonowe zapisy) z ostatniej strony
     const mappedNew = newEntries.map((n: any, idx: number) => ({
@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       leagueId,
+      leagueName,
       count: entries.length,
       pre_season,
       entries,

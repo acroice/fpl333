@@ -102,6 +102,7 @@ function chipIcon(code: string) {
 
 export default function Home() {
   const [league, setLeague] = React.useState<LeagueEntry[]>([]);
+  const [leagueName, setLeagueName] = React.useState<string>('');
   const [participants, setParticipants] = React.useState<number>(0);
   const [quarters, setQuarters] = React.useState<Quarter[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -205,6 +206,7 @@ export default function Home() {
 
         setLeague(entries);
         setParticipants(data.count || entries.length || 0);
+        setLeagueName(data.leagueName || '');
         setError(null);
       } catch (err: any) {
         console.error('league load error:', err?.message);
@@ -474,7 +476,7 @@ export default function Home() {
             }}
           >
             <div>
-              Planowane składy{' '}
+              {leagueName || 'Planowane składy'}{' '}
               <span className="small">uczestnicy: {participants}</span>
             </div>
 
