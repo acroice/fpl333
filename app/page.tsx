@@ -728,7 +728,11 @@ export default function Home() {
                                       {p.name} ({p.team})
                                       {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
                                     </span>
-                                    <span>{p.total} pkt · {p.ownershipPct}% EO</span>
+                                    <span>
+                                      {p.points} pkt
+                                      {p.multiplier === 0 ? ' (nie liczą się)' : ' (liczą się)'}
+                                      {' · '}{p.ownershipPct}% EO
+                                    </span>
                                   </div>
                                 ))}
                               </div>
