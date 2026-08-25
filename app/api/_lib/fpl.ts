@@ -64,9 +64,14 @@ export function playerPhotoUrl(code: number, size: '40x40' | '110x140' = '40x40'
   return `${PLAYER_PHOTO_BASE}/${size}/p${code}.png`;
 }
 
+// Ten sam CDN, herby klubów PL (rozmiar 50 = ok. 50px, wystarczy do małych ikon w UI).
+export function clubBadgeUrl(teamCode: number) {
+  return `https://resources.premierleague.com/premierleague/badges/50/t${teamCode}.png`;
+}
+
 export type BootstrapSlim = {
   elementsById: Record<number, { web_name: string; team: number; element_type: number; code: number }>;
-  teamsById: Record<number, { short_name: string; name: string }>;
+  teamsById: Record<number, { short_name: string; name: string; code: number }>;
   currentGw: number; // is_current, albo ostatni z deadline_time w przeszłości, albo 1
 };
 
@@ -176,7 +181,7 @@ async function fetchBootstrapRaw(): Promise<BootstrapSlim> {
   }
   const teamsById: BootstrapSlim['teamsById'] = {};
   for (const t of data?.teams ?? []) {
-    teamsById[t.id] = { short_name: t.short_name, name: t.name };
+    teamsById[t.id] = { short_name: t.short_name, name: t.name, code: t.code };
   }
 
   const events: any[] = data?.events ?? [];

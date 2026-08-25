@@ -8,14 +8,13 @@ export default function HeaderBrand() {
     <div className="brand" onClick={() => setAlt(a => !a)} style={{cursor:'pointer'}}>
       <img
         src="/fpl333.svg"
-        alt="FPL333"
+        alt="FPL"
         width={28}
         height={28}
         style={{ borderRadius: 8, border: '1px solid #16313f' }}
       />
       <div>
-        <div className="headline">{alt ? 'FPL 🐐 League' : 'FPL333'}</div>
-        <div className="kicker">Ranking naszej ligi:</div>
+        <div className="headline">{alt ? 'FPL 🐐 League' : 'FPL'}</div>
       </div>
     </div>
   );

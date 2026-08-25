@@ -6,7 +6,7 @@ import HeaderBrand from './HeaderBrand';
 const TimerBadge = dynamic(() => import('./TimerBadge'), { ssr: false });
 
 export const metadata = {
-  title: 'FPL333',
+  title: 'FPL',
   description: 'Private League Dashboard',
 };
 

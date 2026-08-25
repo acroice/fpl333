@@ -46,6 +46,7 @@ type SquadPlayer = {
   element: number;
   name: string;
   team: string;
+  teamBadgeUrl: string;
   position: string;
   photoUrl: string;
   points: number;      // surowe punkty zawodnika w tej kolejce
@@ -78,18 +79,19 @@ type Award = {
   entry: number; player_name: string; entry_name: string;
   points?: number; value?: number; chip?: ChipInfo | null; rankChange?: number;
   bonus?: number | null; // Chip Master: pkt zdobyte dzięki chipowi (BB/TC); null gdy nie da się policzyć (WC/FH)
+  captainName?: string; captainPts?: number; templateCaptainName?: string; templateCaptainPts?: number; // Best Captain
 } | null;
 
 type Awards = {
   gw: number;
   topGun: Award; toughWeek: Award; chipMaster: Award;
-  noChipWarrior: Award; valueKing: Award; rankCrasher: Award;
+  noChipWarrior: Award; valueKing: Award; rankCrasher: Award; bestCaptain: Award;
 };
 
 type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
 
 type TopOwnedRow = {
-  element: number; name: string; team: string; position: string; photoUrl: string;
+  element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
   ownedCount: number; ownedPct: number; captainCount: number; eoPct: number;
 };
 
@@ -119,6 +121,13 @@ function PlayerAvatar({ src, alt }: { src: string; alt: string }) {
       onError={() => setBroken(true)}
     />
   );
+}
+
+// mały herb klubu — jeśli się nie załaduje, po prostu znika (sam skrót klubu w tekście wystarczy)
+function ClubBadge({ src, alt }: { src: string; alt: string }) {
+  const [broken, setBroken] = React.useState(false);
+  if (!src || broken) return null;
+  return <img src={src} alt={alt} className="clubbadge" loading="lazy" onError={() => setBroken(true)} />;
 }
 
 // trend formy: średnia z ostatnich kolejek vs średnia z tych wcześniejszych. Potrzebuje min.
@@ -674,6 +683,20 @@ export default function Home() {
                   </span>
                 </span>
               )}
+              {awards.bestCaptain && (
+                <span
+                  className="statchip statchip--good"
+                  title={`Zagrał innego kapitana niż większość ligi (${awards.bestCaptain.templateCaptainName}, ${awards.bestCaptain.templateCaptainPts} pkt) i wygrał`}
+                >
+                  <span className="statchip-icon">🧠</span>
+                  <span className="statchip-text">
+                    <span className="statchip-label">Best Captain</span>
+                    <span className="statchip-value">
+                      {awards.bestCaptain.player_name} · <b>{awards.bestCaptain.captainName} {awards.bestCaptain.captainPts}</b>
+                    </span>
+                  </span>
+                </span>
+              )}
             </div>
           )}
 
@@ -706,7 +729,7 @@ export default function Home() {
                       <span className="squadplayer-name">
                         <PlayerAvatar src={p.photoUrl} alt={p.name} />
                         <span className="pill">{p.position}</span>
-                        {p.name} ({p.team})
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                         {p.captainCount > 0 && ` — (C) u ${p.captainCount}`}
                       </span>
                       <span>{p.eoPct}% EO · {p.ownedCount}/{overview.leagueSize} ma</span>
@@ -773,7 +796,7 @@ export default function Home() {
                         <span className="squadplayer-name">
                           <PlayerAvatar src={p.photoUrl} alt={p.name} />
                           <span className="pill">{p.position}</span>
-                          {p.name} ({p.team})
+                          {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                           {p.isCaptain && ' (C)'}
                         </span>
                         <span>{p.total} pkt</span>
@@ -945,7 +968,7 @@ export default function Home() {
                                     <span className="squadplayer-name">
                                       <PlayerAvatar src={p.photoUrl} alt={p.name} />
                                       <span className="pill">{p.position}</span>
-                                      {p.name} ({p.team})
+                                      {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                                       {p.isCaptain && ' (C)'}
                                       {p.isViceCaptain && ' (VC)'}
                                       {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
@@ -960,7 +983,7 @@ export default function Home() {
                                     <span className="squadplayer-name">
                                       <PlayerAvatar src={p.photoUrl} alt={p.name} />
                                       <span className="pill">{p.position}</span>
-                                      {p.name} ({p.team})
+                                      {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
                                       {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
                                     </span>
                                     <span>

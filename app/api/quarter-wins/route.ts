@@ -4,6 +4,7 @@ import {
   fetchEntryHistoryCached,
   fetchEntryPicksCached,
   fetchEventLiveCached,
+  fetchBootstrapCached,
   CHIP_LABELS,
 } from '../_lib/fpl';
 
@@ -227,30 +228,65 @@ export async function GET(req: NextRequest){
     const rankFallers = latestRows.filter(r => r.prevOverallRank != null)
       .map(r => ({ ...r, rankChange: r.overallRank - (r.prevOverallRank as number) }));
 
+    // Picks + punkty na żywo dla latestGw, dla CAŁEJ ligi — potrzebne do bonusu z chipa (BB/TC)
+    // i do analizy kapitanów (Best Captain). Jedno pobranie, cache'owane per entry+gw — jeśli
+    // ktoś już zaglądał w /api/squad albo /api/league-overview w tej kolejce, nic się nie dubluje.
+    const bootstrap = await fetchBootstrapCached();
+    const [allPicksLatest, live] = await Promise.all([
+      Promise.all(leagueEntries.map(plr => fetchEntryPicksCached(plr.entry, latestGw))),
+      fetchEventLiveCached(latestGw),
+    ]);
+
     // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — policzalny dla BB (suma pkt
     // zawodników z ławki, które bez BB by się nie liczyły) i TC (dodatkowe punkty kapitana ponad
     // zwykłe podwojenie). Dla WC/FH nie ma dobrze zdefiniowanego "zysku z chipa" (to chip
     // transferowy, nie punktowy), więc dla nich bonus zostaje null i Chip Master spada wtedy do
     // rankingu po zwykłym total wśród chipowiczów.
-    const bonusEligible = withChip.filter(r => r.chip?.code === 'bboost' || r.chip?.code === '3xc');
     const chipBonus: Record<number, number> = {};
-    if (bonusEligible.length) {
-      const [picksForBonus, live] = await Promise.all([
-        Promise.all(bonusEligible.map(r => fetchEntryPicksCached(r.entry, latestGw))),
-        fetchEventLiveCached(latestGw),
-      ]);
-      bonusEligible.forEach((r, idx) => {
-        const picks = picksForBonus[idx];
-        if (r.chip?.code === 'bboost') {
-          chipBonus[r.entry] = picks.picks
-            .filter(p => p.position > 11)
-            .reduce((sum, p) => sum + (live[p.element] ?? 0), 0);
-        } else if (r.chip?.code === '3xc') {
-          const captainPick = picks.picks.find(p => p.isCaptain);
-          chipBonus[r.entry] = captainPick ? (live[captainPick.element] ?? 0) : 0;
-        }
-      });
-    }
+    leagueEntries.forEach((plr, idx) => {
+      const chip = latestChip[plr.entry];
+      if (!chip) return;
+      const picks = allPicksLatest[idx];
+      if (chip.code === 'bboost') {
+        chipBonus[plr.entry] = picks.picks
+          .filter(p => p.position > 11)
+          .reduce((sum, p) => sum + (live[p.element] ?? 0), 0);
+      } else if (chip.code === '3xc') {
+        const captainPick = picks.picks.find(p => p.isCaptain);
+        chipBonus[plr.entry] = captainPick ? (live[captainPick.element] ?? 0) : 0;
+      }
+    });
+
+    // Best Captain: kto zagrał INNEGO kapitana niż większość ligi (tzw. "template") i zdobył nim
+    // więcej punktów, niż dał template captain. Nagradza trafną, różnicującą decyzję kapitańską —
+    // nie po prostu "kto ma najwyższy total tej kolejki" (bo to mogłaby być cała grupa, która
+    // kapitanowała to samo, co wszyscy).
+    const captainCounts: Record<number, number> = {};
+    const captainByEntry: Record<number, number | null> = {};
+    leagueEntries.forEach((plr, idx) => {
+      const cap = allPicksLatest[idx].picks.find(p => p.isCaptain);
+      captainByEntry[plr.entry] = cap ? cap.element : null;
+      if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
+    });
+    const templateCaptainEntry = Object.entries(captainCounts).sort((a, b) => b[1] - a[1])[0];
+    const templateCaptainElement = templateCaptainEntry ? Number(templateCaptainEntry[0]) : null;
+    const templateCaptainPts = templateCaptainElement != null ? (live[templateCaptainElement] ?? 0) : 0;
+    const templateCaptainName = templateCaptainElement != null
+      ? (bootstrap.elementsById[templateCaptainElement]?.web_name ?? '—')
+      : '—';
+
+    const differentialCaptains = latestRows
+      .map(r => {
+        const capElement = captainByEntry[r.entry];
+        if (capElement == null || capElement === templateCaptainElement) return null;
+        return {
+          ...r,
+          captainElement: capElement,
+          captainPts: live[capElement] ?? 0,
+          captainName: bootstrap.elementsById[capElement]?.web_name ?? '—',
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r != null && r.captainPts > templateCaptainPts);
 
     const mkAward = (r: typeof latestRows[number] | null, extra?: object) =>
       r ? { entry: r.entry, player_name: r.player_name, entry_name: r.entry_name, ...extra } : null;
@@ -266,6 +302,7 @@ export async function GET(req: NextRequest){
     const noChipWarrior = topBy(withoutChip, r => r.points);
     const valueKing = topBy(latestRows, r => r.value);
     const rankCrasher = topBy(rankFallers, r => r.rankChange);
+    const bestCaptain = topBy(differentialCaptains, r => r.captainPts);
 
     const awards = {
       gw: latestGw,
@@ -281,6 +318,14 @@ export async function GET(req: NextRequest){
       rankCrasher: rankCrasher && rankCrasher.rankChange > 0
         ? mkAward(rankCrasher, { rankChange: rankCrasher.rankChange })
         : null, // brak sensownego spadku (albo brak danych z poprzedniej GW, np. GW1) -> ukryty na froncie
+      bestCaptain: bestCaptain
+        ? mkAward(bestCaptain, {
+            captainName: bestCaptain.captainName,
+            captainPts: bestCaptain.captainPts,
+            templateCaptainName,
+            templateCaptainPts,
+          })
+        : null, // nikt nie pobił template captaina inną kapitanką w tej kolejce -> ukryty na froncie
     };
 
     return NextResponse.json({

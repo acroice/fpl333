@@ -5,6 +5,7 @@ import {
   fetchEventLiveCached,
   fetchBootstrapCached,
   playerPhotoUrl,
+  clubBadgeUrl,
   CHIP_LABELS,
   CHIP_NAMES,
 } from '../_lib/fpl';
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
           element: p.element,
           name: el?.web_name ?? '—',
           team: team?.short_name ?? '',
+          teamBadgeUrl: team ? clubBadgeUrl(team.code) : '',
           position: el ? POSITION_LABEL[el.element_type] ?? '' : '',
           photoUrl: el ? playerPhotoUrl(el.code) : '',
           points: rawPoints,                              // surowe punkty zawodnika w tej kolejce

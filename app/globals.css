@@ -191,6 +191,15 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; j
   border:1px solid #263140;
   flex-shrink:0;
 }
+/* mały herb klubu przy nazwie zawodnika */
+.clubbadge {
+  width:14px;
+  height:14px;
+  object-fit:contain;
+  vertical-align:middle;
+  margin: 0 2px;
+}
+
 .playeravatar--fallback {
   display:flex;
   align-items:center;
