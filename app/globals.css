@@ -25,8 +25,6 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
    przeniesiona pod spód zamiast obok (patrz Quarter Rankings w page.tsx) */
 .grid--single { grid-template-columns: 1fr; }
 
-footer { margin-top: 24px; color: var(--muted); font-size: 12px; display:flex; justify-content: center; padding: 20px 0; }
-
 .status { font-size: 13px; color: var(--muted); }
 .kicker { font-size: 14px; color: var(--muted); }
 .pill { background:#0f2029; border: 1px solid #15303e; color:#9fd9ff; padding:2px 8px; border-radius: 999px; font-size:12px; }
@@ -478,8 +476,14 @@ body.retro .qdone {
   text-transform: capitalize;
 }
 .qstatuspill--active { background: #152a1c; border: 1px solid #2f5a3d; color: #8fe6b3; }
-.qstatuspill--done { background: #171d26; border: 1px solid #263140; color: var(--muted); }
-.qstatuspill--upcoming { background: transparent; border: 1px dashed #263140; color: var(--muted); }
+.qstatuspill--done { background: #2a1414; border: 1px solid #5a2a2a; color: #ff9b9b; }
+.qstatuspill--upcoming { background: #2a2410; border: 1px solid #5a4d1f; color: #f0c975; }
+
+/* kropka statusu w pigułce: zielona = trwa (live), żółta = wkrótce (pending), czerwona = zakończona (closed) */
+.qstatusdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.qstatuspill--active .qstatusdot { background: #5ee1a2; box-shadow: 0 0 4px rgba(94,225,162,.7); }
+.qstatuspill--upcoming .qstatusdot { background: #f0c975; }
+.qstatuspill--done .qstatusdot { background: #ff6b6b; }
 
 /* rankingi wewnątrz rozwiniętego kafelka (Top3, minusowe pkt): rząd z pozycją/nazwą/wynikiem,
    a pod nim subtelna informacja o dystansie do lidera tej ćwiartki (zamiast paska postępu) */

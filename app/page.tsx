@@ -123,13 +123,11 @@ function rankBadge(i: number) {
   return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
 }
 
-// klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu)
+// klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu) — steruje kolorem kropki:
+// trwa = zielona (live), wkrótce = żółta (pending), zakończona = czerwona (closed)
 function quarterStatusKey(status: Quarter['status']) {
   return status === 'trwa' ? 'active' : status === 'zakończona' ? 'done' : 'upcoming';
 }
-const QUARTER_STATUS_ICON: Record<Quarter['status'], string> = {
-  trwa: '▶', zakończona: '✓', wkrótce: '⏳',
-};
 
 // mały okrągły awatar zawodnika (oficjalne zdjęcie z CDN Premier League) — jeśli się nie
 // załaduje (np. zawodnik bez zdjęcia), po prostu znika, żeby nie zostawiać "złamanej" ikonki
@@ -362,17 +360,21 @@ export default function Home() {
     load();
   }, []);
 
-  // 🔥 NOWE: po załadowaniu quarters automatycznie otwieramy tę ćwiartkę,
-  // która ma status "trwa" (czyli aktualnie grana) - tylko jeśli jeszcze
-  // nic nie jest otwarte.
+  // Po pierwszym załadowaniu quarters automatycznie otwieramy tę ćwiartkę, która ma status
+  // "trwa". Robimy to TYLKO RAZ (autoOpenedQuarterRef) — bez tego "openQuarter" w zależnościach
+  // powodowało, że efekt odpalał się ponownie za każdym razem, gdy user ręcznie zwinął kafelek
+  // (setOpenQuarter(null) -> efekt widział "nic nie otwarte" -> od razu otwierał z powrotem,
+  // więc przycisk zwijania wyglądał, jakby nic nie robił / migał).
+  const autoOpenedQuarterRef = React.useRef(false);
   React.useEffect(() => {
-    if (!openQuarter && quarters.length > 0) {
+    if (!autoOpenedQuarterRef.current && quarters.length > 0) {
       const active = quarters.find(q => q.status === 'trwa');
       if (active) {
         setOpenQuarter(active.id);
       }
+      autoOpenedQuarterRef.current = true;
     }
-  }, [quarters, openQuarter]);
+  }, [quarters]);
 
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
@@ -1248,7 +1250,8 @@ export default function Home() {
                       <span className="pill">GW {q.gw_from}–{q.gw_to}</span>
                     </div>
                     <span className={`qstatuspill qstatuspill--${statusKey}`}>
-                      {QUARTER_STATUS_ICON[q.status]} {q.status}
+                      <span className="qstatusdot" />
+                      {q.status}
                     </span>
                   </div>
 

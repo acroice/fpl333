@@ -23,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <TimerBadge />
           </header>
           {children}
-          <footer>powered by DC United</footer>
         </div>
       </body>
     </html>
