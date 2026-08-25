@@ -448,7 +448,7 @@ function SquadDrilldown({
             {p.isViceCaptain && ' (VC)'}
             {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
           </span>
-          <span>{p.total} pkt · {p.ownershipPct}% EO</span>
+          <span>{p.total} pkt · {p.ownershipPct}% obstawy</span>
         </div>
       ))}
 
@@ -466,7 +466,7 @@ function SquadDrilldown({
             <span className={`countmark ${p.multiplier > 0 ? 'countmark--on' : 'countmark--off'}`} title={p.multiplier > 0 ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
               {p.multiplier > 0 ? '✓' : '–'}
             </span>
-            {' · '}{p.ownershipPct}% EO
+            {' · '}{p.ownershipPct}% obstawy
           </span>
         </div>
       ))}

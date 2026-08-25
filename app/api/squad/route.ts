@@ -29,7 +29,7 @@ function buildSquad(
   subbedOut: Set<number>,
   live: Record<number, number>,
   bootstrap: BootstrapSlim,
-  multiplierSum: Record<number, number>,
+  ownedCount: Record<number, number>,
   leagueSize: number
 ) {
   return picks
@@ -61,7 +61,7 @@ function buildSquad(
         subbedIn: subbedIn.has(p.element),
         subbedOut: subbedOut.has(p.element),
         multiplier: mult,
-        ownershipPct: leagueSize ? Math.round(((multiplierSum[p.element] || 0) / leagueSize) * 100) : 0,
+        ownershipPct: leagueSize ? Math.round(((ownedCount[p.element] || 0) / leagueSize) * 100) : 0,
         slot: p.position,
       };
     })
@@ -106,13 +106,14 @@ export async function GET(req: NextRequest) {
     const targetIdx = leagueEntries.findIndex(e => e.entry === entryId);
     const targetPicks = allPicks[targetIdx];
 
-    // Effective Ownership: suma mnożników (0/1/2/3) każdego managera dla danego zawodnika,
-    // podzielona przez wielkość ligi — dokładnie tak liczy to livefpl (u kapitana wchodzącego
-    // z podwójnymi punktami % rośnie o dodatkowe 100% jego ownership, u TC o dodatkowe 200%).
-    const multiplierSum: Record<number, number> = {};
+    // Zwykły % ownership w lidze — ilu managerów ma danego zawodnika w 15-osobowym składzie,
+    // BEZ mnożnika za kapitana/wicekapitana (Effective Ownership potrafiła przekraczać 100% u
+    // często kapitanowanych graczy, co wyglądało jak błąd — patrz league-overview/route.ts,
+    // gdzie ta sama zmiana już została zrobiona wcześniej; tu doganiamy tę samą logikę).
+    const ownedCount: Record<number, number> = {};
     for (const p of allPicks) {
       for (const pick of p.picks) {
-        multiplierSum[pick.element] = (multiplierSum[pick.element] || 0) + pick.multiplier;
+        ownedCount[pick.element] = (ownedCount[pick.element] || 0) + 1;
       }
     }
     const leagueSize = leagueEntries.length;
@@ -144,7 +145,7 @@ export async function GET(req: NextRequest) {
       new Set(officialSubOutToIn.keys()),
       live,
       bootstrap,
-      multiplierSum,
+      ownedCount,
       leagueSize
     );
 
@@ -169,7 +170,7 @@ export async function GET(req: NextRequest) {
         new Set(sim.subs.map(s => s.elementOut)),
         live,
         bootstrap,
-        multiplierSum,
+        ownedCount,
         leagueSize
       );
       projectedTotal = projectedSquad.reduce((sum, p) => sum + p.total, 0);

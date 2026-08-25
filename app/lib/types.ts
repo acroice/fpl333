@@ -69,7 +69,7 @@ export type SquadPlayer = {
   subbedIn: boolean;   // wszedł automatyczną zamianą (bo ktoś z podstawowej 11 nie zagrał)
   subbedOut: boolean;  // wypadł automatyczną zamianą (nie zagrał, mimo że był w podstawowej 11)
   multiplier: number;
-  ownershipPct: number; // Effective Ownership % w naszej lidze (z uwzględnieniem ×kapitan)
+  ownershipPct: number; // zwykły % ownership w naszej lidze, BEZ mnożnika za kapitana/wicekapitana
 };
 
 export type SquadData = {
