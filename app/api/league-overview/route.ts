@@ -63,26 +63,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const topOwned = Object.entries(ownedCount)
-      .map(([elementStr, count]) => {
-        const element = Number(elementStr);
-        const el = bootstrap.elementsById[element];
-        const team = el ? bootstrap.teamsById[el.team] : undefined;
-        return {
-          element,
-          name: el?.web_name ?? '—',
-          team: team?.short_name ?? '',
-          teamBadgeUrl: team ? clubBadgeUrl(team.code) : '',
-          position: el ? POSITION_LABEL[el.element_type] ?? '' : '',
-          photoUrl: el ? playerPhotoUrl(el.code) : '',
-          ownedCount: count,
-          ownedPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
-          captainCount: captainCount[element] || 0,
-          eoPct: leagueSize ? Math.round(((multiplierSum[element] || 0) / leagueSize) * 100) : 0,
-        };
-      })
+    const ownershipRows = Object.entries(ownedCount).map(([elementStr, count]) => {
+      const element = Number(elementStr);
+      const el = bootstrap.elementsById[element];
+      const team = el ? bootstrap.teamsById[el.team] : undefined;
+      return {
+        element,
+        name: el?.web_name ?? '—',
+        team: team?.short_name ?? '',
+        teamBadgeUrl: team ? clubBadgeUrl(team.code) : '',
+        position: el ? POSITION_LABEL[el.element_type] ?? '' : '',
+        photoUrl: el ? playerPhotoUrl(el.code) : '',
+        points: live[element] ?? 0,
+        ownedCount: count,
+        ownedPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
+        captainCount: captainCount[element] || 0,
+        eoPct: leagueSize ? Math.round(((multiplierSum[element] || 0) / leagueSize) * 100) : 0,
+      };
+    });
+
+    const topOwned = [...ownershipRows]
       .sort((a, b) => b.eoPct - a.eoPct || b.ownedCount - a.ownedCount)
-      .slice(0, 12);
+      .slice(0, 6);
+
+    // Różnicowi zawodnicy: nisko obstawiani w lidze (≤20%), a mimo to dobrze punktujący w tej
+    // kolejce — pokazuje, kto zyskał przewagę dzięki nietypowemu wyborowi. Top5 wg punktów.
+    const differentials = [...ownershipRows]
+      .filter(p => p.ownedPct <= 20 && p.points > 0)
+      .sort((a, b) => b.points - a.points || a.ownedCount - b.ownedCount)
+      .slice(0, 5);
 
     // Captaincy Stats — każdy wybór kapitana w lidze: kto go zagrał (%), ile dał punktów
     const captaincy = Object.entries(captainCount)
@@ -104,7 +113,7 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => b.captainCount - a.captainCount || b.points - a.points);
 
-    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned, captaincy });
+    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned, captaincy, differentials });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || 'fetch_failed', leagueId },

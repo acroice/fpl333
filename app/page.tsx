@@ -105,9 +105,14 @@ type CaptaincyRow = {
   points: number; captainCount: number; captainPct: number;
 };
 
+type DifferentialRow = {
+  element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
+  points: number; ownedCount: number; ownedPct: number;
+};
+
 type LeagueOverview = {
   gw: number; leagueSize: number;
-  chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[]; captaincy: CaptaincyRow[];
+  chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[]; captaincy: CaptaincyRow[]; differentials: DifferentialRow[];
 };
 
 // ikonki chipów FPL do badge'y — czysto kosmetyczne, kod chipa i tak jest w tooltipie
@@ -263,9 +268,6 @@ export default function Home() {
   const [compareA, setCompareA] = React.useState<number | null>(null);
   const [compareB, setCompareB] = React.useState<number | null>(null);
 
-  // który kafelek Q jest rozwinięty
-  const [openQuarter, setOpenQuarter] = React.useState<string | null>(null);
-
   // sekcja "Ćwiartki" (przeniesiona na dół strony) — domyślnie widoczna, chowana kafelkiem
   const [showQuarters, setShowQuarters] = React.useState(true);
 
@@ -360,22 +362,6 @@ export default function Home() {
     load();
   }, []);
 
-  // Po pierwszym załadowaniu quarters automatycznie otwieramy tę ćwiartkę, która ma status
-  // "trwa". Robimy to TYLKO RAZ (autoOpenedQuarterRef) — bez tego "openQuarter" w zależnościach
-  // powodowało, że efekt odpalał się ponownie za każdym razem, gdy user ręcznie zwinął kafelek
-  // (setOpenQuarter(null) -> efekt widział "nic nie otwarte" -> od razu otwierał z powrotem,
-  // więc przycisk zwijania wyglądał, jakby nic nie robił / migał).
-  const autoOpenedQuarterRef = React.useRef(false);
-  React.useEffect(() => {
-    if (!autoOpenedQuarterRef.current && quarters.length > 0) {
-      const active = quarters.find(q => q.status === 'trwa');
-      if (active) {
-        setOpenQuarter(active.id);
-      }
-      autoOpenedQuarterRef.current = true;
-    }
-  }, [quarters]);
-
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
     const seq = [
@@ -464,12 +450,6 @@ export default function Home() {
   function sortArrow(col: 'rank'|'total'|'gw'|'currentQ'|'wins') {
     if (sortKey !== col) return '';
     return sortDir === 'asc' ? '↑' : '↓';
-  }
-
-  // kliknięcie kafelka ćwiartki
-  function toggleQuarterOpen(id: string, isLocked: boolean) {
-    if (isLocked) return; // ćwiartka "wkrótce" -> brak rozwinięcia
-    setOpenQuarter(prev => (prev === id ? null : id));
   }
 
   // pobiera skład managera (bieżąca kolejka) i wrzuca do wspólnego cache, jeśli jeszcze go nie ma.
@@ -760,7 +740,21 @@ export default function Home() {
                   </div>
 
                   <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                    Najczęściej wybierani (EO):
+                    Captaincy Stats:
+                  </div>
+                  {overview.captaincy.map(p => (
+                    <div key={p.element} className="squadplayer">
+                      <span className="squadplayer-name">
+                        <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                        <span className="pill">{p.position}</span>
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                      </span>
+                      <span>{p.points} pkt · {p.captainPct}% C</span>
+                    </div>
+                  ))}
+
+                  <div style={{ fontWeight: 600, margin: '12px 0 6px' }}>
+                    Najczęściej wybierani (EO), top 6:
                   </div>
                   {overview.topOwned.map(p => (
                     <div key={p.element} className="squadplayer">
@@ -775,18 +769,22 @@ export default function Home() {
                   ))}
 
                   <div style={{ fontWeight: 600, margin: '12px 0 6px' }}>
-                    Captaincy Stats:
+                    🎯 Różnicowi zawodnicy (nisko obstawiani, wysokie pkt):
                   </div>
-                  {overview.captaincy.map(p => (
-                    <div key={p.element} className="squadplayer">
-                      <span className="squadplayer-name">
-                        <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                        <span className="pill">{p.position}</span>
-                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-                      </span>
-                      <span>{p.points} pkt · {p.captainPct}% C</span>
-                    </div>
-                  ))}
+                  {overview.differentials.length === 0 ? (
+                    <div>Brak — nikt nisko obstawiany nie wystrzelił w tej kolejce</div>
+                  ) : (
+                    overview.differentials.map(p => (
+                      <div key={p.element} className="squadplayer">
+                        <span className="squadplayer-name">
+                          <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                          <span className="pill">{p.position}</span>
+                          {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                        </span>
+                        <span>{p.points} pkt · {p.ownedPct}% obstawy ({p.ownedCount}/{overview.leagueSize})</span>
+                      </div>
+                    ))
+                  )}
                 </>
               )}
             </div>
@@ -1184,25 +1182,23 @@ export default function Home() {
           <>
             {/* pasek sezonu: 4 segmenty proporcjonalne do liczby kolejek w ćwiartce (10/9/9/10),
                 z paskiem postępu wewnątrz tej, która aktualnie trwa — jednym spojrzeniem widać,
-                gdzie w sezonie jesteśmy. Klikalny tak samo jak kafelki niżej. */}
-            <div className="seasonbar" role="group" aria-label="Postęp sezonu wg ćwiartek">
+                gdzie w sezonie jesteśmy. Czysto informacyjny (bez klikania — kafelki niżej i tak
+                zawsze pokazują swoje Top3, więc nie ma czego "otwierać"). */}
+            <div className="seasonbar" role="img" aria-label="Postęp sezonu wg ćwiartek">
               {quarters.map(q => {
                 const key = quarterStatusKey(q.status);
-                const isLocked = q.status === 'wkrótce';
                 return (
-                  <button
+                  <div
                     key={q.id}
-                    type="button"
-                    className={`seasonbar-seg seasonbar-seg--${key}${openQuarter === q.id ? ' is-selected' : ''}`}
+                    className={`seasonbar-seg seasonbar-seg--${key}`}
                     style={{ flexGrow: q.games }}
-                    onClick={() => toggleQuarterOpen(q.id, isLocked)}
                     title={`${q.id} • GW${q.gw_from}–${q.gw_to} • ${q.status}`}
                   >
                     {key === 'active' && (
                       <span className="seasonbar-fill" style={{ width: `${q.progress ?? 0}%` }} />
                     )}
                     <span className="seasonbar-label">{q.id}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1225,9 +1221,8 @@ export default function Home() {
               const statusKey = quarterStatusKey(q.status);
 
               const isLocked = q.status === 'wkrótce';
-              const isOpen = !isLocked && openQuarter === q.id;
-              const topRows = isOpen ? (quarterTop[q.id] || []) : [];
-              const hitsRows = isOpen && showHits ? (quarterHitsTop[q.id] || []) : [];
+              const topRows = quarterTop[q.id] || [];
+              const hitsRows = showHits ? (quarterHitsTop[q.id] || []) : [];
               // wartość lidera każdej listy (obie są już posortowane malejąco z API) — używana
               // do subtelnego "X pkt do lidera" przy pozostałych wierszach zamiast paska postępu
               const maxTopPts = topRows[0]?.points ?? 0;
@@ -1236,13 +1231,8 @@ export default function Home() {
               return (
                 <div
                   key={q.id}
-                  className={`card ${statusClass} qcard-clickable`}
-                  style={{
-                    padding: '14px',
-                    cursor: isLocked ? 'default' : 'pointer',
-                    opacity: isLocked ? 0.85 : 1
-                  }}
-                  onClick={()=>toggleQuarterOpen(q.id, isLocked)}
+                  className={`card ${statusClass}`}
+                  style={{ padding: '14px', opacity: isLocked ? 0.85 : 1 }}
                 >
                   <div className="qtitle" style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'6px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
@@ -1258,10 +1248,7 @@ export default function Home() {
                   <div className="small" style={{ marginTop: 6 }}>
                     {q.games} kolejek • {q.from} → {q.to}
                   </div>
-                  <div className="small">
-                    {q.note}
-                    {!isLocked && <span className="qchevron">{isOpen ? '▲' : '▼'}</span>}
-                  </div>
+                  <div className="small">{q.note}</div>
 
                   {/* Pasek postępu trwającej ćwiartki — realny % upływu czasu z API */}
                   {q.status === 'trwa' && (
@@ -1279,65 +1266,69 @@ export default function Home() {
                     </div>
                   )}
 
-                  {isOpen && (
-                    <div
-                      className="small"
-                      style={{
-                        marginTop: 10,
-                        paddingTop: 10,
-                        borderTop: '1px solid #1c2430',
-                        lineHeight: 1.4
-                      }}
-                    >
-                      <div style={{fontWeight:600, marginBottom:6}}>
-                        Top 3 {q.id}
-                      </div>
-                      {topRows.length === 0 ? (
-                        <div>Brak danych</div>
-                      ) : (
-                        topRows.map((row, i) => (
-                          <div key={row.entry} className="rankbar">
-                            <div className="rankbar-top">
-                              <span className="rankbar-rank">{rankBadge(i)}</span>
-                              <span className="rankbar-name">
-                                {row.player_name} <span className="small">({row.entry_name})</span>
-                              </span>
-                              <span className="rankbar-pts">{row.points}</span>
-                            </div>
-                            {i > 0 && (
-                              <div className="rankbar-gap">-{maxTopPts - row.points} pkt do lidera</div>
-                            )}
-                          </div>
-                        ))
-                      )}
-
-                      {showHits && (
-                        <>
-                          <div style={{fontWeight:600, marginTop:12, marginBottom:6}}>
-                            ⚡ Minusowe pkt {q.id}
-                          </div>
-                          {hitsRows.length === 0 ? (
-                            <div>Nikt nie miał minusowych punktów w tej ćwiartce</div>
-                          ) : (
-                            hitsRows.map((row, i) => (
-                              <div key={row.entry} className="rankbar">
-                                <div className="rankbar-top">
-                                  <span className="rankbar-rank">{i + 1}.</span>
-                                  <span className="rankbar-name">
-                                    {row.player_name} <span className="small">({row.entry_name})</span>
-                                  </span>
-                                  <span className="rankbar-pts" style={{ color:'#ff9b9b' }}>-{row.hits}</span>
-                                </div>
-                                {i > 0 && (
-                                  <div className="rankbar-gap">-{maxHitPts - row.hits} pkt mniej niż lider</div>
-                                )}
+                  <div
+                    className="small"
+                    style={{
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: '1px solid #1c2430',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    {isLocked ? (
+                      <div>Ćwiartka jeszcze się nie zaczęła — brak wyników</div>
+                    ) : (
+                      <>
+                        <div style={{fontWeight:600, marginBottom:6}}>
+                          Top 3 {q.id}
+                        </div>
+                        {topRows.length === 0 ? (
+                          <div>Brak danych</div>
+                        ) : (
+                          topRows.map((row, i) => (
+                            <div key={row.entry} className="rankbar">
+                              <div className="rankbar-top">
+                                <span className="rankbar-rank">{rankBadge(i)}</span>
+                                <span className="rankbar-name">
+                                  {row.player_name} <span className="small">({row.entry_name})</span>
+                                </span>
+                                <span className="rankbar-pts">{row.points}</span>
                               </div>
-                            ))
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
+                              {i > 0 && (
+                                <div className="rankbar-gap">-{maxTopPts - row.points} pkt do lidera</div>
+                              )}
+                            </div>
+                          ))
+                        )}
+
+                        {showHits && (
+                          <>
+                            <div style={{fontWeight:600, marginTop:12, marginBottom:6}}>
+                              ⚡ Minusowe pkt {q.id}
+                            </div>
+                            {hitsRows.length === 0 ? (
+                              <div>Nikt nie miał minusowych punktów w tej ćwiartce</div>
+                            ) : (
+                              hitsRows.map((row, i) => (
+                                <div key={row.entry} className="rankbar">
+                                  <div className="rankbar-top">
+                                    <span className="rankbar-rank">{i + 1}.</span>
+                                    <span className="rankbar-name">
+                                      {row.player_name} <span className="small">({row.entry_name})</span>
+                                    </span>
+                                    <span className="rankbar-pts" style={{ color:'#ff9b9b' }}>-{row.hits}</span>
+                                  </div>
+                                  {i > 0 && (
+                                    <div className="rankbar-gap">-{maxHitPts - row.hits} pkt mniej niż lider</div>
+                                  )}
+                                </div>
+                              ))
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}

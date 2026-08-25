@@ -346,11 +346,6 @@ body.retro .qcurrent { border-color:#36c28a !important; box-shadow:0 0 0 1px rgb
   100% {
     box-shadow: 0 0 6px rgba(94, 225, 162, 0.2);
   }
-  
-  .qcard-clickable:hover {
-  transform: scale(1.02);
-  transition: transform 0.2s ease;
-  }
 }
 
 /* zakończona ćwiartka (status: zakończona) */
@@ -369,31 +364,6 @@ body.retro .qdone {
   border-color:#104b3a !important;
   background: #00231a !important;
   opacity: 1;
-}
-
-/* kafelek ćwiartki: klikalny */
-.qcard-clickable {
-  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
-}
-
-.qcard-clickable:hover {
-  border-color:#3a4d61;
-  box-shadow:0 0 0 1px rgba(160,200,255,.2) inset;
-  background-color:rgba(255,255,255,0.02);
-}
-
-/* jeśli ćwiartka trwa (qactive), to hover wzmacnia zielony akcent */
-.qactive.qcard-clickable:hover {
-  border-color:#3cffb2;
-  box-shadow:0 0 0 1px rgba(94,225,162,.4) inset;
-  background-color:rgba(0,255,170,0.03);
-}
-
-/* jeśli ćwiartka zakończona (qdone), hover delikatny szarawy */
-.qdone.qcard-clickable:hover {
-  border-color:#4a5568;
-  box-shadow:0 0 0 1px rgba(150,150,170,.25) inset;
-  background-color:rgba(255,255,255,0.015);
 }
 
 /* strzałka przy nazwie ćwiartki */
@@ -435,14 +405,10 @@ body.retro .qdone {
   border: 1px solid #1c2430;
   background: #0f1620;
   overflow: hidden;
-  cursor: pointer;
-  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color .15s ease, transform .15s ease;
 }
-.seasonbar-seg:hover { transform: translateY(-1px); border-color: #3a4d61; }
 .seasonbar-label {
   position: relative;
   z-index: 1;
@@ -461,7 +427,6 @@ body.retro .qdone {
 .seasonbar-seg--active { border-color: #3cffb2; box-shadow: 0 0 8px rgba(94,225,162,.25); }
 .seasonbar-seg--upcoming { background: transparent; border-style: dashed; opacity: .75; }
 .seasonbar-seg--upcoming .seasonbar-label { color: var(--muted); }
-.seasonbar-seg.is-selected { border-width: 2px; }
 
 /* pigułka statusu ćwiartki w nagłówku kafelka (zastępuje płaski tekst "Status: trwa") */
 .qstatuspill {
