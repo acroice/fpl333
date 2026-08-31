@@ -959,3 +959,122 @@ body.retro .qdone {
   .gwpulse-grid { grid-template-columns: 1fr 1fr; }
   .leaguectx-left { font-size: 17px; }
 }
+
+/* ============================================================
+   GW WRAPPED — świąteczny ekran zamykający kolejkę (dodatek do
+   GW Pulse/GW Awards w Lidze, nie zamiennik). Desktop: wyśrodkowany
+   modal. Mobile: prawie pełnoekranowy bottom sheet, jedna kolumna.
+   ============================================================ */
+.wrapped-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 10, .72);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: wrapped-fade .2s ease-out;
+}
+@keyframes wrapped-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.wrapped-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #121b24, var(--card));
+  border: 1px solid #1c2430;
+  border-radius: 18px;
+  padding: 28px 24px 24px;
+  animation: wrapped-up .25s ease-out;
+}
+@keyframes wrapped-up { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.wrapped-close {
+  position: absolute; top: 14px; right: 14px;
+  background: rgba(255,255,255,.06); border: none; color: var(--muted);
+  width: 30px; height: 30px; border-radius: 50%;
+  font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.wrapped-close:hover { color: var(--text); background: rgba(255,255,255,.12); }
+
+.wrapped-header { text-align: center; margin-bottom: 20px; }
+.wrapped-title { font-size: 22px; font-weight: 900; letter-spacing: .5px; color: var(--text); }
+.wrapped-subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.wrapped-hero {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 4px;
+  background: linear-gradient(160deg, rgba(94,225,162,.14), rgba(94,225,162,.02));
+  border: 1px solid rgba(94,225,162,.3);
+  border-radius: 16px;
+  padding: 20px 16px;
+  margin-bottom: 16px;
+}
+.wrapped-hero .playeravatar { width: 52px; height: 52px; margin-bottom: 6px; }
+.wrapped-hero-icon { font-size: 40px; margin-bottom: 6px; }
+.wrapped-hero-label { font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: #5ee1a2; font-weight: 800; }
+.wrapped-hero-name { font-size: 21px; font-weight: 800; color: var(--text); margin-top: 2px; overflow-wrap: anywhere; }
+.wrapped-hero-sub { font-size: 13px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.wrapped-hero-sub strong { color: var(--text); }
+
+.wrapped-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+.wrapped-card {
+  display: flex; flex-direction: column; gap: 2px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid #1c2430;
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 0;
+}
+.wrapped-card .playeravatar { width: 28px; height: 28px; margin-bottom: 2px; }
+.wrapped-card-icon { font-size: 17px; }
+.wrapped-card-title { font-size: 16px; font-weight: 800; color: var(--text); overflow-wrap: anywhere; }
+.wrapped-card-sub { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.wrapped-card-label { font-size: 9.5px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 3px; }
+.wrapped-card--good { border-color: rgba(94,225,162,.25); }
+.wrapped-card--good .wrapped-card-title { color: #5ee1a2; }
+.wrapped-card--bad { border-color: rgba(255,155,155,.25); }
+.wrapped-card--bad .wrapped-card-title { color: #ff9b9b; }
+.wrapped-card--special { border-color: rgba(240,201,117,.25); }
+.wrapped-card--special .wrapped-card-title { color: #f0c975; }
+.wrapped-card--neutral { border-color: rgba(159,217,255,.25); }
+.wrapped-card--neutral .wrapped-card-title { color: #9fd9ff; }
+
+.wrapped-footer { text-align: center; border-top: 1px solid #1c2430; padding-top: 16px; }
+.wrapped-signoff { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+.wrapped-actions { display: flex; gap: 8px; }
+.wrapped-btn {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #16313f;
+  background: #0f2029;
+  color: #9fd9ff;
+}
+.wrapped-btn--primary {
+  background: linear-gradient(135deg, #5ee1a2, #35b37e);
+  border-color: transparent;
+  color: #06251a;
+}
+
+@media (max-width: 600px) {
+  .wrapped-overlay { align-items: flex-end; padding: 0; }
+  .wrapped-sheet {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+    padding: 22px 16px 20px;
+  }
+  .wrapped-grid { grid-template-columns: 1fr; }
+  .wrapped-title { font-size: 19px; }
+  .wrapped-hero-name { font-size: 19px; }
+  .wrapped-actions { flex-direction: column; }
+}

@@ -38,6 +38,8 @@ type Props = {
   setUseProjection: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
   downloadCsv: () => void;
   awards: Awards | null;
+  gwFullyFinished: boolean;
+  onOpenWrapped: () => void;
 };
 
 // znajdź wszystkie wpisy remisujące o wartość ekstremalną (max/min) — GW Pulse nie może
@@ -116,7 +118,7 @@ export default function LeagueSection({
   sortKey, sortDir, toggleSort, sortArrow,
   quarters, currentQuarterId, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
-  useProjection, setUseProjection, downloadCsv, awards,
+  useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped,
 }: Props) {
   const ready = !loading && !error && !preSeason && league.length > 0;
 
@@ -232,12 +234,22 @@ export default function LeagueSection({
             )}
           </div>
         )}
-        <button
-          onClick={downloadCsv}
-          style={{ background: '#0f2029', border: '1px solid #16313f', borderRadius: '6px', color: '#9fd9ff', fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
-        >
-          Eksportuj CSV
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {gwFullyFinished && awards?.gw != null && (
+            <button
+              onClick={onOpenWrapped}
+              style={{ background: 'linear-gradient(135deg, #5ee1a2, #35b37e)', border: 'none', borderRadius: '6px', color: '#06251a', fontWeight: 700, fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
+            >
+              🏁 GW{awards.gw} Wrapped
+            </button>
+          )}
+          <button
+            onClick={downloadCsv}
+            style={{ background: '#0f2029', border: '1px solid #16313f', borderRadius: '6px', color: '#9fd9ff', fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
+          >
+            Eksportuj CSV
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -410,9 +422,10 @@ export default function LeagueSection({
         </div>
       )}
 
-      {/* GW Awards — odchudzone o Top Gun/Tough Week (duplikat GW Pulse Best/Worst) */}
+      {/* GW Awards — odchudzone o Top Gun/Tough Week (duplikat GW Pulse Best/Worst); id do scrolla
+          z przycisku "Zobacz wszystkie nagrody" w GW Wrapped */}
       {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.bestCaptain) && (
-        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
+        <div id="gw-awards" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Awards</div>
           <div className="awardsrow">
             {awards.chipMaster && (

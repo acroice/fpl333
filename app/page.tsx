@@ -8,6 +8,7 @@ import type {
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
 import KickoffFactsBanner from './components/KickoffFactsBanner';
+import GwWrappedModal from './components/GwWrappedModal';
 import LeagueSection from './sections/LeagueSection';
 import SeasonSection from './sections/SeasonSection';
 import QuartersSection from './sections/QuartersSection';
@@ -84,6 +85,11 @@ export default function Home() {
   // najlepszy kapitan w lidze w latestGw (kto grał kapitana, który zdobył najwięcej pkt) —
   // pokazywany i w banerze Podsumowania GW, i w Statystykach (jedno źródło, dwa miejsca)
   const [topCaptainPick, setTopCaptainPick] = React.useState<TopCaptainPick>(null);
+  // czy latestGw jest już definitywnie skończona (bez okna 24h, w przeciwieństwie do
+  // gwSummaryActive) — trigger dla "GW Wrapped"; ma się pokazać przy pierwszym wejściu po
+  // zakończeniu GW, niezależnie kiedy to nastąpi
+  const [gwFullyFinished, setGwFullyFinished] = React.useState<boolean>(false);
+  const [wrappedOpen, setWrappedOpen] = React.useState(false);
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -197,6 +203,7 @@ export default function Home() {
         setTemplateOwnership(wData.templateOwnership ?? null);
         setChipUsageThisRound(wData.chipUsageThisRound || []);
         setTopCaptainPick(wData.topCaptainPick ?? null);
+        setGwFullyFinished(!!wData.gwFullyFinished);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -205,6 +212,44 @@ export default function Home() {
     }
     load();
   }, []);
+
+  // "GW Wrapped" — pokaż się automatycznie przy PIERWSZYM wejściu po definitywnym zakończeniu
+  // nowej GW (gwFullyFinished, bez okna 24h — patrz komentarz przy stanie), i zapamiętaj że ta GW
+  // została już widziana, żeby nie wracać przy każdym kolejnym wejściu na stronę. Math.max na
+  // zapis chroni przed cofnięciem licznika, gdyby kiedyś odświeżyło się ze starszym latestGw.
+  const WRAPPED_KEY = 'fpl333_wrapped_last_seen_gw';
+  React.useEffect(() => {
+    if (!gwFullyFinished || !awards?.gw) return;
+    let lastSeen = 0;
+    try {
+      lastSeen = Number(localStorage.getItem(WRAPPED_KEY) || 0);
+    } catch {
+      // prywatne okno / zablokowany storage — nie pamiętamy, więc Wrapped pokaże się za każdym
+      // razem od nowa w tej sesji (lepsze niż nigdy go nie pokazać)
+    }
+    if (awards.gw > lastSeen) setWrappedOpen(true);
+  }, [gwFullyFinished, awards?.gw]);
+
+  function closeWrapped() {
+    setWrappedOpen(false);
+    if (!awards?.gw) return;
+    try {
+      const lastSeen = Number(localStorage.getItem(WRAPPED_KEY) || 0);
+      localStorage.setItem(WRAPPED_KEY, String(Math.max(lastSeen, awards.gw)));
+    } catch {
+      // patrz komentarz wyżej — jeśli się nie uda zapisać, Wrapped po prostu wróci przy odświeżeniu
+    }
+  }
+
+  // "Zobacz wszystkie nagrody" z Wrapped — zamyka modal, przełącza na Ligę i scrolluje do sekcji
+  // GW Awards (ta sama treść, pełna lista zamiast wyboru najciekawszych)
+  function viewAllAwardsFromWrapped() {
+    closeWrapped();
+    setActiveSection('liga');
+    setTimeout(() => {
+      document.getElementById('gw-awards')?.scrollIntoView({ block: 'start' });
+    }, 80);
+  }
 
   // Konami code → retro mode przez 10s
   React.useEffect(() => {
@@ -421,6 +466,15 @@ export default function Home() {
         leagueSize={participants}
       />
       <GwSummaryBanner awards={awards} league={league} topCaptainPick={topCaptainPick} active={gwSummaryActive} />
+      <GwWrappedModal
+        open={wrappedOpen}
+        onClose={closeWrapped}
+        onViewAllAwards={viewAllAwardsFromWrapped}
+        awards={awards}
+        league={league}
+        captainInfo={captainInfo}
+        topCaptainPick={topCaptainPick}
+      />
 
       <div style={{ display: activeSection === 'liga' ? 'block' : 'none' }}>
         <LeagueSection
@@ -452,6 +506,8 @@ export default function Home() {
           setUseProjection={setUseProjection}
           downloadCsv={downloadCsv}
           awards={awards}
+          gwFullyFinished={gwFullyFinished}
+          onOpenWrapped={() => setWrappedOpen(true)}
         />
       </div>
 

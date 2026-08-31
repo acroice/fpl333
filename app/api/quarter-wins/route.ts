@@ -225,8 +225,14 @@ export async function GET(req: NextRequest){
     // drugi allFinishedProvisional), więc nigdy nie pokażą się jednocześnie dla tej samej GW.
     let gwSummaryActive = false;
     let kickoffFactsActive = false;
+    // Bez okna czasowego (w przeciwieństwie do gwSummaryActive, które gaśnie po 24h) — to jest
+    // czysty fakt "czy latestGw jest już definitywnie skończona", do triggera "GW Wrapped": ten
+    // ma się pokazać przy PIERWSZYM wejściu po zakończeniu GW, niezależnie kiedy to nastąpi, więc
+    // nie może zależeć od tego samego okresu ważności co lekki baner.
+    let gwFullyFinished = false;
     if (latestGw > 0) {
       const completion = await fetchGwCompletionCached(latestGw);
+      gwFullyFinished = completion.allFinishedProvisional;
       if (completion.allFinishedProvisional && completion.estimatedEndTime) {
         const windowEnd = new Date(completion.estimatedEndTime).getTime() + 24 * 3600_000;
         gwSummaryActive = Date.now() <= windowEnd;
@@ -606,6 +612,7 @@ export async function GET(req: NextRequest){
       chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
       gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw
       gwSummaryActive,       // czy pokazać powiadomienie "Podsumowanie GW" (24h od końca ostatniego meczu latestGw)
+      gwFullyFinished,       // czy latestGw jest już definitywnie skończona (bez okna 24h) — trigger dla GW Wrapped
       kickoffFactsActive,    // czy pokazać powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy)
       captainBreakdown,      // [{element,name,photoUrl,count,pct}, ... top5] — rozkład kapitanów w latestGw
       templateOwnership,     // {element,name,photoUrl,count,pct} | null — najpopularniejszy pick w składach latestGw
