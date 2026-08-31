@@ -77,6 +77,7 @@ export type BootstrapSlim = {
   currentGw: number; // is_current, albo ostatni z deadline_time w przeszłości, albo 1
   nextDeadline: { gw: number; deadline: string } | null; // najbliższy deadline_time w przyszłości (ISO), do TimerBadge
   eventFinished: Record<number, boolean>; // finished per GW — FPL sam to mówi (oficjalne po doliczeniu bonusów), do statusu LIVE/ZAKOŃCZONA
+  totalPlayers: number; // total_players — do estimateLiveOverallRank (górna granica przeszukiwania ligi Overall)
 };
 
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
@@ -203,7 +204,9 @@ async function fetchBootstrapRaw(): Promise<BootstrapSlim> {
   const eventFinished: Record<number, boolean> = {};
   for (const e of events) eventFinished[e.id] = !!e.finished;
 
-  return { elementsById, teamsById, currentGw, nextDeadline, eventFinished };
+  const totalPlayers = Number(data?.total_players ?? 0);
+
+  return { elementsById, teamsById, currentGw, nextDeadline, eventFinished, totalPlayers };
 }
 
 // Słownik zawodników/drużyn + numer bieżącej kolejki, z dłuższym cache TTL (dane rzadko się zmieniają).
@@ -424,6 +427,85 @@ export function simulateAutosubs(
   const captainChanged = captainElement !== captainPick?.element;
 
   return { effectiveMultiplier, subs, captainChanged };
+}
+
+// --------------------------------------------------------------------------------------------
+// Estymacja LIVE rankingu ogólnego FPL (spośród WSZYSTKICH graczy w grze).
+//
+// Problem: overall_rank z entry/history (i entry/picks) liczy FPL osobnym, wsadowym procesem —
+// w trakcie trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o kilkanaście punktów
+// (zweryfikowane bezpośrednio na surowym API: total_points z picks vs suma live punktów
+// zawodników × mnożnik z tego samego składu — różnica 11-18 pkt, stabilna, nie "migocząca").
+//
+// Rozwiązanie: liga "Overall" (ID 314) to oficjalna liga FPL zawierająca WSZYSTKICH graczy,
+// posortowana malejąco po total — ten sam pipeline standings co nasza własna liga, a TEN jest
+// faktycznie live (sprawdzone: total/event_total tu = suma live punktów, nie opóźniona wartość
+// z entry/history). Przeszukujemy jej strony (50 wyników/strona) binarnie, żeby znaleźć stronę
+// zawierającą nasz aktualny total — FPL i tak sam podaje na niej gotowy, doliczony `rank`
+// (z uwzględnieniem remisów), więc nie musimy nic dointerpolowywać wewnątrz strony.
+// --------------------------------------------------------------------------------------------
+const OVERALL_LEAGUE_ID = '314';
+const OVERALL_PAGE_SIZE = 50;
+const OVERALL_PAGE_TTL_MS = 45_000;
+const overallPageCache = new Map<number, CacheEntry<{ total: number; rank: number }[]>>(); // klucz: numer strony
+
+async function fetchOverallPageCached(page: number): Promise<{ total: number; rank: number }[]> {
+  const hit = overallPageCache.get(page);
+  if (hit && Date.now() - hit.ts < OVERALL_PAGE_TTL_MS) return hit.data;
+
+  const url = `https://fantasy.premierleague.com/api/leagues-classic/${OVERALL_LEAGUE_ID}/standings/?page_standings=${page}`;
+  const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
+  if (!res.ok) throw new Error(`overall league ${res.status}`);
+  const data = await res.json();
+  const rows = (data?.standings?.results ?? []).map((r: any) => ({ total: Number(r.total), rank: Number(r.rank) }));
+
+  overallPageCache.set(page, { data: rows, ts: Date.now() });
+  return rows;
+}
+
+// Binarne przeszukanie ligi 314 po `totalPoints` (aktualny, live total managera — patrz komentarz
+// wyżej skąd go brać). `hintRank` to punkt startowy (np. opóźniony overall_rank z entry/history) —
+// jeśli jest w miarę bliski prawdy, pierwsze zapytanie od razu trafia we właściwą okolicę i
+// przeszukanie kończy się szybciej; jeśli nie, zwykłe binarne przeszukanie i tak zbiega w
+// O(log liczby stron) krokach (przy ~10mln graczy / 50 na stronę to maks. ~18 prób, ograniczone
+// tu do 20 jako bezpiecznik). Zwraca null, gdy się nie uda (np. przejściowy błąd FPL) — front
+// wtedy dostaje fallback na starszą, opóźnioną wartość zamiast nic nie pokazywać.
+export async function estimateLiveOverallRank(
+  totalPoints: number,
+  totalPlayers: number,
+  hintRank?: number
+): Promise<number | null> {
+  let lo = 1;
+  let hi = Math.max(1, Math.ceil(totalPlayers / OVERALL_PAGE_SIZE));
+  let page = hintRank
+    ? Math.min(hi, Math.max(1, Math.round(hintRank / OVERALL_PAGE_SIZE)))
+    : Math.ceil((lo + hi) / 2);
+
+  for (let attempts = 0; attempts < 20 && lo <= hi; attempts++) {
+    let rows: { total: number; rank: number }[];
+    try {
+      rows = await fetchOverallPageCached(page);
+    } catch {
+      return null;
+    }
+    if (!rows.length) return null;
+
+    const pageMax = rows[0].total;
+    const pageMin = rows[rows.length - 1].total;
+
+    if (totalPoints > pageMax) {
+      hi = page - 1; // nasz total jest wyższy niż cokolwiek na tej stronie -> szukaj wyżej (mniejszy numer strony)
+    } else if (totalPoints < pageMin) {
+      lo = page + 1; // nasz total jest niższy -> szukaj niżej
+    } else {
+      const match = rows.find(r => r.total <= totalPoints);
+      return match ? match.rank : rows[rows.length - 1].rank;
+    }
+
+    if (lo > hi) break;
+    page = Math.ceil((lo + hi) / 2);
+  }
+  return null;
 }
 
 // Czytelne etykiety chipów FPL, do wyświetlenia jako badge.

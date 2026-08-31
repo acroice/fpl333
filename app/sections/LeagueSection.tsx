@@ -85,11 +85,11 @@ function renderUsedChips(history: ChipHistoryEntry[] | undefined, activeChip: Ch
 
 // ranking ogólny FPL — "OR: <liczba>", zawsze pełny zapis z separatorem tysięcy (bez skracania).
 // Strzałka ruchu względem poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc
-// zielona ↑). UWAGA: to pole FPL liczy osobnym, wsadowym procesem (nie punkt-po-punkcie jak wynik
-// kolejki) — w trakcie trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o
-// kilkanaście punktów, więc przy bliskich wynikach kolejność w tym rankingu może chwilowo nie
-// zgadzać się z kolejnością w naszej tabeli. To ograniczenie danych FPL, nie błąd liczenia —
-// stąd zastrzeżenie w tooltipie.
+// zielona ↑). To WŁASNA estymata (backend przeszukuje ligę Overall/314 po żywym totalu managera —
+// patrz komentarz przy estimateLiveOverallRank w _lib/fpl.ts), nie samo pole overall_rank z FPL,
+// które w trakcie trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o kilkanaście
+// punktów. Gdy przeszukanie się nie powiedzie, backend cicho spada na tę opóźnioną wartość — stąd
+// nadal zastrzeżenie w tooltipie, na wypadek gdyby akurat to się zdarzyło.
 function renderWorldRank(info: OverallRankInfo) {
   if (!info) return null;
   const { rank, prevRank } = info;
@@ -97,7 +97,7 @@ function renderWorldRank(info: OverallRankInfo) {
   const declined = prevRank != null && rank > prevRank;
   const title = `Ranking ogólny FPL (spośród wszystkich graczy): ${rank.toLocaleString('pl')}`
     + (prevRank != null ? ` · poprzednia GW: ${prevRank.toLocaleString('pl')}` : '')
-    + ' · FPL liczy to osobno i potrafi zostawać w tyle za żywym wynikiem w trakcie trwającej kolejki';
+    + ' · szacowane na żywo; w razie problemów z estymacją może chwilowo pokazać opóźnioną wartość z FPL';
   return (
     <span className="worldrank" title={title}>
       OR: {rank.toLocaleString('pl')}

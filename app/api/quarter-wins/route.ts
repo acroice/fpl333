@@ -6,6 +6,8 @@ import {
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchBootstrapCached,
+  fetchClassicStandingsCached,
+  estimateLiveOverallRank,
   playerPhotoUrl,
   CHIP_LABELS,
   CHIP_NAMES,
@@ -276,6 +278,27 @@ export async function GET(req: NextRequest){
       fetchEventLiveCached(latestGw),
       fetchEventMinutesCached(latestGw),
     ]);
+
+    // Estymata LIVE rankingu ogólnego (patrz komentarz przy estimateLiveOverallRank w fpl.ts) —
+    // podmienia overallRank[x].rank na świeższą wartość znalezioną przeszukaniem ligi Overall (314)
+    // po żywym totalu managera. `total` z classic standings naszej ligi jest tym samym, faktycznie
+    // live pipeline'em (zweryfikowane), więc to jest wiarygodny punkt wejścia. Hint (punkt startowy
+    // przeszukania) to opóźniona wartość z entry/history, którą już mamy — jeśli estymacja się nie
+    // powiedzie (np. przejściowy błąd FPL), overallRank zostaje przy tej opóźnionej wartości, więc
+    // front zawsze coś pokazuje, tylko czasem mniej świeże.
+    const standingsForEstimate = await fetchClassicStandingsCached(leagueId);
+    const liveTotalByEntry = new Map<number, number>();
+    for (const r of standingsForEstimate.results) liveTotalByEntry.set(r.entry, Number(r.total));
+
+    await Promise.all(leagueEntries.map(async (plr) => {
+      const liveTotal = liveTotalByEntry.get(plr.entry);
+      if (liveTotal == null) return;
+      const hint = overallRank[plr.entry]?.rank;
+      const estimated = await estimateLiveOverallRank(liveTotal, bootstrap.totalPlayers, hint);
+      if (estimated != null && overallRank[plr.entry]) {
+        overallRank[plr.entry] = { rank: estimated, prevRank: overallRank[plr.entry]!.prevRank };
+      }
+    }));
 
     // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — dla KAŻDEGO zagrania chipa w
     // całym sezonie (nie tylko latestGw), żeby moduł Chips w Statystykach mógł pokazać "ile z
