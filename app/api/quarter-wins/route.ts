@@ -492,6 +492,36 @@ export async function GET(req: NextRequest){
       };
     });
 
+    // Najlepszy kapitan w lidze — kto grał TEGO kapitana, który w tej GW zdobył najwięcej punktów,
+    // niezależnie czy to był popularny "template", czy różnicowy wybór. To inne pytanie niż
+    // bestCaptain niżej (ten nagradza konkretnie POBICIE template'a różnicowym wyborem) — tu
+    // liczy się goła "kto miał najlepszego kapitana w całej lidze w tej kolejce", uniwersalnie
+    // satysfakcjonujące niezależnie od tego, czy to była odważna decyzja czy poszli z tłumem.
+    const captainPicksByElement = new Map<number, { entry: number; player_name: string }[]>();
+    leagueEntries.forEach(plr => {
+      const capElement = captainByEntry[plr.entry];
+      if (capElement == null) return;
+      if (!captainPicksByElement.has(capElement)) captainPicksByElement.set(capElement, []);
+      captainPicksByElement.get(capElement)!.push({ entry: plr.entry, player_name: plr.player_name || '' });
+    });
+    let topCaptainPick: {
+      element: number; name: string; photoUrl: string; points: number;
+      managers: { entry: number; player_name: string }[];
+    } | null = null;
+    for (const [element, managers] of captainPicksByElement.entries()) {
+      const pts = live[element] ?? 0;
+      if (!topCaptainPick || pts > topCaptainPick.points) {
+        const el = bootstrap.elementsById[element];
+        topCaptainPick = {
+          element,
+          name: el?.web_name ?? '—',
+          photoUrl: el ? playerPhotoUrl(el.code) : '',
+          points: pts,
+          managers,
+        };
+      }
+    }
+
     const templateCaptainEntry = Object.entries(captainCounts).sort((a, b) => b[1] - a[1])[0];
     const templateCaptainElement = templateCaptainEntry ? Number(templateCaptainEntry[0]) : null;
     const templateCaptainPts = templateCaptainElement != null ? (live[templateCaptainElement] ?? 0) : 0;
@@ -581,6 +611,7 @@ export async function GET(req: NextRequest){
       templateOwnership,     // {element,name,photoUrl,count,pct} | null — najpopularniejszy pick w składach latestGw
       chipUsageThisRound,    // [{code,label,count}, ...] — ile osób zagrało jaki chip w latestGw
       leagueSize,            // liczba uczestników — do wyliczeń % w bannerach
+      topCaptainPick,        // {element,name,photoUrl,points,managers} | null — najlepszy kapitan w lidze w latestGw
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

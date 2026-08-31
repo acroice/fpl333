@@ -249,13 +249,16 @@ export default function CompareSection({
 
                   {differentials.length > 0 && (
                     <div className="diffheadline">
-                      <span aria-hidden="true">🎯</span> Różnicowi: <strong>{onlyA.length}</strong> u {sqA.playerName} vs <strong>{onlyB.length}</strong> u {sqB.playerName}
+                      {/* onlyA.length === onlyB.length zawsze, gdy oba składy mają po 15 zawodników
+                          (obie liczby to po prostu 15 - wspólni), więc pisanie "X u A vs Y u B" było
+                          tautologią — jedna liczba, waga jest w punktach, nie w liczbie różnic */}
+                      <span aria-hidden="true">🎯</span> Po <strong>{onlyA.length}</strong> różnicowych zawodników u każdego
                       {diffSwing !== 0 ? (
                         <span className="leadbadge" style={{ marginLeft: 8 }}>
-                          {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt z różnic
+                          {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt przewagi z różnic
                         </span>
                       ) : (
-                        <span className="leadbadge leadbadge--neutral" style={{ marginLeft: 8 }}>bez przewagi z różnic</span>
+                        <span className="leadbadge leadbadge--neutral" style={{ marginLeft: 8 }}>różnice się bilansują — bez przewagi</span>
                       )}
                     </div>
                   )}

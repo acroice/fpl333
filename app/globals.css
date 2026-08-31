@@ -812,6 +812,12 @@ body.retro .qdone {
 .gwpulse-item b { font-size: 19px; font-weight: 800; color: var(--text); margin-top: 2px; }
 .gwpulse-item .small { white-space: normal; overflow-wrap: anywhere; }
 .gwpulse-label { font-size: 10px; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 3px; }
+/* wariant auto-fit — liczba kafelków bywa inna niż 4 (banery: 3 lub 4), więc kolumny same się
+   dopasowują zamiast zostawiać pustą kratkę jak przy sztywnym repeat(4,1fr) */
+.gwpulse-grid--auto { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+/* kafelek z fotą zawodnika zamiast emoji-ikony — trochę większa niż domyślne 26px, bo tu jest
+   głównym elementem wizualnym kafelka, nie dodatkiem przy nazwisku w wierszu tabeli */
+.gwpulse-item .playeravatar { width: 32px; height: 32px; }
 
 /* --- Podsumowanie GW: powiadomienie nad Nav, widoczne na każdej zakładce --- */
 .gwsummary-banner {
@@ -824,10 +830,7 @@ body.retro .qdone {
   padding: 14px 36px 14px 16px;
   animation: gwsummary-in .25s ease-out;
 }
-.gwsummary-header { font-weight: 800; font-size: 15px; margin-bottom: 8px; color: var(--text); }
-.gwsummary-lines { display: flex; flex-direction: column; gap: 5px; }
-.gwsummary-line { font-size: 13px; color: var(--muted); }
-.gwsummary-line strong { color: var(--text); }
+.gwsummary-header { font-weight: 800; font-size: 15px; margin-bottom: 10px; color: var(--text); }
 .gwsummary-close {
   position: absolute; top: 10px; right: 10px;
   background: transparent; border: none; color: var(--muted);

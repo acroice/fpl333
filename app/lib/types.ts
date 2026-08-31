@@ -113,6 +113,13 @@ export type CaptainBreakdownRow = { element: number; name: string; photoUrl: str
 export type TemplateOwnership = { element: number; name: string; photoUrl: string; count: number; pct: number } | null;
 export type ChipRoundUsage = { code: string; label: string; count: number };
 
+// najlepszy kapitan w lidze w danej GW — kto grał tego kapitana, który zdobył najwięcej punktów
+// (niezależnie od popularności wyboru); managers > 1, gdy kilku managerów miało tego samego kapitana
+export type TopCaptainPick = {
+  element: number; name: string; photoUrl: string; points: number;
+  managers: { entry: number; player_name: string }[];
+} | null;
+
 export type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
 
 export type TopOwnedRow = {

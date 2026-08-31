@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo } from '../lib/types';
+import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick } from '../lib/types';
 import { PlayerAvatar, ClubBadge, chipIcon, rankBadge } from '../components/shared';
 
 type Props = {
@@ -13,6 +13,7 @@ type Props = {
   gwPoints: Record<number, GwPoint[]>;
   chipHistory: Record<number, ChipHistoryEntry[]>;
   teamInfo: Record<number, TeamInfo>;
+  topCaptainPick: TopCaptainPick;
 };
 
 // "🧠 Statystyki" — 5 modułów. Captaincy i Ownership to dawny "Wgląd w ligę" (showOverview)
@@ -22,7 +23,7 @@ type Props = {
 // transferów, template ligi), jest jawna notka zamiast zmyślonych liczb.
 export default function StatsSection({
   active, loadOverview, overview, overviewLoading, overviewError,
-  entryIndex, gwPoints, chipHistory, teamInfo,
+  entryIndex, gwPoints, chipHistory, teamInfo, topCaptainPick,
 }: Props) {
   React.useEffect(() => {
     if (active) loadOverview();
@@ -91,6 +92,21 @@ export default function StatsSection({
       <div className="small" style={{ marginBottom: 14 }}>Szczegółowa analityka managerów naszej ligi.</div>
 
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Captaincy</div>
+      {topCaptainPick && (
+        <div className="statchip statchip--special" style={{ marginBottom: 10 }}>
+          <PlayerAvatar src={topCaptainPick.photoUrl} alt={topCaptainPick.name} />
+          <span className="statchip-text">
+            <span className="statchip-label">🏆 Najlepszy kapitan w lidze (ta GW)</span>
+            <span className="statchip-value">
+              {topCaptainPick.name} · <b>{topCaptainPick.points} pkt</b>
+              {' — '}
+              {topCaptainPick.managers.length === 1
+                ? topCaptainPick.managers[0].player_name
+                : `${topCaptainPick.managers.length} managerów`}
+            </span>
+          </span>
+        </div>
+      )}
       {overviewLoading ? (
         <div className="small">Ładowanie…</div>
       ) : overviewError ? (

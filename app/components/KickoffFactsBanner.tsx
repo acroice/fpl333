@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import type { CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage } from '../lib/types';
+import { StatTileGrid, StatTile } from './shared';
 
 type Props = {
   gw: number;
@@ -15,8 +16,9 @@ const dismissKey = (gw: number) => `fpl333_kickoff_dismissed_${gw}`;
 
 // "🚀 GW wystartowała" — powiadomienie z ciekawostkami tuż po pierwszym gwizdku tej kolejki,
 // zanim jeszcze znamy wyniki: rozkład kapitanów, najpopularniejszy pick w składach, użycie
-// chipów w tej rundzie. Symetryczne do GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/
-// W TRAKCIE) — wzajemnie wykluczające się dzięki warunkom liczonym w backendzie.
+// chipów w tej rundzie. Kafelki w tym samym języku co GW Pulse (StatTile/StatTileGrid, wspólne z
+// GwSummaryBanner). Symetryczne do GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/W
+// TRAKCIE) — wzajemnie wykluczające się dzięki warunkom liczonym w backendzie.
 export default function KickoffFactsBanner({ gw, active, captainBreakdown, templateOwnership, chipUsage, leagueSize }: Props) {
   const [dismissed, setDismissed] = React.useState(false);
 
@@ -44,43 +46,43 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, templ
   const otherCaptainsCount = Math.max(0, captainBreakdown.length - 1);
   const chipTotal = chipUsage.reduce((s, c) => s + c.count, 0);
 
-  const lines: { icon: string; text: React.ReactNode }[] = [];
+  const tiles: React.ReactNode[] = [];
   if (topCaptain) {
-    const otherCaptainsLabel = otherCaptainsCount === 1 ? 'innego kapitana' : 'innych kapitanów';
-    lines.push({
-      icon: '🎯',
-      text: (
-        <>
-          Kapitan tłumu: <strong>{topCaptain.name}</strong> — {topCaptain.count}/{leagueSize} ({topCaptain.pct}%)
-          {otherCaptainsCount > 0 && <> · reszta rozjechana na {otherCaptainsCount} {otherCaptainsLabel}</>}
-        </>
-      ),
-    });
+    const caption = otherCaptainsCount > 0
+      ? `${topCaptain.count}/${leagueSize} · +${otherCaptainsCount} inn${otherCaptainsCount === 1 ? 'y' : 'i'}`
+      : `${topCaptain.count}/${leagueSize} (wszyscy)`;
+    tiles.push(
+      <StatTile key="captain" photoUrl={topCaptain.photoUrl} value={topCaptain.name} caption={caption} label="Kapitan tłumu" />
+    );
   }
   if (templateOwnership) {
-    lines.push({
-      icon: '📌',
-      text: <>Najczęściej wybierany w składach: <strong>{templateOwnership.name}</strong> — {templateOwnership.count}/{leagueSize} ({templateOwnership.pct}%)</>,
-    });
+    tiles.push(
+      <StatTile
+        key="template"
+        photoUrl={templateOwnership.photoUrl}
+        value={templateOwnership.name}
+        caption={`${templateOwnership.count}/${leagueSize} (${templateOwnership.pct}%)`}
+        label="Najpopularniejszy pick"
+      />
+    );
   }
-  lines.push({
-    icon: '🃏',
-    text: chipTotal > 0
-      ? <>Chipy w tej rundzie: {chipUsage.map(c => `${c.count}×${c.label}`).join(' · ')}</>
-      : <>Nikt jeszcze nie zagrał chipa w tej rundzie</>,
-  });
+  tiles.push(
+    <StatTile
+      key="chips"
+      icon="🃏"
+      value={chipTotal > 0 ? chipTotal : '0'}
+      caption={chipTotal > 0 ? chipUsage.map(c => `${c.count}×${c.label}`).join(' · ') : 'nikt jeszcze'}
+      label="Chipy w rundzie"
+    />
+  );
 
-  if (!lines.length) return null;
+  if (!tiles.length) return null;
 
   return (
     <div className="gwsummary-banner gwsummary-banner--kickoff">
       <button className="gwsummary-close" onClick={dismiss} aria-label="Zamknij powiadomienie">✕</button>
       <div className="gwsummary-header">🚀 GW{gw} wystartowała</div>
-      <div className="gwsummary-lines">
-        {lines.map((l, i) => (
-          <div key={i} className="gwsummary-line"><span aria-hidden="true">{l.icon}</span> {l.text}</div>
-        ))}
-      </div>
+      <StatTileGrid>{tiles}</StatTileGrid>
     </div>
   );
 }

@@ -54,6 +54,30 @@ export function PlayerAvatar({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+// siatka kafelków KPI — ten sam wizualny język co "GW Pulse" w Lidze (.gwpulse-grid/-item), tylko
+// z auto-dopasowującą się liczbą kolumn (banery mają czasem 3, czasem 4 kafelki, w zależności od
+// tego które fakty akurat mamy), więc reużywalne też poza samą Ligą (banery powiadomień, Statystyki)
+export function StatTileGrid({ children }: { children: React.ReactNode }) {
+  return <div className="gwpulse-grid gwpulse-grid--auto">{children}</div>;
+}
+
+// pojedynczy kafelek — albo z emoji-ikoną, albo z fotą zawodnika (photoUrl ma pierwszeństwo),
+// duża wartość na środku (liczba albo nazwisko), mały podpis, i uppercase label jak w GW Pulse
+export function StatTile({
+  icon, photoUrl, value, caption, label,
+}: {
+  icon?: string; photoUrl?: string; value: React.ReactNode; caption?: React.ReactNode; label: string;
+}) {
+  return (
+    <div className="gwpulse-item">
+      {photoUrl ? <PlayerAvatar src={photoUrl} alt={label} /> : icon && <span className="gwpulse-icon">{icon}</span>}
+      <b>{value}</b>
+      {caption && <span className="small">{caption}</span>}
+      <span className="gwpulse-label">{label}</span>
+    </div>
+  );
+}
+
 // mały herb klubu — jeśli się nie załaduje, po prostu znika (sam skrót klubu w tekście wystarczy)
 export function ClubBadge({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);

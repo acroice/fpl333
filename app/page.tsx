@@ -3,7 +3,7 @@ import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
-  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage,
+  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage, TopCaptainPick,
 } from './lib/types';
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
@@ -81,6 +81,9 @@ export default function Home() {
   const [captainBreakdown, setCaptainBreakdown] = React.useState<CaptainBreakdownRow[]>([]);
   const [templateOwnership, setTemplateOwnership] = React.useState<TemplateOwnership>(null);
   const [chipUsageThisRound, setChipUsageThisRound] = React.useState<ChipRoundUsage[]>([]);
+  // najlepszy kapitan w lidze w latestGw (kto grał kapitana, który zdobył najwięcej pkt) —
+  // pokazywany i w banerze Podsumowania GW, i w Statystykach (jedno źródło, dwa miejsca)
+  const [topCaptainPick, setTopCaptainPick] = React.useState<TopCaptainPick>(null);
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -193,6 +196,7 @@ export default function Home() {
         setCaptainBreakdown(wData.captainBreakdown || []);
         setTemplateOwnership(wData.templateOwnership ?? null);
         setChipUsageThisRound(wData.chipUsageThisRound || []);
+        setTopCaptainPick(wData.topCaptainPick ?? null);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -416,7 +420,7 @@ export default function Home() {
         chipUsage={chipUsageThisRound}
         leagueSize={participants}
       />
-      <GwSummaryBanner awards={awards} league={league} active={gwSummaryActive} />
+      <GwSummaryBanner awards={awards} league={league} topCaptainPick={topCaptainPick} active={gwSummaryActive} />
 
       <div style={{ display: activeSection === 'liga' ? 'block' : 'none' }}>
         <LeagueSection
@@ -495,6 +499,7 @@ export default function Home() {
           gwPoints={gwPoints}
           chipHistory={chipHistory}
           teamInfo={teamInfo}
+          topCaptainPick={topCaptainPick}
         />
       </div>
     </>
