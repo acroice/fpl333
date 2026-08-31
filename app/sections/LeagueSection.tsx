@@ -51,15 +51,20 @@ function namesOf(entries: LeagueEntry[]) {
   return entries.map(e => e.player_name).join(' · ');
 }
 
-// ranking ogólny FPL (live) przy kapitanie — 🌍 + liczba w zwartym zapisie, ze strzałką ruchu
-// względem poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc zielona ↑)
+// ranking ogólny FPL przy kapitanie — 🌍 + liczba w zwartym zapisie, ze strzałką ruchu względem
+// poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc zielona ↑). UWAGA: to pole
+// FPL liczy osobnym, wsadowym procesem (nie punkt-po-punkcie jak wynik kolejki) — w trakcie
+// trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o kilkanaście punktów, więc przy
+// bliskich wynikach kolejność w tym rankingu może chwilowo nie zgadzać się z kolejnością w naszej
+// tabeli. To ograniczenie danych FPL, nie błąd liczenia — stąd zastrzeżenie w tooltipie.
 function renderWorldRank(info: OverallRankInfo) {
   if (!info) return null;
   const { rank, prevRank } = info;
   const improved = prevRank != null && rank < prevRank;
   const declined = prevRank != null && rank > prevRank;
-  const title = `Ranking ogólny FPL (live, spośród wszystkich graczy): ${rank.toLocaleString('pl')}`
-    + (prevRank != null ? ` · poprzednia GW: ${prevRank.toLocaleString('pl')}` : '');
+  const title = `Ranking ogólny FPL (spośród wszystkich graczy): ${rank.toLocaleString('pl')}`
+    + (prevRank != null ? ` · poprzednia GW: ${prevRank.toLocaleString('pl')}` : '')
+    + ' · FPL liczy to osobno i potrafi zostawać w tyle za żywym wynikiem w trakcie trwającej kolejki';
   return (
     <span className="worldrank" title={title}>
       🌍 {formatCompactRank(rank)}
