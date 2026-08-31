@@ -51,13 +51,15 @@ function namesOf(entries: LeagueEntry[]) {
   return entries.map(e => e.player_name).join(' · ');
 }
 
-// ranking ogólny FPL przy kapitanie — 🌍 + liczba w zwartym zapisie, ze strzałką ruchu względem
-// poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc zielona ↑). UWAGA: to pole
-// FPL liczy osobnym, wsadowym procesem (nie punkt-po-punkcie jak wynik kolejki) — w trakcie
-// trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o kilkanaście punktów, więc przy
-// bliskich wynikach kolejność w tym rankingu może chwilowo nie zgadzać się z kolejnością w naszej
-// tabeli. To ograniczenie danych FPL, nie błąd liczenia — stąd zastrzeżenie w tooltipie.
-function renderWorldRank(info: OverallRankInfo) {
+// ranking ogólny FPL przy kapitanie — "OR: <liczba>", pełny zapis z separatorem tysięcy tam,
+// gdzie jest miejsce (desktop); zwarty zapis (76k/3,7M) tylko tam, gdzie pełna liczba by się nie
+// zmieściła (karta mobile — stąd `compact`). Strzałka ruchu względem poprzedniej GW gdy jest
+// znana (spadek numeru rankingu = awans, więc zielona ↑). UWAGA: to pole FPL liczy osobnym,
+// wsadowym procesem (nie punkt-po-punkcie jak wynik kolejki) — w trakcie trwającej GW potrafi
+// zostawać w tyle za żywym wynikiem nawet o kilkanaście punktów, więc przy bliskich wynikach
+// kolejność w tym rankingu może chwilowo nie zgadzać się z kolejnością w naszej tabeli. To
+// ograniczenie danych FPL, nie błąd liczenia — stąd zastrzeżenie w tooltipie.
+function renderWorldRank(info: OverallRankInfo, compact: boolean) {
   if (!info) return null;
   const { rank, prevRank } = info;
   const improved = prevRank != null && rank < prevRank;
@@ -67,7 +69,7 @@ function renderWorldRank(info: OverallRankInfo) {
     + ' · FPL liczy to osobno i potrafi zostawać w tyle za żywym wynikiem w trakcie trwającej kolejki';
   return (
     <span className="worldrank" title={title}>
-      🌍 {formatCompactRank(rank)}
+      OR: {compact ? formatCompactRank(rank) : rank.toLocaleString('pl')}
       {improved && <span className="deltarank deltarank--up"> ↑</span>}
       {declined && <span className="deltarank deltarank--down"> ↓</span>}
     </span>
@@ -254,7 +256,7 @@ export default function LeagueSection({
                             {captain && (
                               <span className="small"> · <PlayerAvatar src={captain.photoUrl} alt={captain.name} /> {captain.name}</span>
                             )}
-                            {overallRank[e.entry] && <span className="small"> · {renderWorldRank(overallRank[e.entry])}</span>}
+                            {overallRank[e.entry] && <span className="small"> · {renderWorldRank(overallRank[e.entry], false)}</span>}
                             {teamInfo[e.entry] && (
                               <span className="teaminfo"> · FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}</span>
                             )}
@@ -308,7 +310,7 @@ export default function LeagueSection({
                     <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
                       <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
                       <span>{captain.name}</span>
-                      {renderWorldRank(overallRank[e.entry])}
+                      {renderWorldRank(overallRank[e.entry], true)}
                     </div>
                   )}
                   <div className="leaguecard-row2">
