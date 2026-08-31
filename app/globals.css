@@ -722,10 +722,11 @@ body.retro .qdone {
 .teaminfo-line { margin-top: 2px; display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
 .teaminfo-line .playeravatar { width: 16px; height: 16px; vertical-align: middle; }
 
-/* ranking ogólny FPL (live) przy kapitanie — na karcie mobile nie może się ściąć razem z
-   nazwiskiem kapitana (to nazwisko ma się skrócić jako pierwsze, nie ta liczba) */
-.worldrank { flex-shrink: 0; white-space: nowrap; }
+/* ranking ogólny FPL — mała podpowiedź pod wynikiem GW (desktop: kolumna GW; mobile: obok "GW"
+   w drugiej linijce karty), stąd nowrap, żeby się nie łamał w wąskiej kolumnie */
+.worldrank { white-space: nowrap; }
 .worldrank .deltarank { font-size: 10px; }
+.gwscore-or { margin-top: 2px; white-space: nowrap; }
 
 /* Δ Rank i Gap — kolor wspiera znaczenie, ale strzałka/tekst niosą je samodzielnie */
 .deltarank { font-weight: 700; font-size: 12.5px; }

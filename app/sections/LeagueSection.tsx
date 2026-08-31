@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey, formatCompactRank } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -51,15 +51,14 @@ function namesOf(entries: LeagueEntry[]) {
   return entries.map(e => e.player_name).join(' · ');
 }
 
-// ranking ogólny FPL przy kapitanie — "OR: <liczba>", pełny zapis z separatorem tysięcy tam,
-// gdzie jest miejsce (desktop); zwarty zapis (76k/3,7M) tylko tam, gdzie pełna liczba by się nie
-// zmieściła (karta mobile — stąd `compact`). Strzałka ruchu względem poprzedniej GW gdy jest
-// znana (spadek numeru rankingu = awans, więc zielona ↑). UWAGA: to pole FPL liczy osobnym,
-// wsadowym procesem (nie punkt-po-punkcie jak wynik kolejki) — w trakcie trwającej GW potrafi
-// zostawać w tyle za żywym wynikiem nawet o kilkanaście punktów, więc przy bliskich wynikach
-// kolejność w tym rankingu może chwilowo nie zgadzać się z kolejnością w naszej tabeli. To
-// ograniczenie danych FPL, nie błąd liczenia — stąd zastrzeżenie w tooltipie.
-function renderWorldRank(info: OverallRankInfo, compact: boolean) {
+// ranking ogólny FPL — "OR: <liczba>", zawsze pełny zapis z separatorem tysięcy (bez skracania).
+// Strzałka ruchu względem poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc
+// zielona ↑). UWAGA: to pole FPL liczy osobnym, wsadowym procesem (nie punkt-po-punkcie jak wynik
+// kolejki) — w trakcie trwającej GW potrafi zostawać w tyle za żywym wynikiem nawet o
+// kilkanaście punktów, więc przy bliskich wynikach kolejność w tym rankingu może chwilowo nie
+// zgadzać się z kolejnością w naszej tabeli. To ograniczenie danych FPL, nie błąd liczenia —
+// stąd zastrzeżenie w tooltipie.
+function renderWorldRank(info: OverallRankInfo) {
   if (!info) return null;
   const { rank, prevRank } = info;
   const improved = prevRank != null && rank < prevRank;
@@ -69,7 +68,7 @@ function renderWorldRank(info: OverallRankInfo, compact: boolean) {
     + ' · FPL liczy to osobno i potrafi zostawać w tyle za żywym wynikiem w trakcie trwającej kolejki';
   return (
     <span className="worldrank" title={title}>
-      OR: {compact ? formatCompactRank(rank) : rank.toLocaleString('pl')}
+      OR: {rank.toLocaleString('pl')}
       {improved && <span className="deltarank deltarank--up"> ↑</span>}
       {declined && <span className="deltarank deltarank--down"> ↓</span>}
     </span>
@@ -256,13 +255,15 @@ export default function LeagueSection({
                             {captain && (
                               <span className="small"> · <PlayerAvatar src={captain.photoUrl} alt={captain.name} /> {captain.name}</span>
                             )}
-                            {overallRank[e.entry] && <span className="small"> · {renderWorldRank(overallRank[e.entry], false)}</span>}
                             {teamInfo[e.entry] && (
                               <span className="teaminfo"> · FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}</span>
                             )}
                           </div>
                         </td>
-                        <td>{e.event_total}</td>
+                        <td>
+                          {e.event_total}
+                          {overallRank[e.entry] && <div className="small gwscore-or">{renderWorldRank(overallRank[e.entry])}</div>}
+                        </td>
                         <td><strong>{e.total}</strong></td>
                         <td>{renderDelta(e)}</td>
                         <td>{renderGap(e)}</td>
@@ -310,11 +311,10 @@ export default function LeagueSection({
                     <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
                       <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
                       <span>{captain.name}</span>
-                      {renderWorldRank(overallRank[e.entry], true)}
                     </div>
                   )}
                   <div className="leaguecard-row2">
-                    <span>{renderDelta(e)} · GW {e.event_total}</span>
+                    <span>{renderDelta(e)} · GW {e.event_total}{overallRank[e.entry] && <> · {renderWorldRank(overallRank[e.entry])}</>}</span>
                     <span>{renderGap(e)}</span>
                   </div>
                   {isOpenManager && (

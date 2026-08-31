@@ -21,15 +21,6 @@ export function rankBadge(i: number) {
   return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
 }
 
-// zwarty zapis dużej liczby (ranking ogólny FPL bywa w milionach) — "76,3k" / "1,2M" — żeby
-// zmieścić się przy kapitanie w wąskiej karcie mobile; pełna liczba i tak jest w tooltipie
-export function formatCompactRank(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1_000) return `${(n / 1000).toFixed(1).replace('.', ',')}k`;
-  return String(n);
-}
-
 // trend formy: średnia z ostatnich kolejek vs średnia z tych wcześniejszych. Potrzebuje min.
 // 2 rozegranych GW (czyli realnie ruszy od GW2/3) — przy mniejszej ilości danych zwraca null,
 // żeby front mógł to po prostu schować zamiast pokazywać mylący wynik na jednej kolejce.
