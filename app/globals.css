@@ -127,6 +127,26 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   vertical-align:middle;
 }
 
+/* chipy już wykorzystane w sezonie (kiedykolwiek, nie tylko ta GW) — przekreślone i przygaszone,
+   odróżnione od .chipbadge (ten jest aktywny/kolorowy = "gra go w TEJ kolejce"). Kreska to ::after
+   (nie text-decoration), bo przeglądarki potrafią ignorować line-through na kolorowych emoji. */
+.usedchips { display:inline-flex; align-items:center; gap:3px; margin-left:4px; flex-shrink:0; }
+.usedchip {
+  position:relative;
+  display:inline-block;
+  font-size:12px;
+  opacity:.5;
+  filter:grayscale(1);
+}
+.usedchip::after {
+  content:'';
+  position:absolute;
+  left:-1px; right:-1px; top:50%;
+  height:1.5px;
+  background:var(--muted);
+  transform:rotate(-12deg);
+}
+
 /* przełącznik-pigułka (Hity / Liga) — stały label, stan pokazany kolorem, bez "pokaż/ukryj" w tekście */
 .toggle-btn {
   display:inline-flex;

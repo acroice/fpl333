@@ -409,6 +409,7 @@ export default function Home() {
           quarters={quarters}
           currentQuarterId={currentQuarterId}
           latestChip={latestChip}
+          chipHistory={chipHistory}
           captainInfo={captainInfo}
           overallRank={overallRank}
           teamInfo={teamInfo}

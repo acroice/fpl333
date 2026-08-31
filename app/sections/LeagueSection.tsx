@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo } from '../lib/types';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry } from '../lib/types';
 import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
@@ -24,6 +24,7 @@ type Props = {
   quarters: Quarter[];
   currentQuarterId: string;
   latestChip: Record<number, ChipInfo | null>;
+  chipHistory: Record<number, ChipHistoryEntry[]>;
   captainInfo: Record<number, CaptainInfo>;
   overallRank: Record<number, OverallRankInfo>;
   teamInfo: Record<number, TeamInfo>;
@@ -49,6 +50,37 @@ function extremeTied(rows: LeagueEntry[], key: (e: LeagueEntry) => number, mode:
 
 function namesOf(entries: LeagueEntry[]) {
   return entries.map(e => e.player_name).join(' · ');
+}
+
+// przekreślone ikonki chipów już wykorzystanych (kiedykolwiek w sezonie) — jak na livefpl.
+// Wyklucza najświeższe zagranie, jeśli to właśnie ono jest już pokazane jako aktywna plakietka
+// obok nazwiska (ta zostaje bez zmian) — inaczej ten sam chip widniałby podwójnie: raz jako
+// aktywny w tej GW, raz jako przekreślony. chipHistory jest posortowane rosnąco po event, więc
+// "najświeższe" to zawsze ostatni element.
+function renderUsedChips(history: ChipHistoryEntry[] | undefined, activeChip: ChipInfo | null) {
+  if (!history || !history.length) return null;
+  const past = activeChip ? history.slice(0, -1) : history;
+  if (!past.length) return null;
+
+  const byCode = new Map<string, ChipHistoryEntry[]>();
+  for (const c of past) {
+    if (!byCode.has(c.code)) byCode.set(c.code, []);
+    byCode.get(c.code)!.push(c);
+  }
+
+  return (
+    <span className="usedchips">
+      {Array.from(byCode.entries()).map(([code, plays]) => (
+        <span
+          key={code}
+          className="usedchip"
+          title={`${plays[0].name} — już zagrany (GW${plays.map(p => p.event).join(', GW')})`}
+        >
+          {chipIcon(code)}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 // ranking ogólny FPL — "OR: <liczba>", zawsze pełny zapis z separatorem tysięcy (bez skracania).
@@ -82,7 +114,7 @@ function renderWorldRank(info: OverallRankInfo) {
 export default function LeagueSection({
   leagueName, participants, league, sortedLeague, preSeason, loading, error,
   sortKey, sortDir, toggleSort, sortArrow,
-  quarters, currentQuarterId, latestChip, captainInfo, overallRank, teamInfo, gwPoints,
+  quarters, currentQuarterId, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
   useProjection, setUseProjection, downloadCsv, awards,
 }: Props) {
@@ -249,6 +281,7 @@ export default function LeagueSection({
                                 {chipIcon(chip.code)} {chip.label}
                               </span>
                             )}
+                            {renderUsedChips(chipHistory[e.entry], chip)}
                           </div>
                           <div className="small teaminfo-line">
                             {e.entry_name}
@@ -305,6 +338,7 @@ export default function LeagueSection({
                       {e.player_name}
                       {chip && <span className="chipbadge" title={chip.name || chip.label}>{chipIcon(chip.code)}</span>}
                     </span>
+                    {renderUsedChips(chipHistory[e.entry], chip)}
                     <span className="leaguecard-total">{e.total}</span>
                   </div>
                   {captain && (
