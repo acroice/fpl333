@@ -235,10 +235,14 @@ export default function LeagueSection({
                 className="qheader-progress"
                 title={`${currentQuarter.id}: GW${currentQuarter.gw_from}–${currentQuarter.gw_to} · ${currentQuarter.progress ?? 0}% czasu ćwiartki minęło`}
               >
-                <span className="small">{currentQuarter.id}: GW{awards.gw - currentQuarter.gw_from + 1}/{currentQuarter.games}</span>
-                <span className="qprogress qheader-progressbar">
-                  <span className="qprogress-fill" style={{ width: `${currentQuarter.progress ?? 0}%` }} />
+                <span className="qheader-progress-label">{currentQuarter.id} · GW{awards.gw - currentQuarter.gw_from + 1}/{currentQuarter.games}</span>
+                <span className="qheader-progressbar">
+                  {/* minimalna widoczna szerokość (4%) tylko wizualnie — żeby przy niskim %
+                      (np. 12) pasek nie wyglądał jak pusty/zepsuty; prawdziwa wartość jest w
+                      tekście obok, więc nic nie jest zafałszowane */}
+                  <span className="qheader-progressbar-fill" style={{ width: `${Math.max(currentQuarter.progress ?? 0, 4)}%` }} />
                 </span>
+                <span className="qheader-progress-pct">{currentQuarter.progress ?? 0}%</span>
               </span>
             )}
           </div>
@@ -441,7 +445,7 @@ export default function LeagueSection({
 
       {/* GW Awards — odchudzone o Top Gun/Tough Week (duplikat GW Pulse Best/Worst); id do scrolla
           z przycisku "Zobacz wszystkie nagrody" w GW Wrapped */}
-      {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.rankRiser || awards.bestCaptain || awards.transferTangle) && (
+      {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.rankRiser || awards.bestCaptain || awards.transferTangle || (pulse && pulse.bestRise.length > 0)) && (
         <div id="gw-awards" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Awards</div>
           <div className="awardsrow">
@@ -488,6 +492,12 @@ export default function LeagueSection({
               <span className="statchip statchip--bad" title="Największy hit (pkt straconych na transferach ponad darmowy limit) w tej kolejce">
                 <span className="statchip-icon">🔀</span>
                 <span className="statchip-text"><span className="statchip-label">Transfer Tangle</span><span className="statchip-value">{awards.transferTangle.player_name} · <b>-{awards.transferTangle.value}</b></span></span>
+              </span>
+            )}
+            {pulse && pulse.bestRise.length > 0 && (
+              <span className="statchip statchip--good" title="Największy awans w tabeli naszej ligi względem poprzedniej kolejki">
+                <span className="statchip-icon">🎢</span>
+                <span className="statchip-text"><span className="statchip-label">Comeback Kid</span><span className="statchip-value">{namesOf(pulse.bestRise)} · <b>+{pulse.riseDelta}</b></span></span>
               </span>
             )}
           </div>
