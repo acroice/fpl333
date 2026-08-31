@@ -5,19 +5,39 @@ import type { Awards, LeagueEntry } from '../lib/types';
 type Props = {
   awards: Awards | null;
   league: LeagueEntry[];
+  active: boolean; // z backendu: czy jesteśmy w 24h oknie od (estymowanego) końca ostatniej GW
 };
+
+const dismissKey = (gw: number) => `fpl333_gwsummary_dismissed_${gw}`;
 
 // "📋 Podsumowanie GW" — powiadomienie z krótkim, fajnym podsumowaniem najświeższej kolejki,
 // widoczne niezależnie od tego, w której zakładce jesteśmy (renderowane w page.tsx nad <Nav>).
-//
-// TYMCZASOWO na potrzeby podglądu: pokazuje się zawsze, gdy mamy dane awards, i znika tylko po
-// kliknięciu ✕ (bez zapamiętywania między odświeżeniami). Docelowo ma się pojawiać automatycznie
-// przez 24h od zakończenia ostatniego meczu kolejki (nie od oficjalnego, opóźnionego "finished"
-// z FPL — patrz plan) i pamiętać odrzucenie w localStorage, żeby nie wracać po zamknięciu. To
-// dograjemy po ustaleniu dokładnego triggera; na razie to podgląd samej treści/wyglądu.
-export default function GwSummaryBanner({ awards, league }: Props) {
+// Aktywne przez 24h od (estymowanego) końca ostatniego meczu tej GW — `active` liczy backend
+// (patrz gwSummaryActive w /api/quarter-wins). Odrzucenie (✕) zapamiętywane w localStorage per
+// numer GW, więc nie wraca po zamknięciu, ale automatycznie "odblokuje się" samo dla następnej GW.
+export default function GwSummaryBanner({ awards, league, active }: Props) {
   const [dismissed, setDismissed] = React.useState(false);
-  if (!awards || dismissed) return null;
+
+  React.useEffect(() => {
+    if (!awards) return;
+    try {
+      setDismissed(localStorage.getItem(dismissKey(awards.gw)) === '1');
+    } catch {
+      // prywatne okno / zablokowany storage — po prostu nie pamiętamy odrzucenia między wizytami
+    }
+  }, [awards?.gw]);
+
+  function dismiss() {
+    setDismissed(true);
+    if (!awards) return;
+    try {
+      localStorage.setItem(dismissKey(awards.gw), '1');
+    } catch {
+      // patrz komentarz wyżej — jeśli się nie uda zapisać, banner po prostu wróci po odświeżeniu
+    }
+  }
+
+  if (!active || !awards || dismissed) return null;
 
   const leader = [...league].sort((a, b) => a.rank - b.rank)[0] ?? null;
 
@@ -48,7 +68,7 @@ export default function GwSummaryBanner({ awards, league }: Props) {
 
   return (
     <div className="gwsummary-banner">
-      <button className="gwsummary-close" onClick={() => setDismissed(true)} aria-label="Zamknij powiadomienie">✕</button>
+      <button className="gwsummary-close" onClick={dismiss} aria-label="Zamknij powiadomienie">✕</button>
       <div className="gwsummary-header">📋 Podsumowanie GW{awards.gw}</div>
       <div className="gwsummary-lines">
         {lines.map((l, i) => (

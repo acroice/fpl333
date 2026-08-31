@@ -8,6 +8,7 @@ import {
   fetchBootstrapCached,
   fetchClassicStandingsCached,
   estimateLiveOverallRank,
+  fetchGwCompletionCached,
   playerPhotoUrl,
   CHIP_LABELS,
   CHIP_NAMES,
@@ -211,6 +212,18 @@ export async function GET(req: NextRequest){
     for (const h of histories) {
       for (const item of h.current) {
         if (item.gw > latestGw) latestGw = item.gw;
+      }
+    }
+
+    // Czy pokazać powiadomienie "Podsumowanie GW" — aktywne przez 24h od (estymowanego) końca
+    // ostatniego meczu latestGw, licząc od finished_provisional (mega wczesny moment), nie od
+    // opóźnionego official "finished". Front dodatkowo pamięta odrzucenie w localStorage per GW.
+    let gwSummaryActive = false;
+    if (latestGw > 0) {
+      const completion = await fetchGwCompletionCached(latestGw);
+      if (completion.allFinishedProvisional && completion.estimatedEndTime) {
+        const windowEnd = new Date(completion.estimatedEndTime).getTime() + 24 * 3600_000;
+        gwSummaryActive = Date.now() <= windowEnd;
       }
     }
 
@@ -503,6 +516,7 @@ export async function GET(req: NextRequest){
       teamInfo,                // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
       chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
       gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw
+      gwSummaryActive,       // czy pokazać powiadomienie "Podsumowanie GW" (24h od końca ostatniego meczu latestGw)
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

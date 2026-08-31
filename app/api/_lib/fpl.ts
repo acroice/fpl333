@@ -85,6 +85,7 @@ const historyCache = new Map<number, CacheEntry<EntryHistoryData>>();
 const picksCache = new Map<string, CacheEntry<PicksData>>(); // klucz: `${entryId}:${gw}`
 const liveFullCache = new Map<number, CacheEntry<Record<number, LiveElementStats>>>(); // klucz: gw
 const finishedTeamsCache = new Map<number, CacheEntry<FixtureTeamsInfo>>(); // klucz: gw
+const gwCompletionCache = new Map<number, CacheEntry<GwCompletionInfo>>(); // klucz: gw
 let bootstrapCache: CacheEntry<BootstrapSlim> | null = null;
 
 async function fetchClassicStandingsRaw(leagueId: string): Promise<StandingsRaw> {
@@ -347,6 +348,51 @@ export async function fetchFinishedTeamsCached(gw: number): Promise<FixtureTeams
 
   const data = await fetchFixturesRaw(gw);
   finishedTeamsCache.set(gw, { data, ts: Date.now() });
+  return data;
+}
+
+export type GwCompletionInfo = {
+  allFinishedProvisional: boolean; // czy WSZYSTKIE mecze tej GW faktycznie się skończyły (przed bonusami)
+  estimatedEndTime: string | null; // ISO — estymowany moment końca ostatniego meczu (kickoff + bufor)
+};
+
+// Kiedy naprawdę skończyła się kolejka — do "mega wczesnego" triggera powiadomienia z
+// podsumowaniem GW. CELOWO nie używamy events[].finished z bootstrap-static — to pole FPL ustawia
+// dopiero po doliczeniu bonusów, co potrafi trwać do doby po ostatnim gwizdku (patrz komentarz w
+// LeagueSection o statusie LIVE/ZAKOŃCZONA). Zamiast tego: finished_provisional na fixture staje
+// się prawdziwe od razu po końcu regulaminowego+doliczonego czasu, przed bonusami — to jest ten
+// "mega wczesny moment, ostatni mecz i od razu po nim".
+//
+// estimatedEndTime to tylko punkt odniesienia do policzenia okna 24h (aplikacja nie ma bazy danych,
+// więc nie "pamięta" dokładnej sekundy wykrycia) — najpóźniejszy kickoff w tej GW + hojny bufor na
+// 90 min + doliczony czas + przerwę. Niedoszacowanie o kilka-kilkanaście minut nie ma znaczenia
+// przy oknie liczonym w dobach.
+const GW_DURATION_BUFFER_MS = 130 * 60_000;
+
+async function fetchGwCompletionRaw(gw: number): Promise<GwCompletionInfo> {
+  const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gw}`;
+  const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
+  if (!res.ok) return { allFinishedProvisional: false, estimatedEndTime: null };
+  const fixtures: any[] = await res.json();
+  if (!Array.isArray(fixtures) || !fixtures.length) return { allFinishedProvisional: false, estimatedEndTime: null };
+
+  const allFinishedProvisional = fixtures.every(f => f?.finished_provisional === true);
+  const lastKickoffMs = fixtures
+    .map(f => (f?.kickoff_time ? new Date(f.kickoff_time).getTime() : 0))
+    .reduce((max, t) => Math.max(max, t), 0);
+  const estimatedEndTime = lastKickoffMs > 0
+    ? new Date(lastKickoffMs + GW_DURATION_BUFFER_MS).toISOString()
+    : null;
+
+  return { allFinishedProvisional, estimatedEndTime };
+}
+
+export async function fetchGwCompletionCached(gw: number): Promise<GwCompletionInfo> {
+  const hit = gwCompletionCache.get(gw);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
+
+  const data = await fetchGwCompletionRaw(gw);
+  gwCompletionCache.set(gw, { data, ts: Date.now() });
   return data;
 }
 

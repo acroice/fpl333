@@ -71,6 +71,9 @@ export default function Home() {
   // status latestGw: true=zakończona, false=live, null=nie da się wiarygodnie ustalić (do
   // badge'a "GW X · LIVE/ZAKOŃCZONA" w Lidze) — z FPL bootstrap-static (już i tak pobierany)
   const [gwFinished, setGwFinished] = React.useState<boolean | null>(null);
+  // czy pokazać powiadomienie "Podsumowanie GW" (aktywne 24h od końca ostatniego meczu latestGw —
+  // patrz gwSummaryActive w /api/quarter-wins)
+  const [gwSummaryActive, setGwSummaryActive] = React.useState<boolean>(false);
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -178,6 +181,7 @@ export default function Home() {
         setOverallRank(wData.overallRank || {});
         setTeamInfo(wData.teamInfo || {});
         setGwFinished(wData.gwFinished ?? null);
+        setGwSummaryActive(!!wData.gwSummaryActive);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -393,7 +397,7 @@ export default function Home() {
       {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
 
       <Nav active={activeSection} onChange={setActiveSection} />
-      <GwSummaryBanner awards={awards} league={league} />
+      <GwSummaryBanner awards={awards} league={league} active={gwSummaryActive} />
 
       <div style={{ display: activeSection === 'liga' ? 'block' : 'none' }}>
         <LeagueSection
