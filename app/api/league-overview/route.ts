@@ -112,7 +112,13 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => b.captainCount - a.captainCount || b.points - a.points);
 
-    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned, captaincy, differentials });
+    // Pełna mapa % obstawy w lidze (element -> %), nie tylko top6/top5 z topOwned/differentials —
+    // do wyszukiwania "ile % ligi ma tego zawodnika" dla DOWOLNEGO gracza, np. w Porównaj (leaderboard
+    // różnicowych), gdzie chodzi o konkretną parę managerów, nie tylko o najpopularniejszych.
+    const ownershipPct: Record<number, number> = {};
+    for (const r of ownershipRows) ownershipPct[r.element] = r.ownedPct;
+
+    return NextResponse.json({ gw, leagueSize, chipUsage, topOwned, captaincy, differentials, ownershipPct });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || 'fetch_failed', leagueId },

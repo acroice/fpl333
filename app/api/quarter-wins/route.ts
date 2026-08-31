@@ -218,12 +218,22 @@ export async function GET(req: NextRequest){
     // Czy pokazać powiadomienie "Podsumowanie GW" — aktywne przez 24h od (estymowanego) końca
     // ostatniego meczu latestGw, licząc od finished_provisional (mega wczesny moment), nie od
     // opóźnionego official "finished". Front dodatkowo pamięta odrzucenie w localStorage per GW.
+    //
+    // Oraz "kolejka wystartowała" — drugi baner, symetryczny w drugą stronę: aktywny od 10 min po
+    // PIERWSZYM gwizdku tej GW, dopóki runda trwa (nie wszystkie mecze finished_provisional).
+    // Oba banery są przez to wzajemnie wykluczające się (jeden wymaga !allFinishedProvisional,
+    // drugi allFinishedProvisional), więc nigdy nie pokażą się jednocześnie dla tej samej GW.
     let gwSummaryActive = false;
+    let kickoffFactsActive = false;
     if (latestGw > 0) {
       const completion = await fetchGwCompletionCached(latestGw);
       if (completion.allFinishedProvisional && completion.estimatedEndTime) {
         const windowEnd = new Date(completion.estimatedEndTime).getTime() + 24 * 3600_000;
         gwSummaryActive = Date.now() <= windowEnd;
+      }
+      if (completion.firstKickoff && !completion.allFinishedProvisional) {
+        const kickoffThreshold = new Date(completion.firstKickoff).getTime() + 10 * 60_000;
+        kickoffFactsActive = Date.now() >= kickoffThreshold;
       }
     }
 
@@ -263,6 +273,7 @@ export async function GET(req: NextRequest){
         overallRank: cur?.overallRank ?? 0,
         prevOverallRank: prev?.overallRank ?? null,
         chip: latestChip[plr.entry],
+        benchPoints: cur?.benchPoints ?? 0,
       };
     }).filter(r => r.points > 0 || r.value > 0); // pomiń graczy bez danych dla latestGw
 
@@ -392,6 +403,49 @@ export async function GET(req: NextRequest){
       captainByEntry[plr.entry] = cap ? cap.element : null;
       if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
     });
+
+    // Ciekawostki do banera "kolejka wystartowała" — rozkład kapitanów, najpopularniejszy pick w
+    // składach, użycie chipów w TEJ rundzie. Wszystko z danych, które i tak już mamy
+    // (captainCounts, allPicksLatest, latestChip) — zero dodatkowych zapytań do FPL.
+    const leagueSize = leagueEntries.length;
+    const captainBreakdown = Object.entries(captainCounts)
+      .map(([elStr, count]) => {
+        const el = bootstrap.elementsById[Number(elStr)];
+        return {
+          element: Number(elStr),
+          name: el?.web_name ?? '—',
+          photoUrl: el ? playerPhotoUrl(el.code) : '',
+          count,
+          pct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const ownershipCounts: Record<number, number> = {};
+    allPicksLatest.forEach(picks => {
+      for (const p of picks.picks) ownershipCounts[p.element] = (ownershipCounts[p.element] || 0) + 1;
+    });
+    const topOwnershipEntry = Object.entries(ownershipCounts).sort((a, b) => b[1] - a[1])[0];
+    const templateOwnership = topOwnershipEntry ? (() => {
+      const el = bootstrap.elementsById[Number(topOwnershipEntry[0])];
+      return {
+        element: Number(topOwnershipEntry[0]),
+        name: el?.web_name ?? '—',
+        photoUrl: el ? playerPhotoUrl(el.code) : '',
+        count: topOwnershipEntry[1],
+        pct: leagueSize ? Math.round((topOwnershipEntry[1] / leagueSize) * 100) : 0,
+      };
+    })() : null;
+
+    const chipCountsThisRound: Record<string, number> = {};
+    leagueEntries.forEach(plr => {
+      const chip = latestChip[plr.entry];
+      if (chip) chipCountsThisRound[chip.code] = (chipCountsThisRound[chip.code] || 0) + 1;
+    });
+    const chipUsageThisRound = Object.entries(chipCountsThisRound)
+      .map(([code, count]) => ({ code, label: CHIP_LABELS[code] || code, count }))
+      .sort((a, b) => b.count - a.count);
     // Wartość drużyny (TV) + transfery zagrane (FT) + ile ze "składu, który się liczy" faktycznie
     // zagrało (PLAYED) w latestGw — subtelny wgląd pod nazwą teamu w głównej tabeli. Skład, który
     // się liczy, to zwykle podstawowa 11 — ale przy Bench Boost liczy się cała 15, więc PLAYED
@@ -463,6 +517,10 @@ export async function GET(req: NextRequest){
 
     const topGun = topBy(latestRows, r => r.points);
     const toughWeek = bottomBy(latestRows, r => r.points);
+    // Bench Tears: kto zostawił najwięcej punktów na ławce w tej GW — bardziej "bolesna" i
+    // konkretna ciekawostka niż suchy najgorszy total (to i tak pokazuje GW Pulse "Worst GW").
+    // Tylko gdy ktoś faktycznie coś zostawił (>0), inaczej nagroda się nie pojawia.
+    const benchTearsRow = topBy(latestRows.filter(r => r.benchPoints > 0), r => r.benchPoints);
     const withComputableBonus = withChip.filter(r => chipBonus[r.entry] != null);
     // wybieramy po realnym zysku z chipa, jeśli da się go policzyć; inaczej fallback na total
     const chipMaster = withComputableBonus.length
@@ -496,6 +554,7 @@ export async function GET(req: NextRequest){
             templateCaptainPts,
           })
         : null, // nikt nie pobił template captaina inną kapitanką w tej kolejce -> ukryty na froncie
+      benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchTearsRow.benchPoints }) : null,
     };
 
     return NextResponse.json({
@@ -517,6 +576,11 @@ export async function GET(req: NextRequest){
       chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
       gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw
       gwSummaryActive,       // czy pokazać powiadomienie "Podsumowanie GW" (24h od końca ostatniego meczu latestGw)
+      kickoffFactsActive,    // czy pokazać powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy)
+      captainBreakdown,      // [{element,name,photoUrl,count,pct}, ... top5] — rozkład kapitanów w latestGw
+      templateOwnership,     // {element,name,photoUrl,count,pct} | null — najpopularniejszy pick w składach latestGw
+      chipUsageThisRound,    // [{code,label,count}, ...] — ile osób zagrało jaki chip w latestGw
+      leagueSize,            // liczba uczestników — do wyliczeń % w bannerach
     });
   } catch (e: any) {
     // np. przejściowy błąd/timeout FPL w trakcie pobierania standings lub historii managerów —

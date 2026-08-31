@@ -354,6 +354,7 @@ export async function fetchFinishedTeamsCached(gw: number): Promise<FixtureTeams
 export type GwCompletionInfo = {
   allFinishedProvisional: boolean; // czy WSZYSTKIE mecze tej GW faktycznie się skończyły (przed bonusami)
   estimatedEndTime: string | null; // ISO — estymowany moment końca ostatniego meczu (kickoff + bufor)
+  firstKickoff: string | null;     // ISO — kickoff NAJWCZEŚNIEJSZEGO meczu tej GW, do banera "kolejka wystartowała"
 };
 
 // Kiedy naprawdę skończyła się kolejka — do "mega wczesnego" triggera powiadomienia z
@@ -370,21 +371,25 @@ export type GwCompletionInfo = {
 const GW_DURATION_BUFFER_MS = 130 * 60_000;
 
 async function fetchGwCompletionRaw(gw: number): Promise<GwCompletionInfo> {
+  const empty: GwCompletionInfo = { allFinishedProvisional: false, estimatedEndTime: null, firstKickoff: null };
   const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gw}`;
   const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
-  if (!res.ok) return { allFinishedProvisional: false, estimatedEndTime: null };
+  if (!res.ok) return empty;
   const fixtures: any[] = await res.json();
-  if (!Array.isArray(fixtures) || !fixtures.length) return { allFinishedProvisional: false, estimatedEndTime: null };
+  if (!Array.isArray(fixtures) || !fixtures.length) return empty;
 
   const allFinishedProvisional = fixtures.every(f => f?.finished_provisional === true);
-  const lastKickoffMs = fixtures
+  const kickoffTimesMs = fixtures
     .map(f => (f?.kickoff_time ? new Date(f.kickoff_time).getTime() : 0))
-    .reduce((max, t) => Math.max(max, t), 0);
+    .filter(t => t > 0);
+  const lastKickoffMs = kickoffTimesMs.reduce((max, t) => Math.max(max, t), 0);
+  const firstKickoffMs = kickoffTimesMs.length ? Math.min(...kickoffTimesMs) : 0;
   const estimatedEndTime = lastKickoffMs > 0
     ? new Date(lastKickoffMs + GW_DURATION_BUFFER_MS).toISOString()
     : null;
+  const firstKickoff = firstKickoffMs > 0 ? new Date(firstKickoffMs).toISOString() : null;
 
-  return { allFinishedProvisional, estimatedEndTime };
+  return { allFinishedProvisional, estimatedEndTime, firstKickoff };
 }
 
 export async function fetchGwCompletionCached(gw: number): Promise<GwCompletionInfo> {

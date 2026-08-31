@@ -806,6 +806,9 @@ body.retro .qdone {
 }
 .gwsummary-close:hover { color: var(--text); }
 @keyframes gwsummary-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+/* wariant "kolejka wystartowała" (przed wynikami) — niebieski akcent, odróżnia od zielonego
+   "Podsumowania GW" (po wynikach); oba wzajemnie się wykluczają, ale kolor i tak pomaga rozpoznać */
+.gwsummary-banner--kickoff { border-left-color: #9fd9ff; }
 
 /* --- League Insight: jeden baner, deterministyczny --- */
 .insight-banner {

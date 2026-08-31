@@ -3,9 +3,11 @@ import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
+  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage,
 } from './lib/types';
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
+import KickoffFactsBanner from './components/KickoffFactsBanner';
 import LeagueSection from './sections/LeagueSection';
 import SeasonSection from './sections/SeasonSection';
 import QuartersSection from './sections/QuartersSection';
@@ -74,6 +76,11 @@ export default function Home() {
   // czy pokazać powiadomienie "Podsumowanie GW" (aktywne 24h od końca ostatniego meczu latestGw —
   // patrz gwSummaryActive w /api/quarter-wins)
   const [gwSummaryActive, setGwSummaryActive] = React.useState<boolean>(false);
+  // powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy) + jego treść
+  const [kickoffFactsActive, setKickoffFactsActive] = React.useState<boolean>(false);
+  const [captainBreakdown, setCaptainBreakdown] = React.useState<CaptainBreakdownRow[]>([]);
+  const [templateOwnership, setTemplateOwnership] = React.useState<TemplateOwnership>(null);
+  const [chipUsageThisRound, setChipUsageThisRound] = React.useState<ChipRoundUsage[]>([]);
 
   // drill-down składu: który manager jest rozwinięty, cache składów (per entryId) i stany ładowania.
   // Ładowanie/błędy trzymane per-entry (Record), bo drill-down w tabeli i porównywarka mogą
@@ -182,6 +189,10 @@ export default function Home() {
         setTeamInfo(wData.teamInfo || {});
         setGwFinished(wData.gwFinished ?? null);
         setGwSummaryActive(!!wData.gwSummaryActive);
+        setKickoffFactsActive(!!wData.kickoffFactsActive);
+        setCaptainBreakdown(wData.captainBreakdown || []);
+        setTemplateOwnership(wData.templateOwnership ?? null);
+        setChipUsageThisRound(wData.chipUsageThisRound || []);
         setSideError(null);
       } catch (err: any) {
         console.error('quarters/wins load error:', err?.message);
@@ -397,6 +408,14 @@ export default function Home() {
       {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
 
       <Nav active={activeSection} onChange={setActiveSection} />
+      <KickoffFactsBanner
+        gw={awards?.gw ?? 0}
+        active={kickoffFactsActive}
+        captainBreakdown={captainBreakdown}
+        templateOwnership={templateOwnership}
+        chipUsage={chipUsageThisRound}
+        leagueSize={participants}
+      />
       <GwSummaryBanner awards={awards} league={league} active={gwSummaryActive} />
 
       <div style={{ display: activeSection === 'liga' ? 'block' : 'none' }}>

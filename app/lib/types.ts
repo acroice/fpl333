@@ -99,13 +99,19 @@ export type Award = {
   points?: number; value?: number; chip?: ChipInfo | null; rankChange?: number;
   bonus?: number | null; // Chip Master: pkt zdobyte dzięki chipowi (BB/TC); null gdy nie da się policzyć (WC/FH)
   captainName?: string; captainPts?: number; templateCaptainName?: string; templateCaptainPts?: number; // Best Captain
+  benchPoints?: number; // Bench Tears: pkt zostawione na ławce
 } | null;
 
 export type Awards = {
   gw: number;
   topGun: Award; toughWeek: Award; chipMaster: Award;
-  noChipWarrior: Award; valueKing: Award; rankCrasher: Award; bestCaptain: Award;
+  noChipWarrior: Award; valueKing: Award; rankCrasher: Award; bestCaptain: Award; benchTears: Award;
 };
+
+// "kolejka wystartowała" — ciekawostki liczone tuż po pierwszym gwizdku, zanim znamy wyniki
+export type CaptainBreakdownRow = { element: number; name: string; photoUrl: string; count: number; pct: number };
+export type TemplateOwnership = { element: number; name: string; photoUrl: string; count: number; pct: number } | null;
+export type ChipRoundUsage = { code: string; label: string; count: number };
 
 export type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
 
@@ -127,6 +133,7 @@ export type DifferentialRow = {
 export type LeagueOverview = {
   gw: number; leagueSize: number;
   chipUsage: ChipUsageRow[]; topOwned: TopOwnedRow[]; captaincy: CaptaincyRow[]; differentials: DifferentialRow[];
+  ownershipPct: Record<number, number>; // element -> % obstawy w CAŁEJ lidze (nie tylko topOwned/differentials)
 };
 
 export type SectionId = 'liga' | 'sezon' | 'cwiartki' | 'porownaj' | 'statystyki';

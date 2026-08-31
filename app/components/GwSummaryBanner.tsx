@@ -60,7 +60,11 @@ export default function GwSummaryBanner({ awards, league, active }: Props) {
       text: <><strong>{awards.bestCaptain.player_name}</strong> trafił z kapitanem: {awards.bestCaptain.captainName} ({awards.bestCaptain.captainPts} pkt)</>,
     });
   }
-  if (awards.toughWeek) {
+  if (awards.benchTears) {
+    lines.push({ icon: '🪑', text: <><strong>{awards.benchTears.player_name}</strong> zostawił {awards.benchTears.benchPoints} pkt na ławce</> });
+  } else if (awards.toughWeek) {
+    // fallback, gdy nikt nic nie zostawił na ławce (benchPoints=0 u wszystkich) — rzadkie, ale
+    // wtedy lepiej pokazać cokolwiek niż nic
     lines.push({ icon: '💀', text: <>Najgorszy tydzień: <strong>{awards.toughWeek.player_name}</strong> — {awards.toughWeek.points} pkt</> });
   }
 
