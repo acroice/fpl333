@@ -185,6 +185,12 @@ export default function CompareSection({
               const onlyBSum = onlyB.reduce((sum, p) => sum + p.total, 0);
               const diffSwing = onlyASum - onlyBSum;
 
+              // suma RAW punktów zostawionych na ławce (multiplier===0, nie p.total — ten dla
+              // ławki i tak jest zawsze 0) — czysto informacyjne, do porównania "kto lepiej trzymał
+              // ławkę", tak jak "Ławka: X pkt" w drilldownie składu w Lidze
+              const benchSumA = sqA.squad.filter(p => p.multiplier === 0).reduce((sum, p) => sum + p.points, 0);
+              const benchSumB = sqB.squad.filter(p => p.multiplier === 0).reduce((sum, p) => sum + p.points, 0);
+
               const topDiff = [...onlyA, ...onlyB].sort((a, b) => b.total - a.total)[0] ?? null;
               const topDiffOwner = topDiff && onlyA.includes(topDiff) ? sqA.playerName : sqB.playerName;
 
@@ -193,6 +199,11 @@ export default function CompareSection({
                   .sort((a, b) => b.total - a.total)
                   .map(p => {
                     const isDiff = !otherElements.has(p.element);
+                    // liczy się do wyniku, jeśli multiplier>0 — dla ławki (i wypadniętych z autosubu)
+                    // p.total jest zawsze 0, więc pokazujemy RAW punkty (p.points), które faktycznie
+                    // zdobyli, tylko oznaczone jako "nie liczy się" (jak w drilldownie w Lidze)
+                    const counted = p.multiplier > 0;
+                    const displayPts = counted ? p.total : p.points;
                     return (
                       <div key={p.element} className="squadplayer" style={isDiff ? undefined : { opacity: 0.4 }}>
                         <span className="squadplayer-name">
@@ -202,7 +213,12 @@ export default function CompareSection({
                           {p.isCaptain && ' (C)'}
                           {p.isBench && <span className="subbadge" title="Na ławce">ław.</span>}
                         </span>
-                        <span>{p.total} pkt</span>
+                        <span>
+                          {displayPts} pkt
+                          <span className={`countmark ${counted ? 'countmark--on' : 'countmark--off'}`} title={counted ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
+                            {counted ? '✓' : '–'}
+                          </span>
+                        </span>
                       </div>
                     );
                   });
@@ -224,6 +240,12 @@ export default function CompareSection({
                       </span>
                     </div>
                   )}
+
+                  <div style={{ marginBottom: 6 }}>
+                    Ławka: <strong>{sqA.playerName}</strong>: {benchSumA} pkt
+                    {' '}vs{' '}
+                    <strong>{sqB.playerName}</strong>: {benchSumB} pkt
+                  </div>
 
                   <div style={{ marginBottom: 10 }}>
                     Kapitan: <strong>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
