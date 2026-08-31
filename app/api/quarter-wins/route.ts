@@ -479,6 +479,20 @@ export async function GET(req: NextRequest){
       };
     });
 
+    // Transfer Tangle: kto wziął w tej GW największego hita (pkt straconych na transferach ponad
+    // darmowy limit). Realna, prosta metryka z danych, które już mamy (teamInfo.transfersCost) —
+    // celowo NIE próbujemy liczyć "impaktu"/ROI konkretnego transferu (który zawodnik wszedł, ile
+    // dał punktów vs kogo zastąpił) — nie da się tego wiarygodnie policzyć z obecnego API bez
+    // śledzenia który zawodnik został wpuszczony w miejsce którego, więc taka metryka byłaby
+    // zmyślona. To, co tu liczymy, jest w 100% pewne: sam koszt hita w punktach.
+    let transferTangle: { entry: number; player_name: string; entry_name: string; transfersCost: number } | null = null;
+    leagueEntries.forEach(plr => {
+      const cost = teamInfo[plr.entry]?.transfersCost ?? 0;
+      if (cost > 0 && (!transferTangle || cost > transferTangle.transfersCost)) {
+        transferTangle = { entry: plr.entry, player_name: plr.player_name || '', entry_name: plr.entry_name || '', transfersCost: cost };
+      }
+    });
+
     // Kapitan każdego managera w latestGw (do kolumny "Kapitan" w głównej tabeli) — nazwa,
     // zdjęcie, punkty na żywo. Ta sama informacja co powyżej (captainByEntry), tylko wzbogacona
     // o dane do wyświetlenia, bez dodatkowych zapytań do FPL.
@@ -566,6 +580,10 @@ export async function GET(req: NextRequest){
     const noChipWarrior = topBy(withoutChip, r => r.points);
     const valueKing = topBy(latestRows, r => r.value);
     const rankCrasher = topBy(rankFallers, r => r.rankChange);
+    // Rank Riser: lustrzane odbicie Rank Crashera — największa POPRAWA rankingu ogólnego FPL vs
+    // poprzednia GW (rankChange ujemne = ranking spadł liczbowo = awans). Ta sama, już policzona
+    // lista (rankFallers), tylko szukamy minimum zamiast maksimum.
+    const rankRiser = bottomBy(rankFallers, r => r.rankChange);
     const bestCaptain = topBy(differentialCaptains, r => r.captainPts);
 
     const awards = {
@@ -582,6 +600,9 @@ export async function GET(req: NextRequest){
       rankCrasher: rankCrasher && rankCrasher.rankChange > 0
         ? mkAward(rankCrasher, { rankChange: rankCrasher.rankChange })
         : null, // brak sensownego spadku (albo brak danych z poprzedniej GW, np. GW1) -> ukryty na froncie
+      rankRiser: rankRiser && rankRiser.rankChange < 0
+        ? mkAward(rankRiser, { rankChange: rankRiser.rankChange })
+        : null, // brak sensownej poprawy (albo brak danych z poprzedniej GW) -> ukryty na froncie
       bestCaptain: bestCaptain
         ? mkAward(bestCaptain, {
             captainName: bestCaptain.captainName,
@@ -591,6 +612,9 @@ export async function GET(req: NextRequest){
           })
         : null, // nikt nie pobił template captaina inną kapitanką w tej kolejce -> ukryty na froncie
       benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchTearsRow.benchPoints }) : null,
+      // value tu = pkt straconych na hicie (nie wartość drużyny jak w valueKing — Award ma
+      // generyczne pola reużywane per typ nagrody, patrz komentarz przy definicji transferTangle)
+      transferTangle: transferTangle ? { entry: transferTangle.entry, player_name: transferTangle.player_name, entry_name: transferTangle.entry_name, value: transferTangle.transfersCost } : null,
     };
 
     return NextResponse.json({

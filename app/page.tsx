@@ -508,6 +508,7 @@ export default function Home() {
           awards={awards}
           gwFullyFinished={gwFullyFinished}
           onOpenWrapped={() => setWrappedOpen(true)}
+          topCaptainPick={topCaptainPick}
         />
       </div>
 

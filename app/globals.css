@@ -766,6 +766,10 @@ body.retro .qdone {
 }
 .leaguectx-left { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 20px; }
 .leaguectx-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* pasek postępu bieżącej ćwiartki w nagłówku Ligi — zastępuje dawny tekst "Lider" (ten sam
+   manager i tak widnieje jako LEADER w kolumnie Gap wiersza #1, więc nic tu nie ginie) */
+.qheader-progress { display: flex; align-items: center; gap: 6px; }
+.qheader-progressbar { width: 64px; height: 5px; margin-top: 0; flex-shrink: 0; }
 
 /* druga linia w komórce Managera (desktop): team, kapitan, FT/TV/PLD — celowo przygaszona */
 .teaminfo-line { margin-top: 2px; display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }

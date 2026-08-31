@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey } from '../components/shared';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey, StatTile } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -40,6 +40,7 @@ type Props = {
   awards: Awards | null;
   gwFullyFinished: boolean;
   onOpenWrapped: () => void;
+  topCaptainPick: TopCaptainPick;
 };
 
 // znajdź wszystkie wpisy remisujące o wartość ekstremalną (max/min) — GW Pulse nie może
@@ -118,7 +119,7 @@ export default function LeagueSection({
   sortKey, sortDir, toggleSort, sortArrow,
   quarters, currentQuarterId, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
-  useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped,
+  useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped, topCaptainPick,
 }: Props) {
   const ready = !loading && !error && !preSeason && league.length > 0;
 
@@ -229,27 +230,27 @@ export default function LeagueSection({
               </span>
             )}
             {awards?.gw != null && <span className="small">GW {awards.gw}</span>}
-            {leader && (
-              <span className="small">Lider: <strong style={{ color: 'var(--text)' }}>{leader.player_name}</strong> · {leader.total} pkt</span>
+            {currentQuarter && currentQuarter.status === 'trwa' && awards?.gw != null && (
+              <span
+                className="qheader-progress"
+                title={`${currentQuarter.id}: GW${currentQuarter.gw_from}–${currentQuarter.gw_to} · ${currentQuarter.progress ?? 0}% czasu ćwiartki minęło`}
+              >
+                <span className="small">{currentQuarter.id}: GW{awards.gw - currentQuarter.gw_from + 1}/{currentQuarter.games}</span>
+                <span className="qprogress qheader-progressbar">
+                  <span className="qprogress-fill" style={{ width: `${currentQuarter.progress ?? 0}%` }} />
+                </span>
+              </span>
             )}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {gwFullyFinished && awards?.gw != null && (
-            <button
-              onClick={onOpenWrapped}
-              style={{ background: 'linear-gradient(135deg, #5ee1a2, #35b37e)', border: 'none', borderRadius: '6px', color: '#06251a', fontWeight: 700, fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
-            >
-              🏁 GW{awards.gw} Wrapped
-            </button>
-          )}
+        {gwFullyFinished && awards?.gw != null && (
           <button
-            onClick={downloadCsv}
-            style={{ background: '#0f2029', border: '1px solid #16313f', borderRadius: '6px', color: '#9fd9ff', fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
+            onClick={onOpenWrapped}
+            style={{ background: 'linear-gradient(135deg, #5ee1a2, #35b37e)', border: 'none', borderRadius: '6px', color: '#06251a', fontWeight: 700, fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
           >
-            Eksportuj CSV
+            🏁 GW{awards.gw} Wrapped
           </button>
-        </div>
+        )}
       </div>
 
       {loading ? (
@@ -382,11 +383,11 @@ export default function LeagueSection({
         </>
       )}
 
-      {/* GW Pulse — max 4 KPI, tie-aware, 2×2 na mobile */}
+      {/* GW Pulse — tie-aware KPI, auto-fit na desktopie (2×N na mobile) */}
       {pulse && (
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Pulse</div>
-          <div className="gwpulse-grid">
+          <div className="gwpulse-grid gwpulse-grid--auto">
             <div className="gwpulse-item">
               <span className="gwpulse-icon">🔥</span>
               <b>{pulse.best.value}</b>
@@ -411,6 +412,22 @@ export default function LeagueSection({
               <span className="small">pts</span>
               <span className="gwpulse-label">League Average</span>
             </div>
+            {awards?.benchTears && (
+              <StatTile
+                icon="🪑"
+                value={`${awards.benchTears.benchPoints} pkt`}
+                caption={awards.benchTears.player_name}
+                label="Bench Disaster"
+              />
+            )}
+            {topCaptainPick && (
+              <StatTile
+                photoUrl={topCaptainPick.photoUrl}
+                value={topCaptainPick.name}
+                caption={`${topCaptainPick.points} pkt · ${topCaptainPick.managers.length === 1 ? topCaptainPick.managers[0].player_name : `${topCaptainPick.managers.length} managerów`}`}
+                label="Captain Fantastic"
+              />
+            )}
           </div>
         </div>
       )}
@@ -424,7 +441,7 @@ export default function LeagueSection({
 
       {/* GW Awards — odchudzone o Top Gun/Tough Week (duplikat GW Pulse Best/Worst); id do scrolla
           z przycisku "Zobacz wszystkie nagrody" w GW Wrapped */}
-      {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.bestCaptain) && (
+      {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.rankRiser || awards.bestCaptain || awards.transferTangle) && (
         <div id="gw-awards" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Awards</div>
           <div className="awardsrow">
@@ -459,6 +476,18 @@ export default function LeagueSection({
               <span className="statchip statchip--good" title={`Zagrał innego kapitana niż większość ligi (${awards.bestCaptain.templateCaptainName}, ${awards.bestCaptain.templateCaptainPts} pkt) i wygrał`}>
                 <span className="statchip-icon">🧠</span>
                 <span className="statchip-text"><span className="statchip-label">Best Captain</span><span className="statchip-value">{awards.bestCaptain.player_name} · <b>{awards.bestCaptain.captainName} {awards.bestCaptain.captainPts}</b></span></span>
+              </span>
+            )}
+            {awards.rankRiser && (
+              <span className="statchip statchip--good" title="Największa poprawa rankingu ogólnego FPL vs poprzednia kolejka">
+                <span className="statchip-icon">🚀</span>
+                <span className="statchip-text"><span className="statchip-label">Rank Riser</span><span className="statchip-value">{awards.rankRiser.player_name} · <b>+{Math.abs(awards.rankRiser.rankChange ?? 0).toLocaleString('pl')}</b></span></span>
+              </span>
+            )}
+            {awards.transferTangle && (
+              <span className="statchip statchip--bad" title="Największy hit (pkt straconych na transferach ponad darmowy limit) w tej kolejce">
+                <span className="statchip-icon">🔀</span>
+                <span className="statchip-text"><span className="statchip-label">Transfer Tangle</span><span className="statchip-value">{awards.transferTangle.player_name} · <b>-{awards.transferTangle.value}</b></span></span>
               </span>
             )}
           </div>

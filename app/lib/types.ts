@@ -105,7 +105,8 @@ export type Award = {
 export type Awards = {
   gw: number;
   topGun: Award; toughWeek: Award; chipMaster: Award;
-  noChipWarrior: Award; valueKing: Award; rankCrasher: Award; bestCaptain: Award; benchTears: Award;
+  noChipWarrior: Award; valueKing: Award; rankCrasher: Award; rankRiser: Award;
+  bestCaptain: Award; benchTears: Award; transferTangle: Award;
 };
 
 // "kolejka wystartowała" — ciekawostki liczone tuż po pierwszym gwizdku, zanim znamy wyniki
