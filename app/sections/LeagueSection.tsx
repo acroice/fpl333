@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey } from '../components/shared';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey, formatCompactRank } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -25,6 +25,7 @@ type Props = {
   currentQuarterId: string;
   latestChip: Record<number, ChipInfo | null>;
   captainInfo: Record<number, CaptainInfo>;
+  overallRank: Record<number, OverallRankInfo>;
   teamInfo: Record<number, TeamInfo>;
   gwPoints: Record<number, GwPoint[]>;
   openManagerEntry: number | null;
@@ -50,6 +51,24 @@ function namesOf(entries: LeagueEntry[]) {
   return entries.map(e => e.player_name).join(' · ');
 }
 
+// ranking ogólny FPL (live) przy kapitanie — 🌍 + liczba w zwartym zapisie, ze strzałką ruchu
+// względem poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc zielona ↑)
+function renderWorldRank(info: OverallRankInfo) {
+  if (!info) return null;
+  const { rank, prevRank } = info;
+  const improved = prevRank != null && rank < prevRank;
+  const declined = prevRank != null && rank > prevRank;
+  const title = `Ranking ogólny FPL (live, spośród wszystkich graczy): ${rank.toLocaleString('pl')}`
+    + (prevRank != null ? ` · poprzednia GW: ${prevRank.toLocaleString('pl')}` : '');
+  return (
+    <span className="worldrank" title={title}>
+      🌍 {formatCompactRank(rank)}
+      {improved && <span className="deltarank deltarank--up"> ↑</span>}
+      {declined && <span className="deltarank deltarank--down"> ↓</span>}
+    </span>
+  );
+}
+
 // "🏠 Liga" — League Center. Landing page odpowiadający w kilka sekund: kto prowadzi, ile
 // tracę, kto wygrał GW, kto najbardziej awansował/spadł, jak ciasna jest liga. Tabela zostaje
 // najważniejszym elementem (desktop: tabela; mobile: kompaktowe karty rankingu — nie ta sama
@@ -57,7 +76,7 @@ function namesOf(entries: LeagueEntry[]) {
 export default function LeagueSection({
   leagueName, participants, league, sortedLeague, preSeason, loading, error,
   sortKey, sortDir, toggleSort, sortArrow,
-  quarters, currentQuarterId, latestChip, captainInfo, teamInfo, gwPoints,
+  quarters, currentQuarterId, latestChip, captainInfo, overallRank, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
   useProjection, setUseProjection, downloadCsv, awards,
 }: Props) {
@@ -230,6 +249,7 @@ export default function LeagueSection({
                             {captain && (
                               <span className="small"> · <PlayerAvatar src={captain.photoUrl} alt={captain.name} /> {captain.name}</span>
                             )}
+                            {overallRank[e.entry] && <span className="small"> · {renderWorldRank(overallRank[e.entry])}</span>}
                             {teamInfo[e.entry] && (
                               <span className="teaminfo"> · FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}</span>
                             )}
@@ -283,6 +303,7 @@ export default function LeagueSection({
                     <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
                       <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
                       <span>{captain.name}</span>
+                      {renderWorldRank(overallRank[e.entry])}
                     </div>
                   )}
                   <div className="leaguecard-row2">

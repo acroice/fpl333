@@ -45,6 +45,10 @@ export type GwPoint = { gw: number; pts: number; cost: number; value: number; be
 
 export type CaptainInfo = { element: number; name: string; photoUrl: string; points: number } | null;
 
+// ranking ogólny FPL (spośród wszystkich graczy) w latestGw — live w trakcie trwającej kolejki,
+// nie tylko po jej zamknięciu; prevRank z poprzedniej GW do strzałki ruchu, null gdy brak (np. GW1)
+export type OverallRankInfo = { rank: number; prevRank: number | null } | null;
+
 export type TeamInfo = { value: number; transfers: number; transfersCost: number; played: number; playedTotal: number };
 
 export type ChipInfo = { code: string; label: string; name?: string };

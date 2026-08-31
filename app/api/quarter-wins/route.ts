@@ -219,6 +219,21 @@ export async function GET(req: NextRequest){
       latestChip[plr.entry] = used ? { code: used.name, label: CHIP_LABELS[used.name] || used.name } : null;
     });
 
+    // Ranking ogólny FPL (spośród WSZYSTKICH graczy w grze, nie naszej ligi) w latestGw — FPL
+    // aktualizuje overall_rank na bieżąco w trakcie trwającej kolejki (nie dopiero po jej
+    // zamknięciu), więc to jest realnie "live". Źródło to ten sam entry/history, który już i tak
+    // pobieramy dla każdego managera (histories) — zero dodatkowych zapytań. prevRank (z
+    // poprzedniej GW) pozwala frontowi pokazać strzałkę ruchu, tak jak przy Δ Rank w naszej lidze.
+    const overallRank: Record<number, { rank: number; prevRank: number | null } | null> = {};
+    leagueEntries.forEach((plr, idx) => {
+      const hist = histories[idx].current;
+      const cur = hist.find(x => x.gw === latestGw);
+      const prev = hist.find(x => x.gw === latestGw - 1);
+      overallRank[plr.entry] = cur && cur.overallRank > 0
+        ? { rank: cur.overallRank, prevRank: prev && prev.overallRank > 0 ? prev.overallRank : null }
+        : null;
+    });
+
     // Awards of the Week — kompaktowe wyróżnienia dla latestGw, liczone z danych, które i tak
     // już mamy (historia per manager), bez dodatkowych zapytań do FPL.
     const latestRows = leagueEntries.map((plr, idx) => {
@@ -461,6 +476,7 @@ export async function GET(req: NextRequest){
       awards,                  // Awards of the Week dla latestGw
       gwPoints,                // { entryId: [{gw,pts}, ...] } — historia GW-po-GW, do sparkline/formy
       captainInfo,             // { entryId: {element,name,photoUrl,points} | null } — kapitan w latestGw
+      overallRank,              // { entryId: {rank,prevRank} | null } — ranking ogólny FPL w latestGw, live
       teamInfo,                // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
       chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
       gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw

@@ -2,7 +2,7 @@
 import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
-  ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId,
+  ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
 } from './lib/types';
 import Nav from './components/Nav';
 import LeagueSection from './sections/LeagueSection';
@@ -62,6 +62,9 @@ export default function Home() {
   const [gwPoints, setGwPoints] = React.useState<Record<number, GwPoint[]>>({});
   // kapitan każdego managera w najświeższej kolejce (do kolumny "Kapitan" w tabeli)
   const [captainInfo, setCaptainInfo] = React.useState<Record<number, CaptainInfo>>({});
+  // ranking ogólny FPL (spośród wszystkich graczy) każdego managera, live w trakcie kolejki —
+  // pokazywany przy kapitanie w tabeli głównej
+  const [overallRank, setOverallRank] = React.useState<Record<number, OverallRankInfo>>({});
   // wartość drużyny + transfery w najświeższej kolejce (subtelny wgląd pod nazwą teamu)
   const [teamInfo, setTeamInfo] = React.useState<Record<number, TeamInfo>>({});
   // status latestGw: true=zakończona, false=live, null=nie da się wiarygodnie ustalić (do
@@ -171,6 +174,7 @@ export default function Home() {
         setAwards(wData.awards || null);
         setGwPoints(wData.gwPoints || {});
         setCaptainInfo(wData.captainInfo || {});
+        setOverallRank(wData.overallRank || {});
         setTeamInfo(wData.teamInfo || {});
         setGwFinished(wData.gwFinished ?? null);
         setSideError(null);
@@ -406,6 +410,7 @@ export default function Home() {
           currentQuarterId={currentQuarterId}
           latestChip={latestChip}
           captainInfo={captainInfo}
+          overallRank={overallRank}
           teamInfo={teamInfo}
           gwPoints={gwPoints}
           openManagerEntry={openManagerEntry}
