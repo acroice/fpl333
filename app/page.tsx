@@ -470,6 +470,7 @@ export default function Home() {
 
       <div style={{ display: activeSection === 'porownaj' ? 'block' : 'none' }}>
         <CompareSection
+          active={activeSection === 'porownaj'}
           league={league}
           gwPoints={gwPoints}
           squadCache={squadCache}
@@ -478,6 +479,8 @@ export default function Home() {
           compareA={compareA}
           compareB={compareB}
           selectCompare={selectCompare}
+          loadOverview={loadOverview}
+          overview={overview}
         />
       </div>
 

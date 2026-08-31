@@ -668,6 +668,35 @@ body.retro .qdone {
   font-size: 12.5px;
 }
 
+/* --- Porównaj: leaderboard różnicowych zawodników (scalone A+B, sortowane wg wkładu) --- */
+.diffheadline { margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+.diffheadline strong { color: var(--text); }
+.diffboard { border-top: 1px solid #1c2430; margin-bottom: 4px; }
+.diffboard-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #1c2430;
+  font-size: 13px;
+}
+.diffboard-row .squadplayer-name { flex: 1; min-width: 0; }
+.diffboard-owner {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+.diffboard-owner--a { background: rgba(94, 225, 162, .15); color: #5ee1a2; }
+.diffboard-owner--b { background: rgba(159, 217, 255, .15); color: #9fd9ff; }
+.diffboard-pts { flex-shrink: 0; font-weight: 600; white-space: nowrap; }
+.diffboard-pct { flex-shrink: 0; width: 58px; text-align: right; }
+
 /* --- Ćwiartki: pasek zwycięzców Q1|Q2|Q3|Q4 --- */
 .qwinnersrow {
   display: grid;

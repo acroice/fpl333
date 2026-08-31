@@ -1,9 +1,10 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, SquadData, SquadPlayer } from '../lib/types';
+import type { LeagueEntry, GwPoint, SquadData, SquadPlayer, LeagueOverview } from '../lib/types';
 import { PlayerAvatar, ClubBadge } from '../components/shared';
 
 type Props = {
+  active: boolean;
   league: LeagueEntry[];
   gwPoints: Record<number, GwPoint[]>;
   squadCache: Record<number, SquadData>;
@@ -12,15 +13,29 @@ type Props = {
   compareA: number | null;
   compareB: number | null;
   selectCompare: (slot: 'A' | 'B', entry: number | null) => void;
+  loadOverview: () => void;
+  overview: LeagueOverview | null;
 };
 
+// punkty, które faktycznie się liczą (po mnożniku) — a dla ławki (multiplier=0) surowe punkty,
+// które i tak zdobyli, tak jak w drilldownie składu w Lidze
+function pointsFor(p: SquadPlayer) {
+  return p.multiplier > 0 ? p.total : p.points;
+}
+
 // "⚔️ Porównaj" — dawny showCompare panel z page.tsx przeniesiony 1:1 (wybór managerów, diff
-// składów, Top różnicowy, suma różnic — logika bez zmian), plus nowy pasek statystyk obok
-// siebie i sekcja H2H. Oba dodatki liczone w całości z danych już na froncie (league, gwPoints
-// wzbogacone o cost) — zero nowych zapytań do FPL.
+// składów, suma różnic — logika bez zmian), plus nowy pasek statystyk obok siebie, sekcja H2H i
+// posortowany leaderboard różnicowych zawodników z % obstawy w lidze (z tego samego overview co
+// Statystyki — lazy-load przy wejściu w tę zakładkę, idempotentne, więc jeśli ktoś już był w
+// Statystykach, nic się nie dubluje).
 export default function CompareSection({
-  league, gwPoints, squadCache, squadLoading, squadErrors, compareA, compareB, selectCompare,
+  active, league, gwPoints, squadCache, squadLoading, squadErrors, compareA, compareB, selectCompare,
+  loadOverview, overview,
 }: Props) {
+  React.useEffect(() => {
+    if (active) loadOverview();
+  }, [active, loadOverview]);
+
   const entryA = compareA != null ? league.find(e => e.entry === compareA) : undefined;
   const entryB = compareB != null ? league.find(e => e.entry === compareB) : undefined;
 
@@ -191,19 +206,22 @@ export default function CompareSection({
               const benchSumA = sqA.squad.filter(p => p.multiplier === 0).reduce((sum, p) => sum + p.points, 0);
               const benchSumB = sqB.squad.filter(p => p.multiplier === 0).reduce((sum, p) => sum + p.points, 0);
 
-              const topDiff = [...onlyA, ...onlyB].sort((a, b) => b.total - a.total)[0] ?? null;
-              const topDiffOwner = topDiff && onlyA.includes(topDiff) ? sqA.playerName : sqB.playerName;
+              // leaderboard różnicowych: obie listy scalone w jedną, posortowane wg realnego wkładu
+              // (liczy się/nie liczy uwzględnione przez pointsFor), z tagiem właściciela i — jeśli
+              // overview już się doładował (Statystyki albo ta zakładka) — % obstawy w CAŁEJ lidze,
+              // nie tylko binarne "ma/nie ma" u porównywanych dwóch
+              const differentials = [
+                ...onlyA.map(p => ({ ...p, owner: 'A' as const })),
+                ...onlyB.map(p => ({ ...p, owner: 'B' as const })),
+              ].sort((a, b) => pointsFor(b) - pointsFor(a));
 
               const renderSquad = (rows: SquadPlayer[], otherElements: Set<number>) =>
                 [...rows]
                   .sort((a, b) => b.total - a.total)
                   .map(p => {
                     const isDiff = !otherElements.has(p.element);
-                    // liczy się do wyniku, jeśli multiplier>0 — dla ławki (i wypadniętych z autosubu)
-                    // p.total jest zawsze 0, więc pokazujemy RAW punkty (p.points), które faktycznie
-                    // zdobyli, tylko oznaczone jako "nie liczy się" (jak w drilldownie w Lidze)
                     const counted = p.multiplier > 0;
-                    const displayPts = counted ? p.total : p.points;
+                    const displayPts = pointsFor(p);
                     return (
                       <div key={p.element} className="squadplayer" style={isDiff ? undefined : { opacity: 0.4 }}>
                         <span className="squadplayer-name">
@@ -229,19 +247,48 @@ export default function CompareSection({
                     Skład w bieżącej kolejce (GW{sqA.gw})
                   </div>
 
-                  {topDiff && (
-                    <div className="statchip statchip--special" style={{ marginBottom: 10 }}>
-                      <span className="statchip-icon">🎯</span>
-                      <span className="statchip-text">
-                        <span className="statchip-label">Top różnicowy</span>
-                        <span className="statchip-value">
-                          {topDiff.name} <span className="small">({topDiff.team})</span> · <b>{topDiff.total} pkt</b> — tylko u {topDiffOwner}
+                  {differentials.length > 0 && (
+                    <div className="diffheadline">
+                      <span aria-hidden="true">🎯</span> Różnicowi: <strong>{onlyA.length}</strong> u {sqA.playerName} vs <strong>{onlyB.length}</strong> u {sqB.playerName}
+                      {diffSwing !== 0 ? (
+                        <span className="leadbadge" style={{ marginLeft: 8 }}>
+                          {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt z różnic
                         </span>
-                      </span>
+                      ) : (
+                        <span className="leadbadge leadbadge--neutral" style={{ marginLeft: 8 }}>bez przewagi z różnic</span>
+                      )}
                     </div>
                   )}
 
-                  <div style={{ marginBottom: 6 }}>
+                  {differentials.length > 0 && (
+                    <div className="diffboard">
+                      {differentials.map(p => {
+                        const ownerName = p.owner === 'A' ? sqA.playerName : sqB.playerName;
+                        const pct = overview?.ownershipPct?.[p.element];
+                        const counted = p.multiplier > 0;
+                        return (
+                          <div key={`${p.owner}-${p.element}`} className="diffboard-row">
+                            <span className={`diffboard-owner diffboard-owner--${p.owner.toLowerCase()}`} title={ownerName}>{p.owner}</span>
+                            <span className="squadplayer-name">
+                              <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                              <span className="pill">{p.position}</span>
+                              {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                              {p.isCaptain && ' (C)'}
+                            </span>
+                            <span className="diffboard-pts">
+                              {pointsFor(p)} pkt
+                              <span className={`countmark ${counted ? 'countmark--on' : 'countmark--off'}`} title={counted ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
+                                {counted ? '✓' : '–'}
+                              </span>
+                            </span>
+                            <span className="diffboard-pct small">{pct != null ? `${pct}% ligi` : '…'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 12, marginBottom: 6 }}>
                     Ławka: <strong>{sqA.playerName}</strong>: {benchSumA} pkt
                     {' '}vs{' '}
                     <strong>{sqB.playerName}</strong>: {benchSumB} pkt
@@ -253,6 +300,9 @@ export default function CompareSection({
                     <strong>{sqB.playerName}</strong>: {capB ? `${capB.name} · ${capB.total} pkt` : '—'}
                   </div>
 
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', margin: '16px 0 10px' }}>
+                    Pełne składy
+                  </div>
                   <div className="qgrid">
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 6 }}>
@@ -268,17 +318,7 @@ export default function CompareSection({
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ color: 'var(--muted)' }}>Różnica z różnic składu:</span>
-                    {diffSwing !== 0 ? (
-                      <span className="leadbadge">
-                        {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt
-                      </span>
-                    ) : (
-                      <span className="leadbadge leadbadge--neutral">bez przewagi</span>
-                    )}
-                  </div>
-                  <div style={{ marginTop: 6, color: 'var(--muted)' }}>
+                  <div style={{ marginTop: 10, color: 'var(--muted)' }}>
                     Wspólnych zawodników: {commonCount}
                   </div>
                 </div>
