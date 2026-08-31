@@ -157,11 +157,11 @@ export async function GET(req: NextRequest) {
     let hasProjection = false;
 
     if (targetPicks.automaticSubs.length === 0) {
-      const [minutes, finishedTeams] = await Promise.all([
+      const [minutes, fixtureTeams] = await Promise.all([
         fetchEventMinutesCached(gw),
         fetchFinishedTeamsCached(gw),
       ]);
-      const sim = simulateAutosubs(targetPicks.picks, minutes, finishedTeams, bootstrap.elementsById);
+      const sim = simulateAutosubs(targetPicks.picks, minutes, fixtureTeams, bootstrap.elementsById);
 
       projectedSquad = buildSquad(
         targetPicks.picks,

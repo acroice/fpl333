@@ -84,7 +84,7 @@ const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
 const historyCache = new Map<number, CacheEntry<EntryHistoryData>>();
 const picksCache = new Map<string, CacheEntry<PicksData>>(); // klucz: `${entryId}:${gw}`
 const liveFullCache = new Map<number, CacheEntry<Record<number, LiveElementStats>>>(); // klucz: gw
-const finishedTeamsCache = new Map<number, CacheEntry<Set<number>>>(); // klucz: gw
+const finishedTeamsCache = new Map<number, CacheEntry<FixtureTeamsInfo>>(); // klucz: gw
 let bootstrapCache: CacheEntry<BootstrapSlim> | null = null;
 
 async function fetchClassicStandingsRaw(leagueId: string): Promise<StandingsRaw> {
@@ -313,24 +313,35 @@ export async function fetchEventMinutesCached(gw: number): Promise<Record<number
   return minutes;
 }
 
-async function fetchFixturesRaw(gw: number): Promise<Set<number>> {
+export type FixtureTeamsInfo = {
+  finished: Set<number>;    // drużyny, których mecz w tej GW już się zakończył
+  withFixture: Set<number>; // drużyny, które w ogóle GRAJĄ w tej GW (mają jakikolwiek mecz) — do wykrywania blanków
+};
+
+async function fetchFixturesRaw(gw: number): Promise<FixtureTeamsInfo> {
   const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gw}`;
   const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
-  if (!res.ok) return new Set();
+  if (!res.ok) return { finished: new Set(), withFixture: new Set() };
   const data = await res.json();
   const finished = new Set<number>();
+  const withFixture = new Set<number>();
   for (const f of data ?? []) {
+    if (f.team_h != null) withFixture.add(f.team_h);
+    if (f.team_a != null) withFixture.add(f.team_a);
     if (f?.finished) {
       if (f.team_h != null) finished.add(f.team_h);
       if (f.team_a != null) finished.add(f.team_a);
     }
   }
-  return finished;
+  return { finished, withFixture };
 }
 
-// Zbiór ID drużyn, których mecz w danej kolejce już się zakończył — do projekcji autosubów
-// (dopiero po zakończeniu meczu 0 minut oznacza "na pewno nie zagra", a nie "jeszcze nie grał").
-export async function fetchFinishedTeamsCached(gw: number): Promise<Set<number>> {
+// Info o meczach danej kolejki: które drużyny już skończyły grać, i które w ogóle MAJĄ mecz w tej
+// GW — do projekcji autosubów. Drużyna, która w ogóle nie ma meczu w tej kolejce (blank gameweek),
+// nigdy nie pojawi się w `finished` (bo nie ma jej w odpowiedzi fixtures), więc bez `withFixture`
+// gracz z blanka nigdy nie zostałby wykryty jako "na pewno nie zagra" — a to wiadomo od razu na
+// starcie kolejki, zanim jakikolwiek mecz się w ogóle zacznie (jak robi to livefpl).
+export async function fetchFinishedTeamsCached(gw: number): Promise<FixtureTeamsInfo> {
   const hit = finishedTeamsCache.get(gw);
   if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
 
@@ -355,13 +366,17 @@ export type AutosubSimResult = {
 export function simulateAutosubs(
   picks: PicksData['picks'],
   minutesByElement: Record<number, number>,
-  finishedTeams: Set<number>,
+  fixtureTeams: FixtureTeamsInfo,
   elementsById: BootstrapSlim['elementsById']
 ): AutosubSimResult {
   const didNotPlay = (element: number) => {
-    const mins = minutesByElement[element] ?? 0;
     const team = elementsById[element]?.team;
-    return mins === 0 && team != null && finishedTeams.has(team);
+    if (team == null) return false;
+    // blank GW dla tej drużyny (brak jakiegokolwiek meczu) — pewne od startu kolejki, jeszcze
+    // zanim jakikolwiek mecz się zacznie (tak jak robi to livefpl)
+    if (!fixtureTeams.withFixture.has(team)) return true;
+    const mins = minutesByElement[element] ?? 0;
+    return mins === 0 && fixtureTeams.finished.has(team);
   };
 
   const starters = picks.filter(p => p.position <= 11);
