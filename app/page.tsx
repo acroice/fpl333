@@ -5,6 +5,7 @@ import type {
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
 } from './lib/types';
 import Nav from './components/Nav';
+import GwSummaryBanner from './components/GwSummaryBanner';
 import LeagueSection from './sections/LeagueSection';
 import SeasonSection from './sections/SeasonSection';
 import QuartersSection from './sections/QuartersSection';
@@ -392,6 +393,7 @@ export default function Home() {
       {showRetroBanner && <div className="retro-banner">you unlocked retro fpl mode</div>}
 
       <Nav active={activeSection} onChange={setActiveSection} />
+      <GwSummaryBanner awards={awards} league={league} />
 
       <div style={{ display: activeSection === 'liga' ? 'block' : 'none' }}>
         <LeagueSection

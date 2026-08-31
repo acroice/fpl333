@@ -784,6 +784,29 @@ body.retro .qdone {
 .gwpulse-item .small { white-space: normal; overflow-wrap: anywhere; }
 .gwpulse-label { font-size: 10px; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 3px; }
 
+/* --- Podsumowanie GW: powiadomienie nad Nav, widoczne na każdej zakładce --- */
+.gwsummary-banner {
+  position: relative;
+  margin: 0 0 14px;
+  background: linear-gradient(135deg, #14202b, #0f1720);
+  border: 1px solid #223447;
+  border-left: 3px solid #5ee1a2;
+  border-radius: 12px;
+  padding: 14px 36px 14px 16px;
+  animation: gwsummary-in .25s ease-out;
+}
+.gwsummary-header { font-weight: 800; font-size: 15px; margin-bottom: 8px; color: var(--text); }
+.gwsummary-lines { display: flex; flex-direction: column; gap: 5px; }
+.gwsummary-line { font-size: 13px; color: var(--muted); }
+.gwsummary-line strong { color: var(--text); }
+.gwsummary-close {
+  position: absolute; top: 10px; right: 10px;
+  background: transparent; border: none; color: var(--muted);
+  font-size: 14px; cursor: pointer; padding: 4px 6px; line-height: 1;
+}
+.gwsummary-close:hover { color: var(--text); }
+@keyframes gwsummary-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
 /* --- League Insight: jeden baner, deterministyczny --- */
 .insight-banner {
   margin-top: 14px;
