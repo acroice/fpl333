@@ -229,7 +229,6 @@ export default function LeagueSection({
                 {currentQuarter.id} · {QUARTER_STATUS_LABEL[currentQuarter.status]}
               </span>
             )}
-            {awards?.gw != null && <span className="small">GW {awards.gw}</span>}
             {currentQuarter && currentQuarter.status === 'trwa' && awards?.gw != null && (
               <span
                 className="qheader-progress"
