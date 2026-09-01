@@ -29,6 +29,13 @@ export default function StatsSection({
     if (active) loadOverview();
   }, [active, loadOverview]);
 
+  // "delikatne" opcje rozwinięcia — domyślnie krótsze listy (mniej scrollowania), z możliwością
+  // pokazania pełnego rankingu jednym kliknięciem. Różnicowi: 6 → 10 (backend już zwraca top10,
+  // patrz league-overview/route.ts). Bench: 5 → cała liga (tu nic nie ucinamy po stronie API,
+  // benchRows liczone niżej z gwPoints, które i tak mamy w całości na froncie).
+  const [showAllDifferentials, setShowAllDifferentials] = React.useState(false);
+  const [showAllBench, setShowAllBench] = React.useState(false);
+
   // Transfers: suma minusowych pkt (koszt transferów ponad limit) w całym sezonie per manager
   const transferRows = React.useMemo(() => {
     return Object.entries(gwPoints)
@@ -61,6 +68,25 @@ export default function StatsSection({
       }
     }
     return rec;
+  }, [gwPoints]);
+
+  // Stabilność: odchylenie standardowe wyników GW per manager — kto punktuje wyrównanie kolejka
+  // po kolejce, a kto jest rollercoasterem (wielkie GW na przemian z fatalnymi). Inna oś niż
+  // "Rekordy sezonu" w Sezonie (tam pojedyncze ekstrema), tu cały rozkład wyników. Liczone w
+  // całości z gwPoints — zero nowych zapytań. Wymaga min. 3 rozegranych kolejek na managera, żeby
+  // odchylenie miało jakikolwiek sens (przy 1-2 GW to tylko szum).
+  const consistencyRows = React.useMemo(() => {
+    return Object.entries(gwPoints)
+      .map(([entryStr, rows]) => {
+        const entry = Number(entryStr);
+        const played = rows.filter(g => g.gw > 0).map(g => g.pts);
+        if (played.length < 3) return null;
+        const avg = played.reduce((s, p) => s + p, 0) / played.length;
+        const variance = played.reduce((s, p) => s + (p - avg) ** 2, 0) / played.length;
+        return { entry, avg, stdDev: Math.sqrt(variance), gwCount: played.length };
+      })
+      .filter((r): r is { entry: number; avg: number; stdDev: number; gwCount: number } => r != null)
+      .sort((a, b) => a.stdDev - b.stdDev);
   }, [gwPoints]);
 
   // Chips: pogrupowane per typ chipa (osobny segment na BB/WC/FH/TC/AM). Dla BB/TC sortujemy
@@ -151,16 +177,23 @@ export default function StatsSection({
           {overview.differentials.length === 0 ? (
             <div>Brak — nikt nisko obstawiany nie wystrzelił w tej kolejce</div>
           ) : (
-            overview.differentials.map(p => (
-              <div key={p.element} className="squadplayer">
-                <span className="squadplayer-name">
-                  <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                  <span className="pill">{p.position}</span>
-                  {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
-                </span>
-                <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize}</span>
-              </div>
-            ))
+            <>
+              {(showAllDifferentials ? overview.differentials : overview.differentials.slice(0, 6)).map(p => (
+                <div key={p.element} className="squadplayer">
+                  <span className="squadplayer-name">
+                    <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                    <span className="pill">{p.position}</span>
+                    {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
+                  </span>
+                  <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize}</span>
+                </div>
+              ))}
+              {overview.differentials.length > 6 && (
+                <button className="showmore-btn" onClick={() => setShowAllDifferentials(v => !v)}>
+                  {showAllDifferentials ? '↑ Pokaż mniej' : `↓ Pokaż więcej (top ${overview.differentials.length})`}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -197,7 +230,7 @@ export default function StatsSection({
         </div>
       )}
       <div style={{ marginBottom: 4 }}>
-        {benchRows.map((r, i) => (
+        {(showAllBench ? benchRows : benchRows.slice(0, 5)).map((r, i) => (
           <div key={r.entry} className="rankbar">
             <div className="rankbar-top">
               <span className="rankbar-rank">{rankBadge(i)}</span>
@@ -209,7 +242,45 @@ export default function StatsSection({
             <div className="rankbar-gap">śr. {r.avg.toFixed(1)}/GW · najwięcej naraz: {r.best} pkt</div>
           </div>
         ))}
+        {benchRows.length > 5 && (
+          <button className="showmore-btn" onClick={() => setShowAllBench(v => !v)}>
+            {showAllBench ? '↑ Pokaż mniej' : `↓ Pokaż więcej (top ${benchRows.length})`}
+          </button>
+        )}
       </div>
+
+      <div style={{ fontWeight: 700, fontSize: 15, margin: '18px 0 8px' }}>Stabilność</div>
+      {consistencyRows.length < 2 ? (
+        <div className="small" style={{ color: 'var(--muted)', marginBottom: 18 }}>
+          Wkrótce: staty stabilności pojawią się po rozegraniu kilku kolejek.
+        </div>
+      ) : (
+        <>
+          <div className="small" style={{ marginBottom: 8 }}>
+            Odchylenie standardowe wyników GW — kto punktuje wyrównanie z kolejki na kolejkę, a kto jest rollercoasterem.
+          </div>
+          <div style={{ marginBottom: 4 }}>
+            {consistencyRows.map((r, i) => (
+              <div key={r.entry} className="rankbar">
+                <div className="rankbar-top">
+                  <span className="rankbar-rank">
+                    {i === 0 ? '🎯' : i === consistencyRows.length - 1 ? '🎢' : rankBadge(i)}
+                  </span>
+                  <span className="rankbar-name">
+                    {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
+                  </span>
+                  <span className="rankbar-pts">± {r.stdDev.toFixed(1)}</span>
+                </div>
+                <div className="rankbar-gap">
+                  śr. {r.avg.toFixed(1)} pkt/GW
+                  {i === 0 && ' · najbardziej stabilny w lidze'}
+                  {i === consistencyRows.length - 1 && consistencyRows.length > 1 && ' · rollercoaster sezonu'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div style={{ fontWeight: 700, fontSize: 15, margin: '18px 0 8px' }}>Chips</div>
       {overview && overview.chipUsage.length > 0 && (

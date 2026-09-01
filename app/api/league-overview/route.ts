@@ -86,11 +86,12 @@ export async function GET(req: NextRequest) {
       .slice(0, 6);
 
     // Różnicowi zawodnicy: nisko obstawiani w lidze (≤20%), a mimo to dobrze punktujący w tej
-    // kolejce — pokazuje, kto zyskał przewagę dzięki nietypowemu wyborowi. Top5 wg punktów.
+    // kolejce — pokazuje, kto zyskał przewagę dzięki nietypowemu wyborowi. Top10 wg punktów —
+    // front domyślnie pokazuje 6, z opcją rozwinięcia do pełnych 10 (patrz StatsSection).
     const differentials = [...ownershipRows]
       .filter(p => p.ownedPct <= 20 && p.points > 0)
       .sort((a, b) => b.points - a.points || a.ownedCount - b.ownedCount)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // Captaincy Stats — każdy wybór kapitana w lidze: kto go zagrał (%), ile dał punktów
     const captaincy = Object.entries(captainCount)

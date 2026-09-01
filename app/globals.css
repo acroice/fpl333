@@ -1027,6 +1027,50 @@ body.retro .qdone {
   .leaguectx-left { font-size: 17px; }
 }
 
+/* przycisk-pigułka otwierający GW Wrapped w nagłówku Ligi — pill z uniesieniem/cieniem przy
+   hover i strzałką, która "wysuwa się" o kilka px, żeby czytelnie sygnalizować że to coś
+   klikalnego, nie tylko kolejny status/badge (tamte są płaskie, bez cienia i bez :hover) */
+.wrapped-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #5ee1a2, #35b37e);
+  border: none;
+  border-radius: 999px;
+  color: #06251a;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(94, 225, 162, .35), inset 0 1px 0 rgba(255, 255, 255, .25);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.wrapped-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(94, 225, 162, .5), inset 0 1px 0 rgba(255, 255, 255, .3);
+  filter: brightness(1.06);
+}
+.wrapped-trigger:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(94, 225, 162, .3); }
+.wrapped-trigger-arrow { display: inline-block; transition: transform .15s ease; }
+.wrapped-trigger:hover .wrapped-trigger-arrow { transform: translateX(2px); }
+
+/* subtelny link "Pokaż więcej/mniej" pod skróconymi listami (Różnicowi, Bench w Statystykach) —
+   celowo bez tła/obramowania, żeby nie konkurował wizualnie z prawdziwymi przyciskami akcji */
+.showmore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.showmore-btn:hover { color: var(--accent); }
+
 /* ============================================================
    GW WRAPPED — świąteczny ekran zamykający kolejkę (dodatek do
    GW Pulse/GW Awards w Lidze, nie zamiennik). Desktop: wyśrodkowany

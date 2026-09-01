@@ -269,11 +269,9 @@ export default function LeagueSection({
           </div>
         )}
         {gwFullyFinished && awards?.gw != null && (
-          <button
-            onClick={onOpenWrapped}
-            style={{ background: 'linear-gradient(135deg, #5ee1a2, #35b37e)', border: 'none', borderRadius: '6px', color: '#06251a', fontWeight: 700, fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
-          >
-            🏁 GW{awards.gw} Wrapped
+          <button className="wrapped-trigger" onClick={onOpenWrapped}>
+            🏁 GW{awards.gw} Podsumowanie
+            <span className="wrapped-trigger-arrow" aria-hidden="true">→</span>
           </button>
         )}
       </div>
