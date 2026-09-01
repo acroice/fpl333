@@ -49,7 +49,7 @@ export default function GwSummaryBanner({ awards, league, topCaptainPick, active
   const tiles: React.ReactNode[] = [];
   if (awards.topGun) {
     tiles.push(
-      <StatTile key="topgun" icon="🔥" value={`${awards.topGun.points} pkt`} caption={awards.topGun.player_name} label="Best GW" />
+      <StatTile key="topgun" icon="🔥" value={`${awards.topGun.points} pkt`} caption={awards.topGun.player_name} label="Najlepszy wynik GW" />
     );
   }
   if (leader) {
@@ -67,13 +67,13 @@ export default function GwSummaryBanner({ awards, league, topCaptainPick, active
         photoUrl={topCaptainPick.photoUrl}
         value={topCaptainPick.name}
         caption={`${topCaptainPick.points} pkt · ${managerCaption}`}
-        label="Top Captain"
+        label="Kapitan Kolejki"
       />
     );
   }
   if (benchTears) {
     tiles.push(
-      <StatTile key="bench" icon="🪑" value={`${benchTears.benchPoints} pkt`} caption={benchTears.player_name} label="Bench Tears" />
+      <StatTile key="bench" icon="🪑" value={`${benchTears.benchPoints} pkt`} caption={benchTears.player_name} label="Łzy na ławce" />
     );
   } else if (awards.toughWeek) {
     tiles.push(

@@ -48,19 +48,19 @@ export default function GwWrappedModal({
   if (climber) {
     const names = climber.entries.map(e => e.player_name).join(' · ');
     cards.push({
-      key: 'climber', icon: '📈', accent: 'good', label: 'Biggest Climber',
+      key: 'climber', icon: '📈', accent: 'good', label: 'Największy awans',
       title: `+${climber.delta} miejsc`, sub: names,
     });
   }
   if (awards.toughWeek) {
     cards.push({
-      key: 'tough', icon: '💀', accent: 'bad', label: 'Tough Week',
+      key: 'tough', icon: '💀', accent: 'bad', label: 'Najgorszy tydzień',
       title: `${awards.toughWeek.points} pkt`, sub: awards.toughWeek.player_name,
     });
   }
   if (awards.benchTears) {
     cards.push({
-      key: 'bench', icon: '🪑', accent: 'bad', label: 'Bench Disaster',
+      key: 'bench', icon: '🪑', accent: 'bad', label: 'Łzy na ławce',
       title: `${awards.benchTears.benchPoints} pkt`, sub: awards.benchTears.player_name,
     });
   }
@@ -69,20 +69,20 @@ export default function GwWrappedModal({
       ? topCaptainPick.managers[0].player_name
       : `${topCaptainPick.managers.length} managerów`;
     cards.push({
-      key: 'topcap', photoUrl: topCaptainPick.photoUrl, accent: 'special', label: 'Top Captain',
+      key: 'topcap', photoUrl: topCaptainPick.photoUrl, accent: 'special', label: 'Kapitan Kolejki',
       title: topCaptainPick.name, sub: `${topCaptainPick.points} pkt · ${capSub}`,
     });
   }
   if (awards.chipMaster) {
     const bonusText = awards.chipMaster.bonus != null ? `+${awards.chipMaster.bonus} z chipa` : `${awards.chipMaster.points} pkt`;
     cards.push({
-      key: 'chip', icon: '🏅', accent: 'special', label: `Chip Master · ${awards.chipMaster.chip?.label}`,
+      key: 'chip', icon: '🏅', accent: 'special', label: `Mistrz Chipa · ${awards.chipMaster.chip?.label}`,
       title: bonusText, sub: awards.chipMaster.player_name,
     });
   }
   if (awards.bestCaptain) {
     cards.push({
-      key: 'bestcap', icon: '🧠', accent: 'good', label: 'Best Captain',
+      key: 'bestcap', icon: '🧠', accent: 'good', label: 'Odważny Kapitan',
       title: `${awards.bestCaptain.captainName} ${awards.bestCaptain.captainPts}`, sub: awards.bestCaptain.player_name,
     });
   }
@@ -94,7 +94,7 @@ export default function GwWrappedModal({
 
         <div className="wrapped-header">
           <div className="wrapped-title">🏁 GW{gw} WRAPPED</div>
-          <div className="wrapped-subtitle">Another Gameweek in the books.</div>
+          <div className="wrapped-subtitle">Kolejna kolejka za nami.</div>
         </div>
 
         {mvp && (
@@ -104,7 +104,7 @@ export default function GwWrappedModal({
             ) : (
               <span className="wrapped-hero-icon" aria-hidden="true">👑</span>
             )}
-            <div className="wrapped-hero-label">Gameweek MVP</div>
+            <div className="wrapped-hero-label">MVP Kolejki</div>
             <div className="wrapped-hero-name">{mvp.player_name}</div>
             <div className="wrapped-hero-sub">{mvp.entry_name} · <strong>{mvp.points} pkt</strong></div>
           </div>
@@ -124,7 +124,7 @@ export default function GwWrappedModal({
         )}
 
         <div className="wrapped-footer">
-          <div className="wrapped-signoff">That's a wrap on GW{gw}. 👏<br />See you in GW{gw + 1}.</div>
+          <div className="wrapped-signoff">To już wszystko z GW{gw}. 👏<br />Do zobaczenia w GW{gw + 1}.</div>
           <div className="wrapped-actions">
             <button className="wrapped-btn wrapped-btn--primary" onClick={onViewAllAwards}>Zobacz wszystkie nagrody</button>
             <button className="wrapped-btn" onClick={onClose}>Zamknij</button>

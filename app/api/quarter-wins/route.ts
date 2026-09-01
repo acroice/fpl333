@@ -216,13 +216,17 @@ export async function GET(req: NextRequest){
     }
 
     // Czy pokazać powiadomienie "Podsumowanie GW" — aktywne przez 24h od (estymowanego) końca
-    // ostatniego meczu latestGw, licząc od finished_provisional (mega wczesny moment), nie od
-    // opóźnionego official "finished". Front dodatkowo pamięta odrzucenie w localStorage per GW.
+    // ostatniego meczu latestGw, licząc DOPIERO od completion.allFinished (bonusy potwierdzone na
+    // każdym meczu — to samo co pokazuje oficjalna appka), a nie od finished_provisional (mecz
+    // fizycznie skończony, ale bonusy jeszcze doliczane). Świadomie później niż dawniej: GW
+    // Wrapped/Podsumowanie pokazują konkretne liczby (bonus z chipa, pkt kapitana), które przy
+    // finished_provisional bywały jeszcze tymczasowe. Front dodatkowo pamięta odrzucenie w
+    // localStorage per GW.
     //
     // Oraz "kolejka wystartowała" — drugi baner, symetryczny w drugą stronę: aktywny od 10 min po
     // PIERWSZYM gwizdku tej GW, dopóki runda trwa (nie wszystkie mecze finished_provisional).
-    // Oba banery są przez to wzajemnie wykluczające się (jeden wymaga !allFinishedProvisional,
-    // drugi allFinishedProvisional), więc nigdy nie pokażą się jednocześnie dla tej samej GW.
+    // Ten nadal opiera się o finished_provisional (nie allFinished) — tu zależy nam na wykryciu
+    // "runda się jeszcze toczy", nie na potwierdzonych bonusach.
     // fetchBootstrapCached jest cache'owany, więc przeniesienie tego fetcha wyżej (był dalej,
     // przy pobieraniu picks/live dla bonusu z chipa) nie kosztuje dodatkowego zapytania — potrzebny
     // tu już do wyznaczenia gwStatus (bootstrap.eventFinished[latestGw])
@@ -230,9 +234,10 @@ export async function GET(req: NextRequest){
     let gwSummaryActive = false;
     let kickoffFactsActive = false;
     // Bez okna czasowego (w przeciwieństwie do gwSummaryActive, które gaśnie po 24h) — to jest
-    // czysty fakt "czy latestGw jest już definitywnie skończona", do triggera "GW Wrapped": ten
-    // ma się pokazać przy PIERWSZYM wejściu po zakończeniu GW, niezależnie kiedy to nastąpi, więc
-    // nie może zależeć od tego samego okresu ważności co lekki baner.
+    // czysty fakt "czy latestGw jest już definitywnie skończona (bonusy potwierdzone na każdym
+    // meczu)", do triggera "GW Wrapped": ten ma się pokazać przy PIERWSZYM wejściu po realnym
+    // zakończeniu GW, niezależnie kiedy to nastąpi, więc nie może zależeć od tego samego okresu
+    // ważności co lekki baner.
     let gwFullyFinished = false;
     // Status życia latestGw do dynamicznej pigułki w nagłówku Ligi (zastępuje dawne "Q1 · LIVE",
     // które mówiło o ĆWIARTCE, nie o samej kolejce). Cztery stany, od najmniej do najbardziej
@@ -245,8 +250,8 @@ export async function GET(req: NextRequest){
     let gwStatus: 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona' = 'wkrótce';
     if (latestGw > 0) {
       const completion = await fetchGwCompletionCached(latestGw);
-      gwFullyFinished = completion.allFinishedProvisional;
-      if (completion.allFinishedProvisional && completion.estimatedEndTime) {
+      gwFullyFinished = completion.allFinished;
+      if (completion.allFinished && completion.estimatedEndTime) {
         const windowEnd = new Date(completion.estimatedEndTime).getTime() + 24 * 3600_000;
         gwSummaryActive = Date.now() <= windowEnd;
       }
