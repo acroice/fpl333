@@ -238,8 +238,10 @@ export async function GET(req: NextRequest){
     // które mówiło o ĆWIARTCE, nie o samej kolejce). Cztery stany, od najmniej do najbardziej
     // pewnych danych: 'wkrótce' (mecze się jeszcze nie zaczęły) → 'trwa' (mecze live, wynik
     // realnie się zmienia) → 'szacowana' (finished_provisional — wszystkie mecze skończone, ale
-    // FPL jeszcze dolicza bonusy, więc punkty są tylko estymatą) → 'zakończona' (bootstrap
-    // events[].finished — FPL potwierdził bonusy, wynik już się nie zmieni).
+    // FPL jeszcze dolicza bonusy) → 'zakończona' (fixture.finished na KAŻDYM meczu — bonusy
+    // potwierdzone, to samo co pokazuje oficjalna appka). CELOWO nie bootstrap.eventFinished —
+    // sprawdzone na żywo, że ten flag potrafi zostać false długo po tym, jak każdy fixture ma już
+    // finished:true (patrz komentarz przy GwCompletionInfo.allFinished w _lib/fpl.ts).
     let gwStatus: 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona' = 'wkrótce';
     if (latestGw > 0) {
       const completion = await fetchGwCompletionCached(latestGw);
@@ -253,7 +255,7 @@ export async function GET(req: NextRequest){
         kickoffFactsActive = Date.now() >= kickoffThreshold;
       }
 
-      if (bootstrap.eventFinished[latestGw]) {
+      if (completion.allFinished) {
         gwStatus = 'zakończona';
       } else if (completion.allFinishedProvisional) {
         gwStatus = 'szacowana';

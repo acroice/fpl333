@@ -353,6 +353,14 @@ export async function fetchFinishedTeamsCached(gw: number): Promise<FixtureTeams
 
 export type GwCompletionInfo = {
   allFinishedProvisional: boolean; // czy WSZYSTKIE mecze tej GW faktycznie się skończyły (przed bonusami)
+  allFinished: boolean;    // czy WSZYSTKIE mecze tej GW mają już POTWIERDZONE bonusy — fixture.finished
+                            // (per mecz), nie events[].finished z bootstrap-static. To pole na fixture
+                            // faktycznie flipuje na true krótko po każdym meczu, gdy FPL doliczy bonusy —
+                            // dokładnie to, co oficjalna appka FPL pokazuje jako "finalny" wynik. Sprawdzone
+                            // na żywo: events[].finished bootstrap-static bywa nadal false, gdy WSZYSTKIE
+                            // fixture'y mają już finished:true — to osobny, administracyjny flag całej
+                            // kolejki, który potrafi zostać false jeszcze długo po tym jak każdy mecz jest
+                            // już oficjalnie zamknięty, więc NIE nadaje się jako sygnał "dane są finalne".
   estimatedEndTime: string | null; // ISO — estymowany moment końca ostatniego meczu (kickoff + bufor)
   firstKickoff: string | null;     // ISO — kickoff NAJWCZEŚNIEJSZEGO meczu tej GW, do banera "kolejka wystartowała"
 };
@@ -371,7 +379,9 @@ export type GwCompletionInfo = {
 const GW_DURATION_BUFFER_MS = 130 * 60_000;
 
 async function fetchGwCompletionRaw(gw: number): Promise<GwCompletionInfo> {
-  const empty: GwCompletionInfo = { allFinishedProvisional: false, estimatedEndTime: null, firstKickoff: null };
+  const empty: GwCompletionInfo = {
+    allFinishedProvisional: false, allFinished: false, estimatedEndTime: null, firstKickoff: null,
+  };
   const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gw}`;
   const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
   if (!res.ok) return empty;
@@ -379,6 +389,7 @@ async function fetchGwCompletionRaw(gw: number): Promise<GwCompletionInfo> {
   if (!Array.isArray(fixtures) || !fixtures.length) return empty;
 
   const allFinishedProvisional = fixtures.every(f => f?.finished_provisional === true);
+  const allFinished = fixtures.every(f => f?.finished === true);
   const kickoffTimesMs = fixtures
     .map(f => (f?.kickoff_time ? new Date(f.kickoff_time).getTime() : 0))
     .filter(t => t > 0);
@@ -389,7 +400,7 @@ async function fetchGwCompletionRaw(gw: number): Promise<GwCompletionInfo> {
     : null;
   const firstKickoff = firstKickoffMs > 0 ? new Date(firstKickoffMs).toISOString() : null;
 
-  return { allFinishedProvisional, estimatedEndTime, firstKickoff };
+  return { allFinishedProvisional, allFinished, estimatedEndTime, firstKickoff };
 }
 
 export async function fetchGwCompletionCached(gw: number): Promise<GwCompletionInfo> {

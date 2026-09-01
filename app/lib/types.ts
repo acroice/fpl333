@@ -13,10 +13,11 @@ export type LeagueEntry = {
 };
 
 // status życia najświeższej kolejki (latestGw), do dynamicznej pigułki w nagłówku Ligi —
-// osobny od statusu ĆWIARTKI (Quarter['status']): 'wkrótce' = deadline/kickoff jeszcze nie
-// minął; 'trwa' = mecze aktualnie się toczą; 'szacowana' = wszystkie mecze się skończyły, ale
-// FPL jeszcze nie potwierdził bonusów (dane provisional, mogą się jeszcze zmienić); 'zakończona'
-// = FPL potwierdził bonusy, wynik już oficjalny/finalny (bootstrap events[].finished)
+// osobny od statusu ĆWIARTKI (Quarter['status']): 'wkrótce' = pierwszy mecz jeszcze się nie
+// zaczął; 'trwa' = mecze aktualnie się toczą; 'szacowana' = wszystkie mecze się skończyły, ale
+// FPL jeszcze nie potwierdził bonusów na którymś z nich (dane provisional, mogą się jeszcze
+// zmienić); 'zakończona' = KAŻDY mecz ma już potwierdzone bonusy (fixture.finished), wynik już
+// oficjalny/finalny — to samo, co pokazuje oficjalna appka FPL
 export type GwStatus = 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona';
 
 export type Quarter = {
