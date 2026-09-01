@@ -30,9 +30,10 @@ export default function StatsSection({
   }, [active, loadOverview]);
 
   // "delikatne" opcje rozwinięcia — domyślnie krótsze listy (mniej scrollowania), z możliwością
-  // pokazania pełnego rankingu jednym kliknięciem. Różnicowi: 6 → 10 (backend już zwraca top10,
-  // patrz league-overview/route.ts). Bench: 5 → cała liga (tu nic nie ucinamy po stronie API,
-  // benchRows liczone niżej z gwPoints, które i tak mamy w całości na froncie).
+  // pokazania pełnego rankingu jednym kliknięciem. Najczęściej wybierani i Różnicowi: 6 → 11
+  // (backend już zwraca top11, patrz league-overview/route.ts). Bench: 5 → cała liga (tu nic nie
+  // ucinamy po stronie API, benchRows liczone niżej z gwPoints, które i tak mamy na froncie).
+  const [showAllTopOwned, setShowAllTopOwned] = React.useState(false);
   const [showAllDifferentials, setShowAllDifferentials] = React.useState(false);
   const [showAllBench, setShowAllBench] = React.useState(false);
 
@@ -160,8 +161,8 @@ export default function StatsSection({
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Ownership</div>
       {overview && (
         <div className="small" style={{ marginBottom: 8 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Najczęściej wybierani, top 6:</div>
-          {overview.topOwned.map(p => (
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Najczęściej wybierani:</div>
+          {(showAllTopOwned ? overview.topOwned : overview.topOwned.slice(0, 6)).map(p => (
             <div key={p.element} className="squadplayer">
               <span className="squadplayer-name">
                 <PlayerAvatar src={p.photoUrl} alt={p.name} />
@@ -172,6 +173,11 @@ export default function StatsSection({
               <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize}</span>
             </div>
           ))}
+          {overview.topOwned.length > 6 && (
+            <button className="showmore-btn" onClick={() => setShowAllTopOwned(v => !v)}>
+              {showAllTopOwned ? '↑ Pokaż mniej' : `↓ Pokaż więcej (top ${overview.topOwned.length})`}
+            </button>
+          )}
 
           <div style={{ fontWeight: 600, margin: '12px 0 6px' }}>🎯 Różnicowi zawodnicy (nisko obstawiani, wysokie pkt):</div>
           {overview.differentials.length === 0 ? (
