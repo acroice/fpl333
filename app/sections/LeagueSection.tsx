@@ -14,15 +14,15 @@ const GW_STATUS_META: Record<GwStatus, { key: string; label: string; title: stri
     title: 'Ta kolejka jeszcze się nie zaczęła',
   },
   trwa: {
-    key: 'live', label: 'NA ŻYWO',
+    key: 'live', label: 'TRWA',
     title: 'Mecze tej kolejki trwają teraz — wynik zmienia się na żywo',
   },
   szacowana: {
-    key: 'provisional', label: 'SZACOWANE',
+    key: 'provisional', label: 'BONUSY',
     title: 'Wszystkie mecze się skończyły, ale FPL jeszcze nie doliczył bonusów — punkty to na razie estymata i mogą się jeszcze nieznacznie zmienić',
   },
   zakończona: {
-    key: 'final', label: 'OFICJALNE',
+    key: 'final', label: 'ZAKOŃCZONA',
     title: 'Kolejka oficjalnie zamknięta — FPL potwierdził bonusy, wynik już się nie zmieni',
   },
 };
