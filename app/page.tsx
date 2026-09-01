@@ -3,7 +3,7 @@ import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
-  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage, TopCaptainPick,
+  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage, TopCaptainPick, GwStatus,
 } from './lib/types';
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
@@ -74,6 +74,9 @@ export default function Home() {
   // status latestGw: true=zakończona, false=live, null=nie da się wiarygodnie ustalić (do
   // badge'a "GW X · LIVE/ZAKOŃCZONA" w Lidze) — z FPL bootstrap-static (już i tak pobierany)
   const [gwFinished, setGwFinished] = React.useState<boolean | null>(null);
+  // dynamiczny status latestGw (wkrótce/trwa/szacowana/zakończona) do pigułki w nagłówku Ligi —
+  // patrz komentarz przy gwStatus w /api/quarter-wins
+  const [gwStatus, setGwStatus] = React.useState<GwStatus>('wkrótce');
   // czy pokazać powiadomienie "Podsumowanie GW" (aktywne 24h od końca ostatniego meczu latestGw —
   // patrz gwSummaryActive w /api/quarter-wins)
   const [gwSummaryActive, setGwSummaryActive] = React.useState<boolean>(false);
@@ -197,6 +200,7 @@ export default function Home() {
         setOverallRank(wData.overallRank || {});
         setTeamInfo(wData.teamInfo || {});
         setGwFinished(wData.gwFinished ?? null);
+        setGwStatus(wData.gwStatus || 'wkrótce');
         setGwSummaryActive(!!wData.gwSummaryActive);
         setKickoffFactsActive(!!wData.kickoffFactsActive);
         setCaptainBreakdown(wData.captainBreakdown || []);
@@ -491,6 +495,7 @@ export default function Home() {
           sortArrow={sortArrow}
           quarters={quarters}
           currentQuarterId={currentQuarterId}
+          gwStatus={gwStatus}
           latestChip={latestChip}
           chipHistory={chipHistory}
           captainInfo={captainInfo}

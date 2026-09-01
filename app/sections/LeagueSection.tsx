@@ -1,12 +1,30 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, quarterStatusKey, StatTile } from '../components/shared';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
-const QUARTER_STATUS_LABEL: Record<Quarter['status'], string> = {
-  trwa: 'LIVE', zakończona: 'ZAKOŃCZONA', wkrótce: 'WKRÓTCE',
+// pigułka statusu latestGw w nagłówku Ligi — zastępuje dawne "Q1 · LIVE" (status ĆWIARTKI, mylący
+// bo mówił o oknie czasowym, nie o samej kolejce). Cztery stany od najmniej do najbardziej pewnych
+// danych — patrz komentarz przy GwStatus w lib/types i przy liczeniu gwStatus w quarter-wins/route.
+const GW_STATUS_META: Record<GwStatus, { key: string; label: string; title: string }> = {
+  wkrótce: {
+    key: 'upcoming', label: 'WKRÓTCE',
+    title: 'Ta kolejka jeszcze się nie zaczęła',
+  },
+  trwa: {
+    key: 'live', label: 'NA ŻYWO',
+    title: 'Mecze tej kolejki trwają teraz — wynik zmienia się na żywo',
+  },
+  szacowana: {
+    key: 'provisional', label: 'SZACOWANE',
+    title: 'Wszystkie mecze się skończyły, ale FPL jeszcze nie doliczył bonusów — punkty to na razie estymata i mogą się jeszcze nieznacznie zmienić',
+  },
+  zakończona: {
+    key: 'final', label: 'OFICJALNE',
+    title: 'Kolejka oficjalnie zamknięta — FPL potwierdził bonusy, wynik już się nie zmieni',
+  },
 };
 
 type Props = {
@@ -23,6 +41,7 @@ type Props = {
   sortArrow: (col: SortKey) => string;
   quarters: Quarter[];
   currentQuarterId: string;
+  gwStatus: GwStatus;
   latestChip: Record<number, ChipInfo | null>;
   chipHistory: Record<number, ChipHistoryEntry[]>;
   captainInfo: Record<number, CaptainInfo>;
@@ -117,7 +136,7 @@ function renderWorldRank(info: OverallRankInfo) {
 export default function LeagueSection({
   leagueName, participants, league, sortedLeague, preSeason, loading, error,
   sortKey, sortDir, toggleSort, sortArrow,
-  quarters, currentQuarterId, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
+  quarters, currentQuarterId, gwStatus, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
   useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped, topCaptainPick,
 }: Props) {
@@ -223,10 +242,13 @@ export default function LeagueSection({
         </div>
         {ready && (
           <div className="leaguectx-right">
-            {currentQuarter && (
-              <span className={`qstatuspill qstatuspill--${quarterStatusKey(currentQuarter.status)}`} title={`${currentQuarter.from} → ${currentQuarter.to}`}>
-                <span className="qstatusdot" />
-                {currentQuarter.id} · {QUARTER_STATUS_LABEL[currentQuarter.status]}
+            {awards?.gw != null && (
+              <span
+                className={`gwstatuspill gwstatuspill--${GW_STATUS_META[gwStatus].key}`}
+                title={GW_STATUS_META[gwStatus].title}
+              >
+                <span className="gwstatusdot" />
+                GW{awards.gw} · {GW_STATUS_META[gwStatus].label}
               </span>
             )}
             {currentQuarter && currentQuarter.status === 'trwa' && awards?.gw != null && (

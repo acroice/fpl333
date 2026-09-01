@@ -505,6 +505,40 @@ body.retro .qdone {
 .qstatuspill--upcoming .qstatusdot { background: #f0c975; }
 .qstatuspill--done .qstatusdot { background: #ff6b6b; }
 
+/* pigułka statusu NAJŚWIEŻSZEJ KOLEJKI (nie ćwiartki) w nagłówku Ligi — "GW5 · NA ŻYWO" itd.
+   4 stany: wkrótce (szary/niebieskawy, jeszcze się nie zaczęła) → live (zielona, pulsująca
+   kropka — mecze trwają) → provisional (bursztynowa — mecze skończone, ale FPL jeszcze liczy
+   bonusy, dane to estymata) → final (niebieska — bonusy potwierdzone, wynik już się nie zmieni) */
+.gwstatuspill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gwstatuspill--upcoming { background: #1a2230; border: 1px solid #2c3a4f; color: #9fb3c8; }
+.gwstatuspill--live { background: #152a1c; border: 1px solid #2f5a3d; color: #8fe6b3; }
+.gwstatuspill--provisional { background: #2a2410; border: 1px solid #5a4d1f; color: #f0c975; }
+.gwstatuspill--final { background: #10202e; border: 1px solid #234a63; color: #8ecbf0; }
+
+.gwstatusdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.gwstatuspill--upcoming .gwstatusdot { background: #9fb3c8; }
+.gwstatuspill--live .gwstatusdot { background: #5ee1a2; animation: gwlivepulse 1.8s ease-out infinite; }
+.gwstatuspill--provisional .gwstatusdot { background: #f0c975; }
+.gwstatuspill--final .gwstatusdot { background: #8ecbf0; }
+
+@keyframes gwlivepulse {
+  0% { box-shadow: 0 0 0 0 rgba(94,225,162,.55); }
+  70% { box-shadow: 0 0 0 6px rgba(94,225,162,0); }
+  100% { box-shadow: 0 0 0 0 rgba(94,225,162,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gwstatuspill--live .gwstatusdot { animation: none; }
+}
+
 /* rankingi wewnątrz rozwiniętego kafelka (Top3, minusowe pkt): rząd z pozycją/nazwą/wynikiem,
    a pod nim subtelna informacja o dystansie do lidera tej ćwiartki (zamiast paska postępu) */
 .rankbar { margin-bottom: 9px; }
@@ -543,6 +577,9 @@ body.retro .qdone {
 
   .qstatuspill { font-size: 13px; padding: 4px 10px; }
   .qstatusdot { width: 9px; height: 9px; }
+
+  .gwstatuspill { font-size: 13px; padding: 4px 10px; }
+  .gwstatusdot { width: 9px; height: 9px; }
 
   .qprogress { height: 7px; margin-top: 10px; }
 

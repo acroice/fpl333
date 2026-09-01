@@ -223,6 +223,10 @@ export async function GET(req: NextRequest){
     // PIERWSZYM gwizdku tej GW, dopóki runda trwa (nie wszystkie mecze finished_provisional).
     // Oba banery są przez to wzajemnie wykluczające się (jeden wymaga !allFinishedProvisional,
     // drugi allFinishedProvisional), więc nigdy nie pokażą się jednocześnie dla tej samej GW.
+    // fetchBootstrapCached jest cache'owany, więc przeniesienie tego fetcha wyżej (był dalej,
+    // przy pobieraniu picks/live dla bonusu z chipa) nie kosztuje dodatkowego zapytania — potrzebny
+    // tu już do wyznaczenia gwStatus (bootstrap.eventFinished[latestGw])
+    const bootstrap = await fetchBootstrapCached();
     let gwSummaryActive = false;
     let kickoffFactsActive = false;
     // Bez okna czasowego (w przeciwieństwie do gwSummaryActive, które gaśnie po 24h) — to jest
@@ -230,6 +234,13 @@ export async function GET(req: NextRequest){
     // ma się pokazać przy PIERWSZYM wejściu po zakończeniu GW, niezależnie kiedy to nastąpi, więc
     // nie może zależeć od tego samego okresu ważności co lekki baner.
     let gwFullyFinished = false;
+    // Status życia latestGw do dynamicznej pigułki w nagłówku Ligi (zastępuje dawne "Q1 · LIVE",
+    // które mówiło o ĆWIARTCE, nie o samej kolejce). Cztery stany, od najmniej do najbardziej
+    // pewnych danych: 'wkrótce' (mecze się jeszcze nie zaczęły) → 'trwa' (mecze live, wynik
+    // realnie się zmienia) → 'szacowana' (finished_provisional — wszystkie mecze skończone, ale
+    // FPL jeszcze dolicza bonusy, więc punkty są tylko estymatą) → 'zakończona' (bootstrap
+    // events[].finished — FPL potwierdził bonusy, wynik już się nie zmieni).
+    let gwStatus: 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona' = 'wkrótce';
     if (latestGw > 0) {
       const completion = await fetchGwCompletionCached(latestGw);
       gwFullyFinished = completion.allFinishedProvisional;
@@ -240,6 +251,16 @@ export async function GET(req: NextRequest){
       if (completion.firstKickoff && !completion.allFinishedProvisional) {
         const kickoffThreshold = new Date(completion.firstKickoff).getTime() + 10 * 60_000;
         kickoffFactsActive = Date.now() >= kickoffThreshold;
+      }
+
+      if (bootstrap.eventFinished[latestGw]) {
+        gwStatus = 'zakończona';
+      } else if (completion.allFinishedProvisional) {
+        gwStatus = 'szacowana';
+      } else if (completion.firstKickoff && Date.now() >= new Date(completion.firstKickoff).getTime()) {
+        gwStatus = 'trwa';
+      } else {
+        gwStatus = 'wkrótce';
       }
     }
 
@@ -302,7 +323,6 @@ export async function GET(req: NextRequest){
     // Picks + punkty na żywo dla latestGw, dla CAŁEJ ligi — potrzebne do bonusu z chipa (BB/TC)
     // i do analizy kapitanów (Best Captain). Jedno pobranie, cache'owane per entry+gw — jeśli
     // ktoś już zaglądał w /api/squad albo /api/league-overview w tej kolejce, nic się nie dubluje.
-    const bootstrap = await fetchBootstrapCached();
     const [allPicksLatest, live, minutes] = await Promise.all([
       Promise.all(leagueEntries.map(plr => fetchEntryPicksCached(plr.entry, latestGw))),
       fetchEventLiveCached(latestGw),
@@ -635,6 +655,7 @@ export async function GET(req: NextRequest){
       teamInfo,                // { entryId: {value,transfers,transfersCost,played,playedTotal} } — TV/FT/PLAYED w latestGw
       chipHistory,              // { entryId: [{code,label,name,event}, ...] } — pełna historia chipów w sezonie
       gwFinished: bootstrap.eventFinished[latestGw] ?? null, // true/false/null (nie da się ustalić) — status LIVE vs ZAKOŃCZONA dla latestGw
+      gwStatus,               // 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona' — pigułka statusu latestGw w Lidze
       gwSummaryActive,       // czy pokazać powiadomienie "Podsumowanie GW" (24h od końca ostatniego meczu latestGw)
       gwFullyFinished,       // czy latestGw jest już definitywnie skończona (bez okna 24h) — trigger dla GW Wrapped
       kickoffFactsActive,    // czy pokazać powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy)

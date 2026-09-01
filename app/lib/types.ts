@@ -12,6 +12,13 @@ export type LeagueEntry = {
   last_rank: number; // 0 = FPL nie ma jeszcze poprzedniej pozycji do porównania
 };
 
+// status życia najświeższej kolejki (latestGw), do dynamicznej pigułki w nagłówku Ligi —
+// osobny od statusu ĆWIARTKI (Quarter['status']): 'wkrótce' = deadline/kickoff jeszcze nie
+// minął; 'trwa' = mecze aktualnie się toczą; 'szacowana' = wszystkie mecze się skończyły, ale
+// FPL jeszcze nie potwierdził bonusów (dane provisional, mogą się jeszcze zmienić); 'zakończona'
+// = FPL potwierdził bonusy, wynik już oficjalny/finalny (bootstrap events[].finished)
+export type GwStatus = 'wkrótce' | 'trwa' | 'szacowana' | 'zakończona';
+
 export type Quarter = {
   id: string;
   gw_from: number;
