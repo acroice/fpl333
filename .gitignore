@@ -3,3 +3,8 @@ node_modules/
 out/
 *.tsbuildinfo
 .env*.local
+
+# Python (pipeline/)
+.venv/
+__pycache__/
+*.pyc
