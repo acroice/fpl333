@@ -70,24 +70,55 @@ blokowane dla mnie przez classifier, tak jak wcześniej przy WIF):**
 zauważalne opóźnienie indeksowania logów rzędu ~2-3 min) → nowy wiersz
 `snapshot_ts = 2026-09-05 08:50:50` w BigQuery (15 wierszy, tabela ma teraz łącznie 45).
 
-Branch `automate-league-snapshot-ingest` — do zmergowania (PR jeszcze do utworzenia w
-tej sesji, patrz commit historia).
+Branch `automate-league-snapshot-ingest` zmergowany do `main` (**PR #5**) i usunięty
+(zdalnie i lokalnie). Od teraz Cloud Scheduler dokłada nowy snapshot codziennie o
+6:00 bez żadnej ręcznej interwencji.
 
-### Zaległe porządki (nieblokujące, kiedyś)
+### Stan repo na koniec sesji
+
+- `main` zawiera wszystko (PR #1–#3, #5 zmergowane), working tree czysty, lokalny
+  branch WIP usunięty — następna sesja startuje wprost z `main`, nie trzeba nic
+  przełączać.
+- Cała infrastruktura ingestu (Cloud Function, Cloud Scheduler, role IAM) jest już
+  utworzona i działa w GCP — automatyzacja z Phase 1 jest w pełni zamknięta, nic tu
+  nie czeka na dokończenie.
+- `pipeline/` ma teraz trzy pliki logiki: `snapshot.py` (`run_ingest()` — właściwa
+  logika), `ingest_league_snapshot.py` (CLI wrapper), `main.py` (Cloud Function entry
+  point). Każda kolejna tabela RAW (patrz niżej) powinna trzymać się tego samego
+  wzorca: funkcja `run_ingest_*()` w osobnym module, cienkie wrappery na wierzchu.
+
+### Następny krok — Phase 2 z ROADMAP.md (warstwy RAW → STAGING → FEATURES)
+
+Punkt wyjścia: mamy już jedną tabelę RAW (`league_standings_snapshot`) i działający,
+automatyczny wzorzec ingestu, który się sprawdził — kolejne tabele RAW powinny go
+powielić, a nie wymyślać nowy mechanizm dostarczania danych.
+
+1. **Rozszerzyć RAW o kolejne surowe tabele** z FPL API (endpointy `bootstrap-static`
+   i `fixtures`): `raw_players`, `raw_fixtures`, `raw_gameweeks`. Każda jako osobny
+   moduł w `pipeline/`, ta sama zasada partycjonowania dziennego i load job (darmowy
+   w BQ), analogicznie do `snapshot.py`.
+2. Zdecydować, czy każda nowa tabela dostaje własną Cloud Function + Scheduler job,
+   czy jedna funkcja robi ingest wszystkich tabel na raz (prościej operacyjnie, ale
+   mniej granularne logi/retry) — do rozstrzygnięcia na początku tej fazy.
+3. **Warstwa STAGING** — czyszczenie/normalizacja danych z RAW (typy, deduplikacja,
+   obsługa braków) jako kolejny krok w BigQuery (widoki lub tabele pochodne).
+4. **Warstwa FEATURES** — pierwsza tabela cech, np. `player_gameweek_features`,
+   łącząca dane z RAW/STAGING pod przyszły model z Phase 3.
+5. **Walidacja jakości danych** — Definition of Done z ROADMAP.md dla tej fazy:
+   pipeline można uruchomić ponownie bez niszczenia danych, dane mają podstawową
+   walidację (np. brak duplikatów per gameweek, sensowne zakresy wartości).
+
+### Zaległe porządki, które można załatwić przy okazji Phase 2
 
 - Usunąć relikt providera WIF `vercel` (bez team-slug) w poolu `vercel` — zostawiliśmy
   tylko `vercel-3`, który faktycznie działa.
 - Zdjąć zbyt szeroką rolę `roles/iam.serviceAccountAdmin` z `fpl333-app` (powinien mieć
   tylko `workloadIdentityUser` + role BigQuery/Datastore, które już ma) — least privilege.
-- Dataset `fpl_history` w BigQuery jest pusty, powstał przed tą sesją (1 września),
-  nieznane pochodzenie/przeznaczenie — do decyzji: usunąć czy zostawić na później.
-- Cloud Function loguje ostrzeżenie przy pierwszym deployu:
+- Dataset `fpl_history` w BigQuery jest pusty, powstał przed sesją automatyzacji (1
+  września), nieznane pochodzenie/przeznaczenie — do decyzji: usunąć czy zostawić,
+  ewentualnie wykorzystać pod jedną z nowych tabel RAW zamiast tworzyć kolejny dataset.
+- Pierwszy deploy `fpl-ingest-league-snapshot` zalogował nieszkodliwe ostrzeżenie
   "Cloud Run service ... was not found. The service was redeployed with default
-  values." — nieszkodliwe (to pierwszy deploy tej funkcji), ale sprawdzić przy kolejnych
-  deployach czy się nie powtarza z innego powodu.
-
-### Następny krok
-
-Przejście do **Phase 2** z ROADMAP.md: warstwy RAW → STAGING → FEATURES, więcej
-surowych tabel (`raw_players`, `raw_fixtures`, `raw_gameweeks`), walidacja jakości
-danych.
+  values." (spodziewane przy pierwszym deployu nowej funkcji) — sprawdzić przy
+  kolejnych deployach (np. gdy dojdą funkcje dla `raw_players`/`raw_fixtures`/
+  `raw_gameweeks`), że się nie powtarza z innego powodu.
