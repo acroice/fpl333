@@ -67,6 +67,26 @@ Manager, który zrobił transfer(y) w bieżącej GW, ma to teraz widać od razu 
 Zweryfikowane end-to-end na żywej lidze (GW3, w trakcie) na każdym etapie tej sesji — konkretne
 przykłady liczb (kto, ile, jaka delta) w historii czatu tej sesji, nie powtarzane tu.
 
+### Poprawka po merge'u: cofnięte transfery zawyżały liczniki (collapseTransferChain)
+
+Zaraz po zmergowaniu powyższego zgłoszony realny błąd, znaleziony przy wyjaśnianiu pozornej
+sprzeczności "+3 w szczegółach vs -3 na miniaturce" (to akurat nie był błąd — miniaturka pokazuje
+SUMĘ wszystkich transferów tej rundy, +3 to delta jednego z nich, matematyka się zgadzała: -6+3=
+-3). Prawdziwy problem: surowy endpoint FPL `/entry/{id}/transfers/` loguje KAŻDĄ zmianę zrobioną
+w planerze składu jako osobny wpis — łącznie z cofniętymi (manager wstawia zawodnika, zmienia
+zdanie, wraca do poprzedniego wyboru). Przy dużej przebudowie składu (wildcard) jeden manager miał
+**22 surowe wpisy transferów w GW3, z czego realnie w składzie zostało tylko 10** — reszta to
+duchy typu "Rogers → Cherki" (Rogers finalnie w ogóle nie został w składzie).
+
+Naprawione nowym `collapseTransferChain()` w `_lib/fpl.ts` — redukuje chronologiczny log
+transferów do netto par "wyszedł → wszedł" śledząc łańcuchy podstawień (kto ostatecznie zajął czyj
+"slot" w składzie), odrzucając pełne cofnięcia. Zastosowane wszędzie, gdzie liczymy transfery
+JEDNEJ GW: `transfersHistory` i `topTransferGain` w `quarter-wins/route.ts`, `buildTransferRows`
+w `squad/route.ts` (czyli też drill-down składu w Lidze). Zweryfikowane na tym samym managerze:
+22 → 10 transferów, bilans punktowy bez zmian (-3, bo cofnięte wpisy miały deltę 0 — nikt jeszcze
+nie grał w momencie edycji składu, więc akurat nie zafałszowały wyniku, ale mogłyby przy innym
+układzie danych).
+
 ## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`

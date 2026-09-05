@@ -4,6 +4,7 @@ import {
   fetchEntryHistoryCached,
   fetchEntryPicksCached,
   fetchEntryTransfersCached,
+  collapseTransferChain,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchBootstrapCached,
@@ -483,20 +484,29 @@ export async function GET(req: NextRequest){
     // Pełna historia transferów sezonu, per manager — "kto na kogo i w której GW" do sekcji
     // Transfers w Statystykach i do małego podglądu w głównym wierszu Ligi. Jeden dodatkowy
     // request na managera (te same co allPicksLatest itd.), cache'owany per entryId w _lib/fpl.
-    // pointsOut/pointsIn/delta liczone TYLKO dla transferu z latestGw (jedyna GW, dla której mamy
-    // już live stats w pamięci) — null dla starszych, Statystyki i tak ich nie potrzebują.
+    // Grupujemy per GW i przepuszczamy przez collapseTransferChain — surowy log FPL zawiera też
+    // cofnięte ruchy (patrz komentarz przy tej funkcji w _lib/fpl.ts), bez redukcji liczba
+    // transferów i lista "kto na kogo" potrafiły być mocno zawyżone/zaśmiecone przy dużych
+    // przebudowach składu (WC/FH). pointsOut/pointsIn/delta liczone TYLKO dla latestGw (jedyna GW,
+    // dla której mamy już live stats w pamięci) — null dla starszych, Statystyki i tak ich nie
+    // potrzebują (liczą tylko koszt hita per GW).
     const allTransfers = await Promise.all(leagueEntries.map(e => fetchEntryTransfersCached(e.entry)));
     const transfersHistory: Record<number, { event: number; elementOut: number; nameOut: string; elementIn: number; nameIn: string; pointsOut: number | null; pointsIn: number | null; delta: number | null }[]> = {};
     leagueEntries.forEach((plr, idx) => {
-      transfersHistory[plr.entry] = allTransfers[idx]
-        .slice()
-        .sort((a, b) => a.time.localeCompare(b.time))
-        .map(t => {
-          const isLatest = t.event === latestGw;
+      const sorted = allTransfers[idx].slice().sort((a, b) => a.time.localeCompare(b.time));
+      const byEvent = new Map<number, typeof sorted>();
+      for (const t of sorted) {
+        if (!byEvent.has(t.event)) byEvent.set(t.event, []);
+        byEvent.get(t.event)!.push(t);
+      }
+      const rows: typeof transfersHistory[number] = [];
+      for (const [event, group] of byEvent.entries()) {
+        const isLatest = event === latestGw;
+        for (const t of collapseTransferChain(group)) {
           const pointsOut = isLatest ? (live[t.elementOut] ?? 0) : null;
           const pointsIn = isLatest ? (live[t.elementIn] ?? 0) : null;
-          return {
-            event: t.event,
+          rows.push({
+            event,
             elementOut: t.elementOut,
             nameOut: bootstrap.elementsById[t.elementOut]?.web_name ?? '—',
             elementIn: t.elementIn,
@@ -504,24 +514,27 @@ export async function GET(req: NextRequest){
             pointsOut,
             pointsIn,
             delta: isLatest ? (pointsIn! - pointsOut!) : null,
-          };
-        });
+          });
+        }
+      }
+      rows.sort((a, b) => a.event - b.event);
+      transfersHistory[plr.entry] = rows;
     });
 
     // Zysk z transferu tej kolejki — realny efekt punktowy transferów zagranych z PULI DARMOWYCH
     // transferów przed tym gwizdkiem: suma (pkt wchodzącego − pkt wychodzącego) w latestGw, po
     // wszystkich transferach danego managera. Pomija wildcard/freehit (to przebudowa całego składu,
-    // nie punktowa decyzja "kogo na kogo") — reużywa allTransfers, które i tak już mamy dla
-    // transfersHistory, zero dodatkowych zapytań. Kafelek w banerze "GW wystartowała" pokazuje
-    // managera z największym zyskiem (liczba może wyjść ujemna — to wtedy "kto najbardziej
-    // przestrzelił", nadal ciekawe).
+    // nie punktowa decyzja "kogo na kogo") — reużywa transfersHistory (już po redukcji cofniętych
+    // ruchów), zero dodatkowych zapytań. Kafelek w banerze "GW wystartowała" pokazuje managera z
+    // największym zyskiem (liczba może wyjść ujemna — to wtedy "kto najbardziej przestrzelił",
+    // nadal ciekawe).
     const topTransferGain = leagueEntries
-      .map((plr, idx) => {
+      .map((plr) => {
         const chip = latestChip[plr.entry];
         if (chip && (chip.code === 'wildcard' || chip.code === 'freehit')) return null;
-        const thisRound = allTransfers[idx].filter(t => t.event === latestGw);
+        const thisRound = (transfersHistory[plr.entry] ?? []).filter(t => t.event === latestGw);
         if (thisRound.length === 0) return null;
-        const gain = thisRound.reduce((sum, t) => sum + ((live[t.elementIn] ?? 0) - (live[t.elementOut] ?? 0)), 0);
+        const gain = thisRound.reduce((sum, t) => sum + (t.delta ?? 0), 0);
         return { entry: plr.entry, player_name: plr.player_name || '', transfers: thisRound.length, gain };
       })
       .filter((r): r is { entry: number; player_name: string; transfers: number; gain: number } => r != null)

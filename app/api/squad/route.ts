@@ -3,6 +3,7 @@ import {
   fetchLeagueEntries,
   fetchEntryPicksCached,
   fetchEntryTransfersCached,
+  collapseTransferChain,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchFinishedTeamsCached,
@@ -70,18 +71,23 @@ function buildSquad(
 }
 
 // "Kto na kogo" w tej GW — transfery, które faktycznie weszły w życie tej kolejki (nie ruchy w
-// planowaniu przyszłych, wolnych transferów). Punkty OUT/IN liczone z `live` (tej samej kolejki),
-// więc działają niezależnie od tego, czy wychodzący zawodnik został w składzie — a delta to
-// realny zysk/strata z samego ruchu, na żywo w miarę jak obaj grają swoje mecze.
+// planowaniu przyszłych, wolnych transferów). Przepuszczone przez collapseTransferChain: surowy
+// log FPL zawiera też cofnięte ruchy (np. przy budowaniu wildcarda w interfejsie ktoś wstawia
+// zawodnika, zmienia zdanie, wraca do poprzedniego — każdy krok trafia do /transfers/ osobno,
+// mimo że finalnie nic się nie zmieniło), więc bez redukcji ta lista potrafiła pokazywać
+// dwucyfrową liczbę "transferów" zamiast realnych kilku. Punkty OUT/IN liczone z `live` (tej samej
+// kolejki), więc działają niezależnie od tego, czy wychodzący zawodnik został w składzie — a delta
+// to realny zysk/strata z samego ruchu, na żywo w miarę jak obaj grają swoje mecze.
 function buildTransferRows(
   transfers: { elementIn: number; elementOut: number; event: number; time: string }[],
   gw: number,
   live: Record<number, number>,
   bootstrap: BootstrapSlim
 ) {
-  return transfers
+  const chronological = transfers
     .filter(t => t.event === gw)
-    .sort((a, b) => a.time.localeCompare(b.time)) // chronologicznie — pierwszy zagrany transfer na górze
+    .sort((a, b) => a.time.localeCompare(b.time)); // chronologicznie, przed redukcją — kolejność ma znaczenie
+  return collapseTransferChain(chronological)
     .map(t => {
       const elOut = bootstrap.elementsById[t.elementOut];
       const elIn = bootstrap.elementsById[t.elementIn];
