@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, SquadData, SquadPlayer, LeagueOverview } from '../lib/types';
-import { PlayerAvatar, ClubBadge } from '../components/shared';
+import { PlayerAvatar, ClubBadge, StatModule } from '../components/shared';
 
 type Props = {
   active: boolean;
@@ -23,11 +23,22 @@ function pointsFor(p: SquadPlayer) {
   return p.multiplier > 0 ? p.total : p.points;
 }
 
+// inicjały managera (np. "Damian Cichocki" -> "DC") do kompaktowego, czytelnego tagu właściciela
+// w leaderboardzie różnicowych zawodników — zastępuje gołe "A"/"B", które nic same z siebie nie
+// mówiły bez zerknięcia na selektory wyżej
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '—';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 // "⚔️ Porównaj" — dawny showCompare panel z page.tsx przeniesiony 1:1 (wybór managerów, diff
 // składów, suma różnic — logika bez zmian), plus nowy pasek statystyk obok siebie, sekcja H2H i
 // posortowany leaderboard różnicowych zawodników z % obstawy w lidze (z tego samego overview co
 // Statystyki — lazy-load przy wejściu w tę zakładkę, idempotentne, więc jeśli ktoś już był w
-// Statystykach, nic się nie dubluje).
+// Statystykach, nic się nie dubluje). Treść pogrupowana w StatModule (współdzielone z Statystyki/
+// Sezon) — ten sam wizualny język w całej appce, nie osobny styl per zakładka.
 export default function CompareSection({
   active, league, gwPoints, squadCache, squadLoading, squadErrors, compareA, compareB, selectCompare,
   loadOverview, overview,
@@ -42,7 +53,7 @@ export default function CompareSection({
   return (
     <section className="card">
       <div className="headline">⚔️ Porównaj</div>
-      <div className="small" style={{ marginBottom: 14 }}>Wybierz dwóch managerów, żeby zobaczyć pełne porównanie.</div>
+      <div className="small" style={{ marginBottom: 16 }}>Wybierz dwóch managerów, żeby zobaczyć pełne porównanie.</div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
         <select
@@ -122,40 +133,39 @@ export default function CompareSection({
 
         return (
           <>
-            {/* pasek statystyk obok siebie */}
-            <div className="comparestats">
-              <div className="comparestats-col">
-                <div className="comparestats-name">{entryA.player_name}</div>
-                <div className="comparestats-row"><span>Total</span><b>{statsA.total}</b></div>
-                <div className="comparestats-row"><span>Rank</span><b>#{statsA.rank}</b></div>
-                <div className="comparestats-row"><span>Best GW</span><b>{statsA.bestGw ? `${statsA.bestGw.pts} (GW${statsA.bestGw.gw})` : '—'}</b></div>
-                <div className="comparestats-row"><span>Worst GW</span><b>{statsA.worstGw ? `${statsA.worstGw.pts} (GW${statsA.worstGw.gw})` : '—'}</b></div>
-                <div className="comparestats-row"><span>Minusowe pkt</span><b>-{statsA.totalCost}</b></div>
-                <div className="comparestats-row"><span>Śr. pkt/GW</span><b>{statsA.avg.toFixed(1)}</b></div>
+            <StatModule icon="📊" tone="neutral" title="Bilans" subtitle="Statystyki sezonu obok siebie">
+              <div className="comparestats">
+                <div className="comparestats-col">
+                  <div className="comparestats-name">{entryA.player_name}</div>
+                  <div className="comparestats-row"><span>Total</span><b>{statsA.total}</b></div>
+                  <div className="comparestats-row"><span>Rank</span><b>#{statsA.rank}</b></div>
+                  <div className="comparestats-row"><span>Best GW</span><b>{statsA.bestGw ? `${statsA.bestGw.pts} (GW${statsA.bestGw.gw})` : '—'}</b></div>
+                  <div className="comparestats-row"><span>Worst GW</span><b>{statsA.worstGw ? `${statsA.worstGw.pts} (GW${statsA.worstGw.gw})` : '—'}</b></div>
+                  <div className="comparestats-row"><span>Minusowe pkt</span><b>-{statsA.totalCost}</b></div>
+                  <div className="comparestats-row"><span>Śr. pkt/GW</span><b>{statsA.avg.toFixed(1)}</b></div>
+                </div>
+                <div className="comparestats-col">
+                  <div className="comparestats-name">{entryB.player_name}</div>
+                  <div className="comparestats-row"><span>Total</span><b>{statsB.total}</b></div>
+                  <div className="comparestats-row"><span>Rank</span><b>#{statsB.rank}</b></div>
+                  <div className="comparestats-row"><span>Best GW</span><b>{statsB.bestGw ? `${statsB.bestGw.pts} (GW${statsB.bestGw.gw})` : '—'}</b></div>
+                  <div className="comparestats-row"><span>Worst GW</span><b>{statsB.worstGw ? `${statsB.worstGw.pts} (GW${statsB.worstGw.gw})` : '—'}</b></div>
+                  <div className="comparestats-row"><span>Minusowe pkt</span><b>-{statsB.totalCost}</b></div>
+                  <div className="comparestats-row"><span>Śr. pkt/GW</span><b>{statsB.avg.toFixed(1)}</b></div>
+                </div>
               </div>
-              <div className="comparestats-col">
-                <div className="comparestats-name">{entryB.player_name}</div>
-                <div className="comparestats-row"><span>Total</span><b>{statsB.total}</b></div>
-                <div className="comparestats-row"><span>Rank</span><b>#{statsB.rank}</b></div>
-                <div className="comparestats-row"><span>Best GW</span><b>{statsB.bestGw ? `${statsB.bestGw.pts} (GW${statsB.bestGw.gw})` : '—'}</b></div>
-                <div className="comparestats-row"><span>Worst GW</span><b>{statsB.worstGw ? `${statsB.worstGw.pts} (GW${statsB.worstGw.gw})` : '—'}</b></div>
-                <div className="comparestats-row"><span>Minusowe pkt</span><b>-{statsB.totalCost}</b></div>
-                <div className="comparestats-row"><span>Śr. pkt/GW</span><b>{statsB.avg.toFixed(1)}</b></div>
-              </div>
-            </div>
 
-            {totalDiff !== 0 ? (
-              <div className="leadbadge" style={{ margin: '10px 0' }}>
-                {totalDiff > 0 ? entryA.player_name : entryB.player_name} prowadzi o {Math.abs(totalDiff)} pkt
-              </div>
-            ) : (
-              <div className="leadbadge leadbadge--neutral" style={{ margin: '10px 0' }}>remis w total</div>
-            )}
+              {totalDiff !== 0 ? (
+                <div className="leadbadge" style={{ marginTop: 12 }}>
+                  {totalDiff > 0 ? entryA.player_name : entryB.player_name} prowadzi o {Math.abs(totalDiff)} pkt
+                </div>
+              ) : (
+                <div className="leadbadge leadbadge--neutral" style={{ marginTop: 12 }}>remis w total</div>
+              )}
+            </StatModule>
 
-            {/* H2H */}
             {h2hRows.length > 0 && (
-              <div style={{ marginTop: 6, marginBottom: 16 }}>
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>H2H</div>
+              <StatModule icon="🥊" tone="special" title="H2H" subtitle="Bezpośrednie starcia, kolejka po kolejce">
                 <div className="h2hscore">
                   <span>{entryA.player_name}</span>
                   <span className="h2hscore-num">{winsA} — {winsB}</span>
@@ -176,7 +186,7 @@ export default function CompareSection({
                     </div>
                   ))}
                 </div>
-              </div>
+              </StatModule>
             )}
 
             {/* diff składów w bieżącej kolejce — dawna logika, bez zmian */}
@@ -242,89 +252,83 @@ export default function CompareSection({
                   });
 
               return (
-                <div className="small">
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>
-                    Skład w bieżącej kolejce (GW{sqA.gw})
-                  </div>
-
+                <>
                   {differentials.length > 0 && (
-                    <div className="diffheadline">
-                      {/* onlyA.length === onlyB.length zawsze, gdy oba składy mają po 15 zawodników
-                          (obie liczby to po prostu 15 - wspólni), więc pisanie "X u A vs Y u B" było
-                          tautologią — jedna liczba, waga jest w punktach, nie w liczbie różnic */}
-                      <span aria-hidden="true">🎯</span> Po <strong>{onlyA.length}</strong> różnicowych zawodników u każdego
-                      {diffSwing !== 0 ? (
-                        <span className="leadbadge" style={{ marginLeft: 8 }}>
-                          {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt przewagi z różnic
-                        </span>
-                      ) : (
-                        <span className="leadbadge leadbadge--neutral" style={{ marginLeft: 8 }}>różnice się bilansują — bez przewagi</span>
-                      )}
-                    </div>
-                  )}
+                    <StatModule icon="🔍" tone="neutral" title="Różnicowi zawodnicy" subtitle={`Skład w bieżącej kolejce (GW${sqA.gw}) — kto ma kogo, czego drugi nie ma`}>
+                      <div className="diffheadline">
+                        {/* onlyA.length === onlyB.length zawsze, gdy oba składy mają po 15 zawodników
+                            (obie liczby to po prostu 15 - wspólni), więc pisanie "X u A vs Y u B" było
+                            tautologią — jedna liczba, waga jest w punktach, nie w liczbie różnic */}
+                        <span aria-hidden="true">🎯</span> Po <strong>{onlyA.length}</strong> różnicowych zawodników u każdego
+                        {diffSwing !== 0 ? (
+                          <span className="leadbadge" style={{ marginLeft: 8 }}>
+                            {diffSwing > 0 ? sqA.playerName : sqB.playerName} +{Math.abs(diffSwing)} pkt przewagi z różnic
+                          </span>
+                        ) : (
+                          <span className="leadbadge leadbadge--neutral" style={{ marginLeft: 8 }}>różnice się bilansują — bez przewagi</span>
+                        )}
+                      </div>
 
-                  {differentials.length > 0 && (
-                    <div className="diffboard">
-                      {differentials.map(p => {
-                        const ownerName = p.owner === 'A' ? sqA.playerName : sqB.playerName;
-                        const pct = overview?.ownershipPct?.[p.element];
-                        const counted = p.multiplier > 0;
-                        return (
-                          <div key={`${p.owner}-${p.element}`} className="diffboard-row">
-                            <span className={`diffboard-owner diffboard-owner--${p.owner.toLowerCase()}`} title={ownerName}>{p.owner}</span>
-                            <span className="squadplayer-name">
-                              <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                              <span className="pill">{p.position}</span>
-                              {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-                              {p.isCaptain && ' (C)'}
-                            </span>
-                            <span className="diffboard-pts">
-                              {pointsFor(p)} pkt
-                              <span className={`countmark ${counted ? 'countmark--on' : 'countmark--off'}`} title={counted ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
-                                {counted ? '✓' : '–'}
+                      <div className="diffboard">
+                        {differentials.map(p => {
+                          const ownerName = p.owner === 'A' ? sqA.playerName : sqB.playerName;
+                          const pct = overview?.ownershipPct?.[p.element];
+                          const counted = p.multiplier > 0;
+                          return (
+                            <div key={`${p.owner}-${p.element}`} className="diffboard-row">
+                              <span className={`diffboard-owner diffboard-owner--${p.owner.toLowerCase()}`} title={ownerName}>{initials(ownerName)}</span>
+                              <span className="squadplayer-name">
+                                <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                                <span className="pill">{p.position}</span>
+                                {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+                                {p.isCaptain && ' (C)'}
                               </span>
-                            </span>
-                            <span className="diffboard-pct small">{pct != null ? `${pct}% ligi` : '…'}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                              <span className="diffboard-pts">
+                                {pointsFor(p)} pkt
+                                <span className={`countmark ${counted ? 'countmark--on' : 'countmark--off'}`} title={counted ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
+                                  {counted ? '✓' : '–'}
+                                </span>
+                              </span>
+                              <span className="diffboard-pct small">{pct != null ? `${pct}% ligi` : '…'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="small" style={{ marginTop: 12 }}>
+                        Ławka: <strong style={{ color: 'var(--text)' }}>{sqA.playerName}</strong>: {benchSumA} pkt
+                        {' '}vs{' '}
+                        <strong style={{ color: 'var(--text)' }}>{sqB.playerName}</strong>: {benchSumB} pkt
+                      </div>
+                      <div className="small" style={{ marginTop: 6 }}>
+                        Kapitan: <strong style={{ color: 'var(--text)' }}>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
+                        {' '}vs{' '}
+                        <strong style={{ color: 'var(--text)' }}>{sqB.playerName}</strong>: {capB ? `${capB.name} · ${capB.total} pkt` : '—'}
+                      </div>
+                    </StatModule>
                   )}
 
-                  <div style={{ marginTop: 12, marginBottom: 6 }}>
-                    Ławka: <strong>{sqA.playerName}</strong>: {benchSumA} pkt
-                    {' '}vs{' '}
-                    <strong>{sqB.playerName}</strong>: {benchSumB} pkt
-                  </div>
-
-                  <div style={{ marginBottom: 10 }}>
-                    Kapitan: <strong>{sqA.playerName}</strong>: {capA ? `${capA.name} · ${capA.total} pkt` : '—'}
-                    {' '}vs{' '}
-                    <strong>{sqB.playerName}</strong>: {capB ? `${capB.name} · ${capB.total} pkt` : '—'}
-                  </div>
-
-                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', margin: '16px 0 10px' }}>
-                    Pełne składy
-                  </div>
-                  <div className="qgrid">
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                        {sqA.playerName} — różnic: {onlyA.length} · suma: {onlyASum} pkt
+                  <StatModule icon="📋" tone="neutral" title="Pełne składy" subtitle={`Cały skład obu managerów w GW${sqA.gw}, przygaszeni zawodnicy = wspólni`}>
+                    <div className="qgrid">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                          {sqA.playerName} — różnic: {onlyA.length} · suma: {onlyASum} pkt
+                        </div>
+                        {renderSquad(sqA.squad, bElements)}
                       </div>
-                      {renderSquad(sqA.squad, bElements)}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                        {sqB.playerName} — różnic: {onlyB.length} · suma: {onlyBSum} pkt
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                          {sqB.playerName} — różnic: {onlyB.length} · suma: {onlyBSum} pkt
+                        </div>
+                        {renderSquad(sqB.squad, aElements)}
                       </div>
-                      {renderSquad(sqB.squad, aElements)}
                     </div>
-                  </div>
 
-                  <div style={{ marginTop: 10, color: 'var(--muted)' }}>
-                    Wspólnych zawodników: {commonCount}
-                  </div>
-                </div>
+                    <div className="small" style={{ marginTop: 10, color: 'var(--muted)' }}>
+                      Wspólnych zawodników: {commonCount}
+                    </div>
+                  </StatModule>
+                </>
               );
             })()}
           </>

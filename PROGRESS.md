@@ -87,6 +87,31 @@ w `squad/route.ts` (czyli też drill-down składu w Lidze). Zweryfikowane na tym
 nie grał w momencie edycji składu, więc akurat nie zafałszowały wyniku, ale mogłyby przy innym
 układzie danych).
 
+### Redesign "next-gen": Statystyki, Sezon, Porównaj
+
+Dalszy ciąg sesji 2, na życzenie — czysto wizualny upgrade trzech zakładek, zero zmian w logice
+liczenia danych. Wydzielony wspólny system w `components/shared.tsx`:
+
+- **`StatModule`** — panel z kolorową ikonką w kwadraciku, tytułem i podtytułem, obramowaniem w
+  barwie dopasowanej do "charakteru" treści (`good`/`bad`/`special`/`neutral` — ten sam podział co
+  `.statchip` i `.wrapped-card` w GW Wrapped). Każdy tematyczny blok w tych trzech zakładkach jest
+  teraz osobnym `StatModule`, zamiast płaskiej listy sekcji rozdzielonych samym nagłówkiem.
+- **`RankFill`/`barPct`** — proporcjonalny pasek tła w rankingach (Bench, Stabilność, Transfery-hity,
+  bonusy z chipów, % ownership w Captaincy/Ownership) — szybki wizualny skan "kto ile" bez czytania
+  każdej liczby, w tym samym duchu co pasek postępu ćwiartki w Lidze.
+
+**Statystyki** — 6 modułów (Captaincy złoty, Ownership niebieski, Chips złoty, Bench czerwony,
+Stabilność niebieski, Transfers czerwony) z paskami we wszystkich rankingach.
+
+**Sezon** — wykres w module "Trend sezonu", a "Rekordy sezonu" przebudowane z gołego emoji-prefiksu
+na kartę z kolorową ikonką (zielone dla dobrych momentów, czerwone dla złych, złote dla specjalnych
+osiągnięć jak streak na #1).
+
+**Porównaj** — cała zawartość w modułach (Bilans, H2H, Różnicowi zawodnicy, Pełne składy). Przy
+okazji: tag właściciela w leaderboardzie różnic zmieniony z gołych liter "A"/"B" na **inicjały
+managera** (np. "DC"), z tooltipem pełnego imienia — kolor (zielony/niebieski) zostaje jako
+dodatkowy szybki podział wizualny.
+
 ## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`
