@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus } from '../lib/types';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow } from '../lib/types';
 import { PlayerAvatar, ClubBadge, chipIcon, StatTile } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
@@ -48,6 +48,7 @@ type Props = {
   overallRank: Record<number, OverallRankInfo>;
   teamInfo: Record<number, TeamInfo>;
   gwPoints: Record<number, GwPoint[]>;
+  transfersHistory: Record<number, SeasonTransferRow[]>;
   openManagerEntry: number | null;
   toggleManager: (entry: number) => void;
   squadCache: Record<number, SquadData>;
@@ -105,6 +106,52 @@ function renderUsedChips(history: ChipHistoryEntry[] | undefined, activeChip: Ch
   );
 }
 
+// transfery zrobione w BIEŻĄCEJ GW, widoczne od razu w wierszu tabeli, bez rozwijania. Przy <3
+// transferach starcza miejsca, żeby pokazać od razu pełne pigułki "kto na kogo (różnica pkt)" —
+// ten sam wizualny język co w drill-downzie składu (.transferpill*, patrz SquadDrilldown). Od 3
+// w górę (zwykle wildcard/freehit — cała przebudowa składu) pigułki zaśmieciłyby wiersz, więc
+// wraca kompaktowy badge z liczbą transferów + bilansem punktowym (suma delt) obok, tak żeby nie
+// zgubić najważniejszej informacji ("czy to się opłaciło") nawet przy dużej liczbie ruchów.
+// Rozwinięcie wiersza (drill-down) pokazuje pełne pigułki zawsze, niezależnie od tej reguły.
+function renderTransferBadge(entry: number, gw: number | null | undefined, transfersHistory: Record<number, SeasonTransferRow[]>) {
+  if (!gw) return null;
+  const rows = (transfersHistory[entry] ?? []).filter(t => t.event === gw);
+  if (!rows.length) return null;
+  if (rows.length < 3) {
+    return (
+      <>
+        {rows.map((t, i) => (
+          <span key={i} className="transferpill transferpill--compact" title={`${t.nameOut} → ${t.nameIn} w GW${gw}`}>
+            <span className="transferpill-out">{t.nameOut}</span>
+            <span aria-hidden="true">→</span>
+            <span className="transferpill-in">{t.nameIn}</span>
+            {t.delta != null && (
+              <span className={`transferpill-delta${t.delta > 0 ? ' transferpill-delta--good' : t.delta < 0 ? ' transferpill-delta--bad' : ''}`}>
+                ({t.delta > 0 ? `+${t.delta}` : t.delta})
+              </span>
+            )}
+          </span>
+        ))}
+      </>
+    );
+  }
+  // ≥3: sam count nie mówi, czy to był dobry ruch — dolicz bilans pkt (suma delt tych transferów)
+  // obok liczby, kolorowany tak samo jak pojedyncze pigułki wyżej.
+  const totalDelta = rows.reduce((s, t) => s + (t.delta ?? 0), 0);
+  const sign = totalDelta > 0 ? '+' : '';
+  return (
+    <span
+      className="chipbadge chipbadge--transfer"
+      title={`${rows.map(t => `${t.nameOut} → ${t.nameIn}`).join(', ')} — bilans: ${sign}${totalDelta} pkt w GW${gw}`}
+    >
+      🔄 {rows.length}
+      <span className={`transferpill-delta${totalDelta > 0 ? ' transferpill-delta--good' : totalDelta < 0 ? ' transferpill-delta--bad' : ''}`}>
+        {sign}{totalDelta}
+      </span>
+    </span>
+  );
+}
+
 // ranking ogólny FPL — "OR: <liczba>", zawsze pełny zapis z separatorem tysięcy (bez skracania).
 // Strzałka ruchu względem poprzedniej GW gdy jest znana (spadek numeru rankingu = awans, więc
 // zielona ↑). To WŁASNA estymata (backend przeszukuje ligę Overall/314 po żywym totalu managera —
@@ -137,6 +184,7 @@ export default function LeagueSection({
   leagueName, participants, league, sortedLeague, preSeason, loading, error,
   sortKey, sortDir, toggleSort, sortArrow,
   quarters, currentQuarterId, gwStatus, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
+  transfersHistory,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
   useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped, topCaptainPick,
 }: Props) {
@@ -317,6 +365,7 @@ export default function LeagueSection({
                                 {chipIcon(chip.code)} {chip.label}
                               </span>
                             )}
+                            {renderTransferBadge(e.entry, awards?.gw, transfersHistory)}
                             {renderUsedChips(chipHistory[e.entry], chip)}
                           </div>
                           <div className="small teaminfo-line">
@@ -374,6 +423,7 @@ export default function LeagueSection({
                       {e.player_name}
                       {chip && <span className="chipbadge" title={chip.name || chip.label}>{chipIcon(chip.code)}</span>}
                     </span>
+                    {renderTransferBadge(e.entry, awards?.gw, transfersHistory)}
                     {renderUsedChips(chipHistory[e.entry], chip)}
                     <span className="leaguecard-total">{e.total}</span>
                   </div>
@@ -569,6 +619,25 @@ function SquadDrilldown({
           </span>
         )}
       </div>
+
+      {squad.transfers.length > 0 && (
+        <div className="squadtransfers">
+          {squad.transfers.map((t, i) => (
+            <span
+              key={i}
+              className="transferpill"
+              title={`${t.nameOut} ${t.pointsOut} pkt → ${t.nameIn} ${t.pointsIn} pkt w GW${squad.gw}`}
+            >
+              <span className="transferpill-out">{t.nameOut}</span>
+              <span aria-hidden="true">→</span>
+              <span className="transferpill-in">{t.nameIn}</span>
+              <span className={`transferpill-delta${t.delta > 0 ? ' transferpill-delta--good' : t.delta < 0 ? ' transferpill-delta--bad' : ''}`}>
+                ({t.delta > 0 ? `+${t.delta}` : t.delta})
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
       {displaySquad.filter(p => !p.isBench).map(p => (

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { CaptainBreakdownRow, DifferentialCaptain, TransferActivityRow, ChipRoundUsage } from '../lib/types';
+import type { CaptainBreakdownRow, DifferentialCaptain, TopTransferGain, ChipRoundUsage } from '../lib/types';
 import { StatTileGrid, StatTile, chipIcon } from './shared';
 
 type Props = {
@@ -8,7 +8,7 @@ type Props = {
   active: boolean; // z backendu: 10 min po pierwszym gwizdku tej GW, dopóki runda trwa
   captainBreakdown: CaptainBreakdownRow[];
   differentialCaptain: DifferentialCaptain;
-  mostTransfers: TransferActivityRow;
+  topTransferGain: TopTransferGain;
   chipUsage: ChipRoundUsage[];
   leagueSize: number;
 };
@@ -17,15 +17,19 @@ const dismissKey = (gw: number) => `fpl333_kickoff_dismissed_${gw}`;
 
 // "🚀 GW wystartowała" — powiadomienie z ciekawostkami tuż po pierwszym gwizdku tej kolejki,
 // zanim jeszcze znamy wyniki: rozkład kapitanów (i kontrastowy "odważny wybór" — kto poszedł pod
-// prąd z opaską), transfery zagrane przed deadline'em, użycie chipów w tej rundzie. Kafelki w tym
-// samym języku co GW Pulse (StatTile/StatTileGrid, wspólne z GwSummaryBanner). Symetryczne do
-// GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/W TRAKCIE) — wzajemnie wykluczające się
-// dzięki warunkom liczonym w backendzie.
+// prąd z opaską), użycie chipów w tej rundzie, i zysk punktowy z transferów zagranych przed
+// deadline'em. 4 kafelki w tym samym języku co GW Pulse (StatTile/StatTileGrid, wspólne z
+// GwSummaryBanner). Symetryczne do GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/W
+// TRAKCIE) — wzajemnie wykluczające się dzięki warunkom liczonym w backendzie.
 // Uwaga: dawniej trzeci kafelek pokazywał "najpopularniejszy pick w składach" obok "Kapitana
 // tłumu" — w praktyce niemal zawsze ten sam zawodnik (najpopularniejszy pick = z reguły też
 // najpopularniejszy kapitan), więc dwa kafelki obok siebie powtarzały ten sam fakt. Zastąpiony
-// "Odważnym wyborem" (differentialCaptain) dla realnego kontrastu.
-export default function KickoffFactsBanner({ gw, active, captainBreakdown, differentialCaptain, mostTransfers, chipUsage, leagueSize }: Props) {
+// "Odważnym wyborem" (differentialCaptain) dla realnego kontrastu. 4. kafelek "Transfery tej
+// kolejki" początkowo liczył samą liczbę ruchów — zamieniony na "zysk z transferu"
+// (topTransferGain): realny efekt punktowy (pkt wchodzącego − pkt wychodzącego, zsumowane) u
+// managera, któremu wyszło to najlepiej, bez wildcard/freehit (to przebudowa całego składu, nie
+// punktowa decyzja "kogo na kogo").
+export default function KickoffFactsBanner({ gw, active, captainBreakdown, differentialCaptain, topTransferGain, chipUsage, leagueSize }: Props) {
   const [dismissed, setDismissed] = React.useState(false);
 
   React.useEffect(() => {
@@ -75,17 +79,6 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
       />
     );
   }
-  if (mostTransfers) {
-    tiles.push(
-      <StatTile
-        key="transfers"
-        icon="🔄"
-        value={mostTransfers.transfers}
-        caption={mostTransfers.player_name}
-        label="Transfery tej kolejki"
-      />
-    );
-  }
   tiles.push(
     <StatTile
       key="chips"
@@ -96,7 +89,7 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
           <span className="kickoff-chip-row">
             {chipUsage.map(c => (
               <span key={c.code} className="kickoff-chip-badge" title={c.label}>
-                <span className="kickoff-chip-icon">{chipIcon(c.code)}</span>{c.count}
+                <span className="kickoff-chip-icon">{chipIcon(c.code)}</span>{c.label} {c.count}
               </span>
             ))}
           </span>
@@ -105,6 +98,18 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
       label="Chipy w rundzie"
     />
   );
+  if (topTransferGain) {
+    const sign = topTransferGain.gain > 0 ? '+' : '';
+    tiles.push(
+      <StatTile
+        key="transfergain"
+        icon="🔄"
+        value={`${sign}${topTransferGain.gain} pkt`}
+        caption={`${topTransferGain.player_name} · ${topTransferGain.transfers} transfer${topTransferGain.transfers === 1 ? '' : 'y'}`}
+        label="Zysk z transferu"
+      />
+    );
+  }
 
   if (!tiles.length) return null;
 

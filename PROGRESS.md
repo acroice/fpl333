@@ -3,6 +3,70 @@
 Bieżący stan pracy nad ROADMAP.md — czytaj to na początku sesji, żeby wiedzieć od czego
 kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → DOCUMENT).
 
+## Stan na 2026-09-05 (sesja 2 — front-end dashboardu, poza kolejnością ROADMAP.md)
+
+Cała ta sesja to celowa przerwa w Phase 2 (patrz sekcja niżej) na życzenie — polerowanie UX
+istniejącego dashboardu Next.js (`app/`), nie backend/ML. **Phase 2 z ROADMAP.md (RAW → STAGING →
+FEATURES) stoi w miejscu, nietknięta** — następna sesja robocza nad roadmapą zaczyna dokładnie
+tam, gdzie zostawiła ją sesja 1 (patrz niżej, bez zmian).
+
+### Baner "🚀 GW wystartowała" (`KickoffFactsBanner`)
+
+Przebudowany z 3 kafelków (z czego 2 pokazywały w praktyce ten sam fakt — najpopularniejszy pick
+w składzie to zwykle też najpopularniejszy kapitan) na 4 kafelki, każdy z realnie innym sygnałem:
+
+1. **Kapitan tłumu** — bez zmian.
+2. **Odważny wybór** — zastąpił "Najpopularniejszy pick": najmniej obstawiany kapitan w rundzie,
+   kontrast do #1 zamiast powtórki tego samego faktu.
+3. **Chipy w rundzie** — ikonka + skrót nazwy chipa obok liczby (np. `👑 TC 2`), nie sama ikonka.
+4. **Zysk z transferu** — zamiast suchej liczby transferów: realny efekt punktowy (suma pkt
+   wchodzącego minus wychodzącego) u managera, któremu najbardziej się to opłaciło w tej rundzie.
+   Świadomie pomija wildcard/freehit (przebudowa całego składu, nie punktowa decyzja "kogo na
+   kogo") — inaczej te chipy zawsze dominowałyby wynik samą skalą.
+
+### Zakładka Statystyki — reorganizacja i doprecyzowania
+
+- Kolejność sekcji: Captaincy → Ownership → Chips → Bench → Stabilność → **Transfers (płatne/hity)
+  na samym końcu** (najmniej angażująca treść, świadomie zepchnięta w dół).
+- "Najlepszy kapitan w lidze (ta GW)" → "(OBECNY GW)" — jaśniejsza etykieta.
+- Stabilność: domyślnie top 5 + "Pokaż więcej", jak reszta list w zakładce (wcześniej cała liga
+  na raz).
+- Bench: zdjęte medale (🥇🥈🥉) z rankingu — to "łzy na ławce" (coś złego), nie osiągnięcie do
+  świętowania, więc zwykła numeracja. "Rekord ligi" doprecyzowany: najwięcej pkt zostawionych na
+  ławce **w jednej kolejce** (nie suma sezonu).
+- Transfers (💸 płatne/hity): nazwa i opis jawnie odróżniają to od "Zysku z transferu" z banera —
+  to WYŁĄCZNIE koszt hita (pkt za transfer ponad darmowy limit), NIE różnica w formie kupionego
+  względem sprzedanego zawodnika. Rozwinięcie wiersza managera pokazuje teraz konkretne GW, w
+  których wziął hita, i jakie transfery w nich zagrał (wcześniej: cała sezonowa historia
+  transferów, myląca bo nie tłumaczyła wprost skąd wziął się koszt). Też bez medali w rankingu.
+
+### Zakładka Liga — widoczność transferów bez rozwijania wiersza
+
+Manager, który zrobił transfer(y) w bieżącej GW, ma to teraz widać od razu w głównym wierszu
+(analogicznie do plakietki chipa), bez klikania w wiersz:
+
+- **<3 transferów**: pełne pigułki "kto na kogo (Δpkt)" bezpośrednio w wierszu (np.
+  `Shaw → Ajayi (0)`), ten sam wizualny język co drill-down składu.
+- **≥3 transferów** (zwykle wildcard/freehit — cała przebudowa składu): kompaktowy badge
+  `🔄 N +/-X pkt` (liczba transferów + zsumowany bilans punktowy), żeby nie zaśmiecić wiersza,
+  ale nadal nie zgubić najważniejszej informacji ("czy to się opłaciło").
+- Rozwinięcie wiersza (drill-down składu) pokazuje pełne pigułki zawsze, niezależnie od liczby —
+  bez zmian względem tego, co już działało.
+
+### Backend pod tym wszystkim
+
+- Nowy `fetchEntryTransfersCached(entryId)` w `_lib/fpl.ts` — endpoint FPL
+  `/entry/{id}/transfers/` (cała historia transferów sezonu managera), cache'owany jak reszta.
+- `quarter-wins/route.ts`: `differentialCaptain`, `topTransferGain`, `transfersHistory` (per
+  manager, z `pointsOut`/`pointsIn`/`delta` liczonymi tylko dla transferów z `latestGw` — starsze
+  GW nie mają dociąganych historycznych live stats, bo Statystyki i tak liczą tam tylko koszt
+  hita per GW, nie deltę punktową).
+- `squad/route.ts`: `SquadData.transfers` — "kto na kogo" w konkretnej GW z deltą punktową, do
+  drill-downu składu w Lidze.
+
+Zweryfikowane end-to-end na żywej lidze (GW3, w trakcie) na każdym etapie tej sesji — konkretne
+przykłady liczb (kto, ile, jaka delta) w historii czatu tej sesji, nie powtarzane tu.
+
 ## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`

@@ -3,7 +3,7 @@ import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
-  CaptainBreakdownRow, DifferentialCaptain, TransferActivityRow, ChipRoundUsage, TopCaptainPick, GwStatus,
+  CaptainBreakdownRow, DifferentialCaptain, TopTransferGain, SeasonTransferRow, ChipRoundUsage, TopCaptainPick, GwStatus,
 } from './lib/types';
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
@@ -84,7 +84,8 @@ export default function Home() {
   const [kickoffFactsActive, setKickoffFactsActive] = React.useState<boolean>(false);
   const [captainBreakdown, setCaptainBreakdown] = React.useState<CaptainBreakdownRow[]>([]);
   const [differentialCaptain, setDifferentialCaptain] = React.useState<DifferentialCaptain>(null);
-  const [mostTransfers, setMostTransfers] = React.useState<TransferActivityRow>(null);
+  const [topTransferGain, setTopTransferGain] = React.useState<TopTransferGain>(null);
+  const [transfersHistory, setTransfersHistory] = React.useState<Record<number, SeasonTransferRow[]>>({});
   const [chipUsageThisRound, setChipUsageThisRound] = React.useState<ChipRoundUsage[]>([]);
   // najlepszy kapitan w lidze w latestGw (kto grał kapitana, który zdobył najwięcej pkt) —
   // pokazywany i w banerze Podsumowania GW, i w Statystykach (jedno źródło, dwa miejsca)
@@ -206,7 +207,8 @@ export default function Home() {
         setKickoffFactsActive(!!wData.kickoffFactsActive);
         setCaptainBreakdown(wData.captainBreakdown || []);
         setDifferentialCaptain(wData.differentialCaptain ?? null);
-        setMostTransfers(wData.mostTransfers ?? null);
+        setTopTransferGain(wData.topTransferGain ?? null);
+        setTransfersHistory(wData.transfersHistory || {});
         setChipUsageThisRound(wData.chipUsageThisRound || []);
         setTopCaptainPick(wData.topCaptainPick ?? null);
         setGwFullyFinished(!!wData.gwFullyFinished);
@@ -468,7 +470,7 @@ export default function Home() {
         active={kickoffFactsActive}
         captainBreakdown={captainBreakdown}
         differentialCaptain={differentialCaptain}
-        mostTransfers={mostTransfers}
+        topTransferGain={topTransferGain}
         chipUsage={chipUsageThisRound}
         leagueSize={participants}
       />
@@ -505,6 +507,7 @@ export default function Home() {
           overallRank={overallRank}
           teamInfo={teamInfo}
           gwPoints={gwPoints}
+          transfersHistory={transfersHistory}
           openManagerEntry={openManagerEntry}
           toggleManager={toggleManager}
           squadCache={squadCache}
@@ -565,6 +568,7 @@ export default function Home() {
           chipHistory={chipHistory}
           teamInfo={teamInfo}
           topCaptainPick={topCaptainPick}
+          transfersHistory={transfersHistory}
         />
       </div>
     </>

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick } from '../lib/types';
+import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow } from '../lib/types';
 import { PlayerAvatar, ClubBadge, chipIcon, rankBadge } from '../components/shared';
 
 type Props = {
@@ -14,16 +14,21 @@ type Props = {
   chipHistory: Record<number, ChipHistoryEntry[]>;
   teamInfo: Record<number, TeamInfo>;
   topCaptainPick: TopCaptainPick;
+  transfersHistory: Record<number, SeasonTransferRow[]>;
 };
 
-// "🧠 Statystyki" — 5 modułów. Captaincy i Ownership to dawny "Wgląd w ligę" (showOverview)
-// przeniesiony 1:1, tylko rozbity na dwa moduły. Transfers/Bench/Chips są nowe, liczone w
-// całości z danych, które i tak już mamy na froncie (gwPoints wzbogacone, chipHistory) — zero
-// nowych zapytań do FPL. Tam, gdzie danych faktycznie brakuje (historia kapitanów, ROI
-// transferów, template ligi), jest jawna notka zamiast zmyślonych liczb.
+// "🧠 Statystyki" — 6 modułów, w tej kolejności: Captaincy, Ownership, Chips, Bench, Stabilność,
+// Transfers. Captaincy i Ownership to dawny "Wgląd w ligę" (showOverview) przeniesiony 1:1, tylko
+// rozbity na dwa moduły. Chips/Bench/Stabilność/Transfers są nowsze, liczone w całości z danych,
+// które i tak już mamy na froncie (gwPoints wzbogacone, chipHistory, transfersHistory z
+// quarter-wins) — zero dodatkowych zapytań z TEGO komponentu do FPL. Chips jest wyżej — bardziej
+// angażująca treść (kto zagrał jaki chip) niż Bench/Stabilność/Transfers, więc wyżej w scrollu.
+// Transfers (płatne/hity) świadomie na samym końcu — to najbardziej "księgowa"/najmniej
+// angażująca treść z całej zakładki. Tam, gdzie danych faktycznie brakuje (historia kapitanów,
+// ROI transferów, template ligi), jest jawna notka zamiast zmyślonych liczb.
 export default function StatsSection({
   active, loadOverview, overview, overviewLoading, overviewError,
-  entryIndex, gwPoints, chipHistory, teamInfo, topCaptainPick,
+  entryIndex, gwPoints, chipHistory, teamInfo, topCaptainPick, transfersHistory,
 }: Props) {
   React.useEffect(() => {
     if (active) loadOverview();
@@ -36,6 +41,9 @@ export default function StatsSection({
   const [showAllTopOwned, setShowAllTopOwned] = React.useState(false);
   const [showAllDifferentials, setShowAllDifferentials] = React.useState(false);
   const [showAllBench, setShowAllBench] = React.useState(false);
+  const [showAllConsistency, setShowAllConsistency] = React.useState(false);
+  // które wiersze w Transfers mają rozwiniętą listę "kto na kogo, w której GW" (per manager)
+  const [expandedTransfers, setExpandedTransfers] = React.useState<Record<number, boolean>>({});
 
   // Transfers: suma minusowych pkt (koszt transferów ponad limit) w całym sezonie per manager
   const transferRows = React.useMemo(() => {
@@ -113,6 +121,28 @@ export default function StatsSection({
   }, [chipHistory]);
   const activeChipCodes = ['bboost', 'wildcard', 'freehit', '3xc', 'manager'].filter(code => (chipGroups[code]?.length ?? 0) > 0);
 
+  // Transfers, pogrupowane po GW z kosztem hita W TEJ GW doczepionym z gwPoints — żeby przy
+  // -{totalCost} dało się pokazać, KTÓRE kolejki (i jakie transfery w nich) się na to złożyły.
+  // FPL nie mówi, który POJEDYNCZY transfer w danej GW był tym "ponad limit" (gdy ktoś robi kilka
+  // naraz), ale poziom "cała GW" jest w 100% pewny — to właśnie ten koszt, nie zmyślony rozkład.
+  const transferGwGroups = React.useMemo(() => {
+    const result: Record<number, { event: number; cost: number; transfers: SeasonTransferRow[] }[]> = {};
+    for (const [entryStr, transfers] of Object.entries(transfersHistory)) {
+      const entry = Number(entryStr);
+      const byEvent = new Map<number, SeasonTransferRow[]>();
+      for (const t of transfers) {
+        if (!byEvent.has(t.event)) byEvent.set(t.event, []);
+        byEvent.get(t.event)!.push(t);
+      }
+      const costByGw = new Map((gwPoints[entry] ?? []).map(g => [g.gw, g.cost]));
+      result[entry] = Array.from(byEvent.entries())
+        .map(([event, list]) => ({ event, cost: costByGw.get(event) ?? 0, transfers: list }))
+        .filter(g => g.cost > 0)
+        .sort((a, b) => a.event - b.event);
+    }
+    return result;
+  }, [transfersHistory, gwPoints]);
+
   return (
     <section className="card">
       <div className="headline">🧠 Statystyki</div>
@@ -123,7 +153,7 @@ export default function StatsSection({
         <div className="statchip statchip--special" style={{ marginBottom: 10 }}>
           <PlayerAvatar src={topCaptainPick.photoUrl} alt={topCaptainPick.name} />
           <span className="statchip-text">
-            <span className="statchip-label">🏆 Najlepszy kapitan w lidze (ta GW)</span>
+            <span className="statchip-label">🏆 Najlepszy kapitan w lidze (OBECNY GW)</span>
             <span className="statchip-value">
               {topCaptainPick.name} · <b>{topCaptainPick.points} pkt</b>
               {' — '}
@@ -207,39 +237,62 @@ export default function StatsSection({
         Wkrótce: template ligi (najczęściej wybierana XI).
       </div>
 
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Transfers</div>
-      {transferRows.length === 0 ? (
-        <div className="small" style={{ marginBottom: 4 }}>Nikt jeszcze nie wziął hita w tym sezonie.</div>
-      ) : (
-        <div style={{ marginBottom: 4 }}>
-          {transferRows.map((r, i) => (
-            <div key={r.entry} className="rankbar">
-              <div className="rankbar-top">
-                <span className="rankbar-rank">{rankBadge(i)}</span>
-                <span className="rankbar-name">
-                  {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
-                </span>
-                <span className="rankbar-pts" style={{ color: '#ff9b9b' }}>-{r.totalCost}</span>
-              </div>
-            </div>
+      {/* Chips wyżej niż Bench/Stabilność — bardziej "atrakcyjna" treść (kto zagrał jaki chip),
+          niekoniecznie ostatnia rzecz do przewinięcia w tej zakładce */}
+      <div style={{ fontWeight: 700, fontSize: 15, margin: '18px 0 8px' }}>Chips</div>
+      {overview && overview.chipUsage.length > 0 && (
+        <div className="awardsrow" style={{ marginBottom: 10 }}>
+          {overview.chipUsage.map(c => (
+            <span key={c.code} className="awardpill" title={c.name}>
+              {c.code !== 'none' && `${chipIcon(c.code)} `}{c.label}: {c.count} ({c.pct}%)
+            </span>
           ))}
         </div>
       )}
-      <div className="small" style={{ color: 'var(--muted)', marginBottom: 18 }}>
-        Wkrótce: najlepszy/najgorszy transfer sezonu, transfer ROI.
-      </div>
+      {activeChipCodes.length === 0 ? (
+        <div className="small" style={{ marginBottom: 18 }}>Nikt jeszcze nie zagrał chipa w tym sezonie.</div>
+      ) : (
+        <div style={{ marginBottom: 18 }}>
+          {activeChipCodes.map(code => {
+            const rows = chipGroups[code];
+            return (
+              <div key={code} style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  {chipIcon(code)} {rows[0].name}
+                </div>
+                {rows.map((r, i) => (
+                  <div key={`${r.entry}-${r.event}`} className="rankbar">
+                    <div className="rankbar-top">
+                      <span className="rankbar-rank">{r.bonus != null ? rankBadge(i) : '•'}</span>
+                      <span className="rankbar-name">
+                        {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
+                      </span>
+                      <span className="rankbar-pts">{r.bonus != null ? `+${r.bonus} z chipa` : `GW${r.event}`}</span>
+                    </div>
+                    <div className="rankbar-gap">
+                      {r.bonus != null ? `GW${r.event}` : 'brak zdefiniowanego zysku dla tego chipa'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Bench</div>
       {benchRecord && (
         <div className="small" style={{ marginBottom: 8 }}>
-          🪑 Rekord ligi: <strong style={{ color: 'var(--text)' }}>{entryIndex[benchRecord.entry]?.manager ?? '—'}</strong> — {benchRecord.pts} pkt na ławce w GW{benchRecord.gw}
+          🪑 Rekord ligi (najwięcej pkt zostawionych na ławce w jednej kolejce): <strong style={{ color: 'var(--text)' }}>{entryIndex[benchRecord.entry]?.manager ?? '—'}</strong> — {benchRecord.pts} pkt w GW{benchRecord.gw}
         </div>
       )}
+      {/* bez medali (🥇🥈🥉) — to lista "łez na ławce" (stracone pkt), nie osiągnięcie do
+          świętowania, więc zwykła numeracja zamiast rankBadge, który sugerowałby wygraną */}
       <div style={{ marginBottom: 4 }}>
         {(showAllBench ? benchRows : benchRows.slice(0, 5)).map((r, i) => (
           <div key={r.entry} className="rankbar">
             <div className="rankbar-top">
-              <span className="rankbar-rank">{rankBadge(i)}</span>
+              <span className="rankbar-rank">{i + 1}.</span>
               <span className="rankbar-name">
                 {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
               </span>
@@ -266,7 +319,7 @@ export default function StatsSection({
             Odchylenie standardowe wyników GW — kto punktuje wyrównanie z kolejki na kolejkę, a kto jest rollercoasterem.
           </div>
           <div style={{ marginBottom: 4 }}>
-            {consistencyRows.map((r, i) => (
+            {(showAllConsistency ? consistencyRows : consistencyRows.slice(0, 5)).map((r, i) => (
               <div key={r.entry} className="rankbar">
                 <div className="rankbar-top">
                   <span className="rankbar-rank">
@@ -285,47 +338,70 @@ export default function StatsSection({
               </div>
             ))}
           </div>
+          {consistencyRows.length > 5 && (
+            <button className="showmore-btn" onClick={() => setShowAllConsistency(v => !v)}>
+              {showAllConsistency ? '↑ Pokaż mniej' : `↓ Pokaż więcej (top ${consistencyRows.length})`}
+            </button>
+          )}
         </>
       )}
 
-      <div style={{ fontWeight: 700, fontSize: 15, margin: '18px 0 8px' }}>Chips</div>
-      {overview && overview.chipUsage.length > 0 && (
-        <div className="awardsrow" style={{ marginBottom: 10 }}>
-          {overview.chipUsage.map(c => (
-            <span key={c.code} className="awardpill" title={c.name}>
-              {c.code !== 'none' && `${chipIcon(c.code)} `}{c.label}: {c.count} ({c.pct}%)
-            </span>
-          ))}
+      {/* Transfers (płatne/hity) na samym końcu — nazwa i opis celowo jednoznaczne: to WYŁĄCZNIE
+          koszt hita (pkt zapłaconych za transfer ponad darmowy limit), NIE różnica w formie
+          kupionego względem sprzedanego zawodnika (to inna, osobna rzecz — patrz "Zysk z
+          transferu" w banerze "GW wystartowała"). Bez medali (🥇🥈🥉) w rankingu, tak samo jak w
+          Bench — to nie jest osiągnięcie do świętowania. */}
+      <div style={{ fontWeight: 700, fontSize: 15, margin: '18px 0 8px' }}>💸 Transfers — płatne (hity)</div>
+      {transferRows.length === 0 ? (
+        <div className="small" style={{ marginBottom: 4 }}>Nikt jeszcze nie wziął hita w tym sezonie.</div>
+      ) : (
+        <div style={{ marginBottom: 4 }}>
+          <div className="small" style={{ color: 'var(--muted)', marginBottom: 8 }}>
+            Suma punktów zapłaconych za transfery ponad darmowy limit (hity) w całym sezonie — sam koszt
+            hita, nie różnica w formie kupionego względem sprzedanego zawodnika.
+          </div>
+          {transferRows.map((r, i) => {
+            const groups = transferGwGroups[r.entry] ?? [];
+            const expanded = expandedTransfers[r.entry] ?? false;
+            return (
+              <div key={r.entry} className="rankbar">
+                <div className="rankbar-top">
+                  <span className="rankbar-rank">{i + 1}.</span>
+                  <span className="rankbar-name">
+                    {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
+                  </span>
+                  <span className="rankbar-pts" style={{ color: '#ff9b9b' }}>-{r.totalCost}</span>
+                </div>
+                {groups.length > 0 && (
+                  <>
+                    <button
+                      className="showmore-btn"
+                      onClick={() => setExpandedTransfers(prev => ({ ...prev, [r.entry]: !expanded }))}
+                    >
+                      {expanded ? '↑ Ukryj' : `↓ Które GW? (${groups.length})`}
+                    </button>
+                    {expanded && (
+                      <div className="small" style={{ marginTop: 2 }}>
+                        {groups.map(g => (
+                          <div key={g.event} style={{ marginBottom: 6 }}>
+                            <strong style={{ color: 'var(--text)' }}>GW{g.event}</strong> · -{g.cost} pkt
+                            {g.transfers.map((t, j) => (
+                              <div key={j} style={{ marginLeft: 10 }}>{t.nameOut} → {t.nameIn}</div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-      {activeChipCodes.length === 0 ? (
-        <div className="small">Nikt jeszcze nie zagrał chipa w tym sezonie.</div>
-      ) : (
-        activeChipCodes.map(code => {
-          const rows = chipGroups[code];
-          return (
-            <div key={code} style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                {chipIcon(code)} {rows[0].name}
-              </div>
-              {rows.map((r, i) => (
-                <div key={`${r.entry}-${r.event}`} className="rankbar">
-                  <div className="rankbar-top">
-                    <span className="rankbar-rank">{r.bonus != null ? rankBadge(i) : '•'}</span>
-                    <span className="rankbar-name">
-                      {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
-                    </span>
-                    <span className="rankbar-pts">{r.bonus != null ? `+${r.bonus} z chipa` : `GW${r.event}`}</span>
-                  </div>
-                  <div className="rankbar-gap">
-                    {r.bonus != null ? `GW${r.event}` : 'brak zdefiniowanego zysku dla tego chipa'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })
-      )}
+      <div className="small" style={{ color: 'var(--muted)' }}>
+        Wkrótce: najlepszy/najgorszy transfer sezonu, transfer ROI.
+      </div>
     </section>
   );
 }

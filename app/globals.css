@@ -126,6 +126,35 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   font-weight:600;
   vertical-align:middle;
 }
+/* wariant dla transferów tej GW (główny wiersz Ligi, obok chipbadge) — niebieski, nie złoty, żeby
+   nie mylić z aktywnym chipem; sam badge to tylko sygnał "coś się ruszyło", szczegóły (kto na
+   kogo z różnicą punktową) są dopiero po rozwinięciu wiersza */
+.chipbadge--transfer { background:#0f2029; border-color:#16313f; color:#9fd9ff; }
+
+/* "kto na kogo" — transfery zagrane w tej GW: w drill-downie składu managera (Liga, .squadtransfers
+   jako kontener) i, przy <3 transferach, od razu w głównym wierszu (.transferpill--compact, patrz
+   renderTransferBadge w LeagueSection.tsx). Wychodzący zawodnik przekreślony (jak w oficjalnej
+   appce FPL), wchodzący pogrubiony, w nawiasie różnica punktów zdobytych w TEJ kolejce (in − out)
+   — aktualizuje się na żywo w miarę meczów. */
+.squadtransfers { display:flex; flex-wrap:wrap; gap:6px; margin: 0 0 10px; }
+.transferpill {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 10px;
+  border-radius:999px;
+  background:#0f2029;
+  border:1px solid #16313f;
+  font-size:12px;
+  font-weight:600;
+}
+/* wariant do głównego wiersza Ligi — trochę mniejszy, żeby nie dominował obok nazwiska managera */
+.transferpill--compact { margin-left:6px; padding:1px 8px; font-size:11px; }
+.transferpill-out { color:#ff9b9b; text-decoration:line-through; }
+.transferpill-in { color:var(--text); font-weight:700; }
+.transferpill-delta { color:var(--muted); }
+.transferpill-delta--good { color:#5ee1a2; }
+.transferpill-delta--bad { color:#ff9b9b; }
 
 /* rozkład chipów w kafelku "Chipy w rundzie" (KickoffFactsBanner) — jedna pigułka z ikoną per typ
    chipa + licznik, zamiast tekstu "2×WC · 1×BB" (mało czytelne, zwłaszcza sam znak "×") */

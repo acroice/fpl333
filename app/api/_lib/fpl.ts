@@ -46,6 +46,10 @@ export type LeagueEntryBasic = { entry: number; player_name: string; entry_name:
 
 export type AutomaticSub = { elementIn: number; elementOut: number };
 
+// jeden transfer z pełnej historii managera (endpoint /transfers/ zwraca całą historię sezonu
+// naraz, bez filtra po GW — filtrowanie do konkretnej kolejki robi wołający)
+export type EntryTransfer = { elementIn: number; elementOut: number; event: number; time: string };
+
 export type LiveElementStats = { points: number; minutes: number };
 
 export type PicksData = {
@@ -83,6 +87,7 @@ export type BootstrapSlim = {
 const standingsCache = new Map<string, CacheEntry<StandingsRaw>>();
 const historyCache = new Map<number, CacheEntry<EntryHistoryData>>();
 const picksCache = new Map<string, CacheEntry<PicksData>>(); // klucz: `${entryId}:${gw}`
+const transfersCache = new Map<number, CacheEntry<EntryTransfer[]>>(); // klucz: entryId (cała historia sezonu)
 const liveFullCache = new Map<number, CacheEntry<Record<number, LiveElementStats>>>(); // klucz: gw
 const finishedTeamsCache = new Map<number, CacheEntry<FixtureTeamsInfo>>(); // klucz: gw
 const gwCompletionCache = new Map<number, CacheEntry<GwCompletionInfo>>(); // klucz: gw
@@ -270,6 +275,30 @@ export async function fetchEntryPicksCached(entryId: number, gw: number): Promis
 
   const data = await fetchEntryPicksRaw(entryId, gw);
   picksCache.set(key, { data, ts: Date.now() });
+  return data;
+}
+
+async function fetchEntryTransfersRaw(entryId: number): Promise<EntryTransfer[]> {
+  const url = `https://fantasy.premierleague.com/api/entry/${entryId}/transfers/`;
+  const res = await fetch(url, { cache: 'no-store', headers: fplHeaders });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((t: any) => ({
+    elementIn: t.element_in,
+    elementOut: t.element_out,
+    event: t.event,
+    time: t.time ?? '',
+  }));
+}
+
+// Cała historia transferów managera w sezonie (FPL nie ma osobnego endpointu na pojedynczą GW) —
+// używane w /api/squad do pokazania "kto na kogo" w danej kolejce (patrz buildTransferRows).
+export async function fetchEntryTransfersCached(entryId: number): Promise<EntryTransfer[]> {
+  const hit = transfersCache.get(entryId);
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.data;
+
+  const data = await fetchEntryTransfersRaw(entryId);
+  transfersCache.set(entryId, { data, ts: Date.now() });
   return data;
 }
 
