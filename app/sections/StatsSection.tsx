@@ -188,7 +188,7 @@ export default function StatsSection({
                   <span className="pill">{p.position}</span>
                   {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
                 </span>
-                <span>{p.points} pkt · {p.captainPct}% C</span>
+                <span>{p.points} pkt · {p.captainPct}% C · {p.captainCount}/{overview.leagueSize}</span>
               </div>
             ))}
           </div>
