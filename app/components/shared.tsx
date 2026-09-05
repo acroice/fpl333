@@ -78,6 +78,46 @@ export function StatTile({
   );
 }
 
+// paleta "charakteru" treści (dobre/złe/specjalne/neutralne) — współdzielona przez StatModule,
+// RankFill, .statchip i .wrapped-card, żeby kolor zawsze znaczył to samo w całej appce
+export type Tone = 'good' | 'bad' | 'special' | 'neutral';
+
+// Panel modułu — ten sam wizualny język co .wrapped-card w GW Wrapped i .statchip (kolorowe,
+// przytłumione obramowanie dopasowane do "charakteru" treści). Reużywalne w każdej zakładce, która
+// dzieli treść na tematyczne bloki (Statystyki, Sezon) — żeby całość spójnie wyglądała jak jedna
+// appka, nie zbiór osobnych stylów per zakładka.
+export function StatModule({
+  icon, tone, title, subtitle, children,
+}: {
+  icon: string; tone: Tone; title: string; subtitle: string; children: React.ReactNode;
+}) {
+  return (
+    <div className={`statmodule statmodule--${tone}`}>
+      <div className="statmodule-header">
+        <span className={`statmodule-icon statmodule-icon--${tone}`}>{icon}</span>
+        <div>
+          <div className="statmodule-title">{title}</div>
+          <div className="statmodule-subtitle">{subtitle}</div>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Szerokość paska tła (%) proporcjonalna do wartości względem max w danej liście, z widoczną
+// minimalną szerokością (4%) — żeby nawet najmniejsza wartość na liście była wizualnie zauważalna,
+// ten sam zabieg co przy pasku postępu ćwiartki (.qheader-progressbar-fill).
+export function barPct(value: number, max: number) {
+  if (max <= 0) return 0;
+  return Math.max(Math.round((value / max) * 100), 4);
+}
+
+// pasek tła pod wierszem rankingu (.rankbar--viz/.squadplayer--viz) — patrz komentarz w globals.css
+export function RankFill({ pct, tone }: { pct: number; tone: Tone }) {
+  return <span className={`rankbar-fill rankbar-fill--${tone}`} style={{ width: `${pct}%` }} aria-hidden="true" />;
+}
+
 // mały herb klubu — jeśli się nie załaduje, po prostu znika (sam skrót klubu w tekście wystarczy)
 export function ClubBadge({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);

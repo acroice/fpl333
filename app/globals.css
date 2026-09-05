@@ -597,6 +597,48 @@ body.retro .qdone {
 .rankbar-rank { font-weight: 700; color: var(--muted); font-size: 12px; flex-shrink: 0; }
 .rankbar-name { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); }
 .rankbar-pts { font-weight: 700; font-size: 13.5px; flex-shrink: 0; color: var(--text); }
+/* --- Statystyki: moduły next-gen ---
+   Każdy moduł (Captaincy/Ownership/Chips/Bench/Stabilność/Transfers) to lekki panel z kolorowym,
+   przytłumionym obramowaniem dopasowanym do "charakteru" treści (dobre/złe/specjalne/neutralne) —
+   ten sam język co .wrapped-card w GW Wrapped i .statchip, żeby Statystyki nie wyglądały jak
+   osobny styl w tej samej appce, tylko jak naturalne rozwinięcie już istniejącego systemu. */
+.statmodule {
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.005));
+  border: 1px solid #1c2430;
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  margin-bottom: 14px;
+}
+.statmodule:last-child { margin-bottom: 0; }
+.statmodule--good { border-color: rgba(94,225,162,.22); }
+.statmodule--bad { border-color: rgba(255,155,155,.22); }
+.statmodule--special { border-color: rgba(240,201,117,.25); }
+.statmodule--neutral { border-color: rgba(159,217,255,.22); }
+.statmodule-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.statmodule-icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  background: rgba(154,170,190,.10);
+}
+.statmodule--good .statmodule-icon { background: rgba(94,225,162,.14); }
+.statmodule--bad .statmodule-icon { background: rgba(255,120,120,.14); }
+.statmodule--special .statmodule-icon { background: rgba(240,201,117,.16); }
+.statmodule--neutral .statmodule-icon { background: rgba(159,217,255,.14); }
+.statmodule-title { font-weight: 800; font-size: 15px; color: var(--text); line-height: 1.2; }
+.statmodule-subtitle { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+
+/* pasek tła proporcjonalny do wartości względem max w danej liście — szybki wizualny skan "kto ile"
+   bez czytania każdej liczby z osobna, ten sam motyw co pasek postępu ćwiartki (.qheader-progressbar).
+   Dokładany jako dodatkowa klasa obok .rankbar/.squadplayer, nie zamiast — reużywa ich typografii. */
+.rankbar--viz, .squadplayer--viz { position: relative; overflow: hidden; border-radius: 8px; padding: 6px 8px; }
+.rankbar-fill { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.rankbar--viz .rankbar-top, .rankbar--viz .rankbar-gap,
+.squadplayer--viz .squadplayer-name, .squadplayer--viz > span:last-child { position: relative; z-index: 1; }
+.rankbar-fill--bad { background: linear-gradient(90deg, rgba(255,120,120,.15), rgba(255,120,120,0) 90%); }
+.rankbar-fill--good { background: linear-gradient(90deg, rgba(94,225,162,.15), rgba(94,225,162,0) 90%); }
+.rankbar-fill--neutral { background: linear-gradient(90deg, rgba(159,217,255,.14), rgba(159,217,255,0) 90%); }
+.rankbar-fill--special { background: linear-gradient(90deg, rgba(240,201,117,.16), rgba(240,201,117,0) 90%); }
+
 .rankbar-gap {
   font-size: 12px;
   color: var(--muted);
@@ -683,21 +725,35 @@ body.retro .qdone {
 /* --- GW Center / Rekordy sezonu: siatka kompaktowych kart statystyk --- */
 .gwcenter-grid, .records-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 10px;
 }
+/* Rekordy sezonu — ten sam "charakter treści" (dobre/złe/specjalne), co statmodule/wrapped-card:
+   kolorowa ikonka w kwadracie + wartość + kontekst, zamiast gołego emoji jako prefiksu tekstu. */
 .record-item {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
+  gap: 10px;
   background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.005));
   border: 1px solid #1c2430;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 12.5px;
-  color: var(--muted);
+  border-radius: 12px;
+  padding: 12px 14px;
 }
-.record-item b { font-size: 17px; color: var(--text); font-weight: 700; }
+.record-item--good { border-color: rgba(94,225,162,.22); }
+.record-item--bad { border-color: rgba(255,155,155,.22); }
+.record-item--special { border-color: rgba(240,201,117,.25); }
+.record-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  background: rgba(154,170,190,.10);
+}
+.record-item--good .record-icon { background: rgba(94,225,162,.14); }
+.record-item--bad .record-icon { background: rgba(255,120,120,.14); }
+.record-item--special .record-icon { background: rgba(240,201,117,.16); }
+.record-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.record-label { font-size: 11px; color: var(--muted); font-weight: 600; }
+.record-value { font-size: 18px; font-weight: 800; color: var(--text); }
+.record-sub { font-size: 12px; color: var(--muted); }
 
 /* --- Porównaj: pasek statystyk obok siebie + H2H --- */
 .comparestats {
@@ -764,16 +820,20 @@ body.retro .qdone {
   font-size: 13px;
 }
 .diffboard-row .squadplayer-name { flex: 1; min-width: 0; }
+/* inicjały managera (np. "DC"), nie gołe "A"/"B" — czytelne bez ściągania wzroku do selektorów
+   wyżej; kolor zostaje jako szybki wizualny podział (zielony/niebieski), tooltip ma pełne imię */
 .diffboard-owner {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 5px;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
+  letter-spacing: .2px;
 }
 .diffboard-owner--a { background: rgba(94, 225, 162, .15); color: #5ee1a2; }
 .diffboard-owner--b { background: rgba(159, 217, 255, .15); color: #9fd9ff; }
