@@ -140,6 +140,25 @@ decyzja "kogo na kogo"). Backend: `quarter-wins/route.ts` liczy `nonChipTransfer
 niego wyprowadza zarówno `topTransferGain` (teraz konsumowany przez Ligę), jak i
 `playersWithTransfersThisRound` (konsumowany przez baner).
 
+### Zdjęcia zawodników — sprawdzone, zostają bez zmian
+
+Padło pytanie, czy przełączyć się na inne API zdjęć zawodników, bo część zdjęć wygląda nieaktualnie.
+Sprawdzone w kodzie (`playerPhotoUrl()` w `_lib/fpl.ts`): już teraz korzystamy z oficjalnego CDN
+Premier League (`resources.premierleague.com/premierleague/photos/players`) — dokładnie tego
+samego źródła, którego używa sama oficjalna appka FPL. Nieaktualne zdjęcia niektórych zawodników
+(zwłaszcza nowych transferów) to opóźnienie po stronie działu mediów PL, nie wynik naszego
+cache'owania (bootstrap odświeżamy co 15 min) ani gorszego API. **Decyzja: zostawiamy jak jest** —
+zamiana na inne źródło (Sofascore, API-Football, Transfermarkt) wymagałaby dopasowywania
+zawodników po nazwisku zamiast po FPL `element`/`code`, co przy ~700 zawodnikach w lidze grozi
+podłożeniem złego zdjęcia pod złego gracza. Nie wracać do tego tematu bez nowego argumentu.
+
+### Stan repo na koniec sesji 2
+
+`main` ma wszystko z tej sesji zmergowane (PR #6–#12), working tree czysty, brak lokalnych
+branchy WIP. Kolejna sesja może zacząć od razu od Phase 2 z ROADMAP.md (RAW → STAGING →
+FEATURES, patrz plan niżej w sekcji sesji 1) — front-end dashboardu jest w stabilnym,
+zamkniętym stanie, nic tu nie czeka w tej chwili na dokończenie.
+
 ## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`
