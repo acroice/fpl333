@@ -3,7 +3,7 @@ import React from 'react';
 import type {
   LeagueEntry, Quarter, QuarterTopRow, QuarterHitsRow, GwPoint, CaptainInfo, TeamInfo,
   ChipInfo, SquadData, Awards, LeagueOverview, ChipHistoryEntry, SectionId, OverallRankInfo,
-  CaptainBreakdownRow, TemplateOwnership, ChipRoundUsage, TopCaptainPick, GwStatus,
+  CaptainBreakdownRow, DifferentialCaptain, TransferActivityRow, ChipRoundUsage, TopCaptainPick, GwStatus,
 } from './lib/types';
 import Nav from './components/Nav';
 import GwSummaryBanner from './components/GwSummaryBanner';
@@ -83,7 +83,8 @@ export default function Home() {
   // powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy) + jego treść
   const [kickoffFactsActive, setKickoffFactsActive] = React.useState<boolean>(false);
   const [captainBreakdown, setCaptainBreakdown] = React.useState<CaptainBreakdownRow[]>([]);
-  const [templateOwnership, setTemplateOwnership] = React.useState<TemplateOwnership>(null);
+  const [differentialCaptain, setDifferentialCaptain] = React.useState<DifferentialCaptain>(null);
+  const [mostTransfers, setMostTransfers] = React.useState<TransferActivityRow>(null);
   const [chipUsageThisRound, setChipUsageThisRound] = React.useState<ChipRoundUsage[]>([]);
   // najlepszy kapitan w lidze w latestGw (kto grał kapitana, który zdobył najwięcej pkt) —
   // pokazywany i w banerze Podsumowania GW, i w Statystykach (jedno źródło, dwa miejsca)
@@ -204,7 +205,8 @@ export default function Home() {
         setGwSummaryActive(!!wData.gwSummaryActive);
         setKickoffFactsActive(!!wData.kickoffFactsActive);
         setCaptainBreakdown(wData.captainBreakdown || []);
-        setTemplateOwnership(wData.templateOwnership ?? null);
+        setDifferentialCaptain(wData.differentialCaptain ?? null);
+        setMostTransfers(wData.mostTransfers ?? null);
         setChipUsageThisRound(wData.chipUsageThisRound || []);
         setTopCaptainPick(wData.topCaptainPick ?? null);
         setGwFullyFinished(!!wData.gwFullyFinished);
@@ -465,7 +467,8 @@ export default function Home() {
         gw={awards?.gw ?? 0}
         active={kickoffFactsActive}
         captainBreakdown={captainBreakdown}
-        templateOwnership={templateOwnership}
+        differentialCaptain={differentialCaptain}
+        mostTransfers={mostTransfers}
         chipUsage={chipUsageThisRound}
         leagueSize={participants}
       />

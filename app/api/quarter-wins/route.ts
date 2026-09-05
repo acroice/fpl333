@@ -437,8 +437,8 @@ export async function GET(req: NextRequest){
       if (cap) captainCounts[cap.element] = (captainCounts[cap.element] || 0) + 1;
     });
 
-    // Ciekawostki do banera "kolejka wystartowała" — rozkład kapitanów, najpopularniejszy pick w
-    // składach, użycie chipów w TEJ rundzie. Wszystko z danych, które i tak już mamy
+    // Ciekawostki do banera "kolejka wystartowała" — rozkład kapitanów, kontrastowy "odważny"
+    // kapitan, transfery i użycie chipów w TEJ rundzie. Wszystko z danych, które i tak już mamy
     // (captainCounts, allPicksLatest, latestChip) — zero dodatkowych zapytań do FPL.
     const leagueSize = leagueEntries.length;
     const captainBreakdown = Object.entries(captainCounts)
@@ -455,21 +455,41 @@ export async function GET(req: NextRequest){
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const ownershipCounts: Record<number, number> = {};
-    allPicksLatest.forEach(picks => {
-      for (const p of picks.picks) ownershipCounts[p.element] = (ownershipCounts[p.element] || 0) + 1;
+    // "Odważny wybór" — najmniej obstawiany kapitan w tej kolejce w całej lidze, kontrast do
+    // "Kapitana tłumu". Zastępuje dawny "Najpopularniejszy pick": ten w praktyce niemal zawsze
+    // pokazywał tego samego zawodnika co Kapitan tłumu (najpopularniejszy pick w składzie = z
+    // reguły też najpopularniejszy kapitan), więc dwa kafelki obok siebie były tym samym faktem.
+    // Pokazujemy tylko, gdy realnie ktoś odstaje od reszty (min < max) — inaczej cała liga
+    // kapitanuje to samo i nie ma kontrastu do pokazania.
+    const captainCountsSorted = Object.entries(captainCounts).sort((a, b) => a[1] - b[1]);
+    const topCaptainCount = captainBreakdown[0]?.count ?? 0;
+    const differentialCaptain = (captainCountsSorted.length > 1 && captainCountsSorted[0][1] < topCaptainCount)
+      ? (() => {
+          const [elStr, count] = captainCountsSorted[0];
+          const element = Number(elStr);
+          const el = bootstrap.elementsById[element];
+          const managers = leagueEntries.filter(plr => captainByEntry[plr.entry] === element);
+          return {
+            element,
+            name: el?.web_name ?? '—',
+            photoUrl: el ? playerPhotoUrl(el.code) : '',
+            count,
+            managers: managers.map(m => ({ entry: m.entry, player_name: m.player_name || '' })),
+          };
+        })()
+      : null;
+
+    // Transfery tej kolejki — kto najbardziej "przemeblował" skład przed tym gwizdkiem, licząc
+    // samą liczbę transferów (niezależnie czy kosztowały punkty). Inna metryka niż Transfer
+    // Tangle w GW Pulse (ten liczy koszt hita, nie samą aktywność) — ktoś mógł zrobić 4 transfery
+    // za darmo (zaoszczędzone FT), więc to osobna, ciekawa historia.
+    let mostTransfers: { entry: number; player_name: string; entry_name: string; transfers: number } | null = null;
+    leagueEntries.forEach((plr, idx) => {
+      const transfers = allPicksLatest[idx].entryHistory.eventTransfers;
+      if (transfers > 0 && (!mostTransfers || transfers > mostTransfers.transfers)) {
+        mostTransfers = { entry: plr.entry, player_name: plr.player_name || '', entry_name: plr.entry_name || '', transfers };
+      }
     });
-    const topOwnershipEntry = Object.entries(ownershipCounts).sort((a, b) => b[1] - a[1])[0];
-    const templateOwnership = topOwnershipEntry ? (() => {
-      const el = bootstrap.elementsById[Number(topOwnershipEntry[0])];
-      return {
-        element: Number(topOwnershipEntry[0]),
-        name: el?.web_name ?? '—',
-        photoUrl: el ? playerPhotoUrl(el.code) : '',
-        count: topOwnershipEntry[1],
-        pct: leagueSize ? Math.round((topOwnershipEntry[1] / leagueSize) * 100) : 0,
-      };
-    })() : null;
 
     const chipCountsThisRound: Record<string, number> = {};
     leagueEntries.forEach(plr => {
@@ -667,7 +687,8 @@ export async function GET(req: NextRequest){
       gwFullyFinished,       // czy latestGw jest już definitywnie skończona (bez okna 24h) — trigger dla GW Wrapped
       kickoffFactsActive,    // czy pokazać powiadomienie "kolejka wystartowała" (10 min po pierwszym gwizdku, do końca rundy)
       captainBreakdown,      // [{element,name,photoUrl,count,pct}, ... top5] — rozkład kapitanów w latestGw
-      templateOwnership,     // {element,name,photoUrl,count,pct} | null — najpopularniejszy pick w składach latestGw
+      differentialCaptain,   // {element,name,photoUrl,count,managers} | null — najmniej obstawiany kapitan w latestGw
+      mostTransfers,         // {entry,player_name,entry_name,transfers} | null — najwięcej transferów w latestGw
       chipUsageThisRound,    // [{code,label,count}, ...] — ile osób zagrało jaki chip w latestGw
       leagueSize,            // liczba uczestników — do wyliczeń % w bannerach
       topCaptainPick,        // {element,name,photoUrl,points,managers} | null — najlepszy kapitan w lidze w latestGw

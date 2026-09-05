@@ -119,7 +119,13 @@ export type Awards = {
 
 // "kolejka wystartowała" — ciekawostki liczone tuż po pierwszym gwizdku, zanim znamy wyniki
 export type CaptainBreakdownRow = { element: number; name: string; photoUrl: string; count: number; pct: number };
-export type TemplateOwnership = { element: number; name: string; photoUrl: string; count: number; pct: number } | null;
+// najmniej obstawiany kapitan w lidze w danej GW (kontrast do CaptainBreakdownRow[0]) — managers
+// > 1, gdy kilku managerów niezależnie trafiło na tego samego różnicowego kapitana
+export type DifferentialCaptain = {
+  element: number; name: string; photoUrl: string; count: number;
+  managers: { entry: number; player_name: string }[];
+} | null;
+export type TransferActivityRow = { entry: number; player_name: string; entry_name: string; transfers: number } | null;
 export type ChipRoundUsage = { code: string; label: string; count: number };
 
 // najlepszy kapitan w lidze w danej GW — kto grał tego kapitana, który zdobył najwięcej punktów
