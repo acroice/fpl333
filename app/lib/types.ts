@@ -84,6 +84,16 @@ export type SquadPlayer = {
   ownershipPct: number; // zwykły % ownership w naszej lidze, BEZ mnożnika za kapitana/wicekapitana
 };
 
+// jeden transfer "kto na kogo" w tej GW — z punktami OUT/IN zdobytymi w TEJ kolejce (niezależnie
+// od tego, czy dany zawodnik został w składzie) i różnicą (delta) między nimi, czyli realnym
+// zyskiem/stratą z tego konkretnego ruchu. Live przez trwającą kolejkę — aktualizuje się w miarę
+// jak obaj zawodnicy grają swoje mecze.
+export type SquadTransferRow = {
+  elementOut: number; nameOut: string; photoUrlOut: string; pointsOut: number;
+  elementIn: number; nameIn: string; photoUrlIn: string; pointsIn: number;
+  delta: number; // pointsIn - pointsOut
+};
+
 export type SquadData = {
   gw: number;
   entryId: number;
@@ -95,6 +105,7 @@ export type SquadData = {
     eventTransfers: number; eventTransfersCost: number;
     bank: number; value: number; pointsOnBench: number;
   };
+  transfers: SquadTransferRow[]; // transfery zagrane W TEJ GW (puste, gdy manager nic nie ruszał)
   squad: SquadPlayer[];
   leagueSize: number;
   hasProjection: boolean;              // czy symulacja przewiduje realną zamianę/opaskę
@@ -125,7 +136,20 @@ export type DifferentialCaptain = {
   element: number; name: string; photoUrl: string; count: number;
   managers: { entry: number; player_name: string }[];
 } | null;
-export type TransferActivityRow = { entry: number; player_name: string; entry_name: string; transfers: number } | null;
+// największy zysk punktowy z transferów zagranych W TEJ GW z puli darmowych transferów (bez
+// wildcard/freehit — patrz komentarz przy liczeniu w quarter-wins/route.ts) — gain = suma (pkt
+// wchodzącego − pkt wychodzącego) po wszystkich transferach tego managera w tej GW; może wyjść
+// ujemny (transfer się nie opłacił)
+export type TopTransferGain = { entry: number; player_name: string; transfers: number; gain: number } | null;
+
+// jeden transfer z pełnej historii sezonu managera — do sekcji "Transfers" w Statystykach oraz do
+// małego podglądu w głównym wierszu Ligi. pointsOut/pointsIn/delta liczone TYLKO dla transferu z
+// bieżącej GW (live stats dla starszych kolejek nie są dociągane — Statystyki i tak ich nie
+// potrzebują, liczą tylko koszt hita per GW) — null dla wszystkich wcześniejszych transferów.
+export type SeasonTransferRow = {
+  event: number; elementOut: number; nameOut: string; elementIn: number; nameIn: string;
+  pointsOut: number | null; pointsIn: number | null; delta: number | null;
+};
 export type ChipRoundUsage = { code: string; label: string; count: number };
 
 // najlepszy kapitan w lidze w danej GW — kto grał tego kapitana, który zdobył najwięcej punktów

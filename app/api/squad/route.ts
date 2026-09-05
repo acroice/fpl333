@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   fetchLeagueEntries,
   fetchEntryPicksCached,
+  fetchEntryTransfersCached,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchFinishedTeamsCached,
@@ -68,6 +69,38 @@ function buildSquad(
     .sort((a, b) => a.slot - b.slot);
 }
 
+// "Kto na kogo" w tej GW — transfery, które faktycznie weszły w życie tej kolejki (nie ruchy w
+// planowaniu przyszłych, wolnych transferów). Punkty OUT/IN liczone z `live` (tej samej kolejki),
+// więc działają niezależnie od tego, czy wychodzący zawodnik został w składzie — a delta to
+// realny zysk/strata z samego ruchu, na żywo w miarę jak obaj grają swoje mecze.
+function buildTransferRows(
+  transfers: { elementIn: number; elementOut: number; event: number; time: string }[],
+  gw: number,
+  live: Record<number, number>,
+  bootstrap: BootstrapSlim
+) {
+  return transfers
+    .filter(t => t.event === gw)
+    .sort((a, b) => a.time.localeCompare(b.time)) // chronologicznie — pierwszy zagrany transfer na górze
+    .map(t => {
+      const elOut = bootstrap.elementsById[t.elementOut];
+      const elIn = bootstrap.elementsById[t.elementIn];
+      const pointsOut = live[t.elementOut] ?? 0;
+      const pointsIn = live[t.elementIn] ?? 0;
+      return {
+        elementOut: t.elementOut,
+        nameOut: elOut?.web_name ?? '—',
+        photoUrlOut: elOut ? playerPhotoUrl(elOut.code) : '',
+        pointsOut,
+        elementIn: t.elementIn,
+        nameIn: elIn?.web_name ?? '—',
+        photoUrlIn: elIn ? playerPhotoUrl(elIn.code) : '',
+        pointsIn,
+        delta: pointsIn - pointsOut,
+      };
+    });
+}
+
 // Skład jednego managera w konkretnej kolejce: 15 zawodników z punktami zdobytymi w tej
 // kolejce, kapitanem/wicekapitanem, informacją czy grał w podstawowym składzie czy na ławce,
 // % ownership w TEJ lidze, oraz — dopóki FPL nie zamknie kolejki — PROJEKCJA autosubów na
@@ -98,9 +131,11 @@ export async function GET(req: NextRequest) {
 
     // Składy WSZYSTKICH managerów w tej kolejce — potrzebne do policzenia % ownership w lidze.
     // Cache'owane per entry+gw, więc kolejne kliknięcia w tej samej kolejce już nic nie dociągają.
-    const [allPicks, live] = await Promise.all([
+    // Transfery — tylko dla oglądanego managera (cała historia sezonu, filtrowana niżej do `gw`).
+    const [allPicks, live, entryTransfers] = await Promise.all([
       Promise.all(leagueEntries.map(e => fetchEntryPicksCached(e.entry, gw))),
       fetchEventLiveCached(gw),
+      fetchEntryTransfersCached(entryId),
     ]);
 
     const targetIdx = leagueEntries.findIndex(e => e.entry === entryId);
@@ -186,6 +221,8 @@ export async function GET(req: NextRequest) {
       ? { code: targetPicks.activeChip, label: CHIP_LABELS[targetPicks.activeChip] || targetPicks.activeChip, name: CHIP_NAMES[targetPicks.activeChip] || targetPicks.activeChip }
       : null;
 
+    const transfers = buildTransferRows(entryTransfers, gw, live, bootstrap);
+
     return NextResponse.json({
       gw,
       entryId,
@@ -193,6 +230,7 @@ export async function GET(req: NextRequest) {
       entryName: target.entry_name,
       activeChip: chip,
       entryHistory: targetPicks.entryHistory,
+      transfers,          // [{elementOut,nameOut,photoUrlOut,pointsOut,elementIn,nameIn,photoUrlIn,pointsIn,delta}, ...] — "kto na kogo" w tej GW
       squad,
       leagueSize,
       hasProjection,       // czy projekcja przewiduje inny wynik niż to, co FPL pokazuje teraz
