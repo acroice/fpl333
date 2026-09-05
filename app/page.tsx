@@ -85,6 +85,7 @@ export default function Home() {
   const [captainBreakdown, setCaptainBreakdown] = React.useState<CaptainBreakdownRow[]>([]);
   const [differentialCaptain, setDifferentialCaptain] = React.useState<DifferentialCaptain>(null);
   const [topTransferGain, setTopTransferGain] = React.useState<TopTransferGain>(null);
+  const [playersWithTransfersThisRound, setPlayersWithTransfersThisRound] = React.useState<number>(0);
   const [transfersHistory, setTransfersHistory] = React.useState<Record<number, SeasonTransferRow[]>>({});
   const [chipUsageThisRound, setChipUsageThisRound] = React.useState<ChipRoundUsage[]>([]);
   // najlepszy kapitan w lidze w latestGw (kto grał kapitana, który zdobył najwięcej pkt) —
@@ -208,6 +209,7 @@ export default function Home() {
         setCaptainBreakdown(wData.captainBreakdown || []);
         setDifferentialCaptain(wData.differentialCaptain ?? null);
         setTopTransferGain(wData.topTransferGain ?? null);
+        setPlayersWithTransfersThisRound(wData.playersWithTransfersThisRound ?? 0);
         setTransfersHistory(wData.transfersHistory || {});
         setChipUsageThisRound(wData.chipUsageThisRound || []);
         setTopCaptainPick(wData.topCaptainPick ?? null);
@@ -470,7 +472,7 @@ export default function Home() {
         active={kickoffFactsActive}
         captainBreakdown={captainBreakdown}
         differentialCaptain={differentialCaptain}
-        topTransferGain={topTransferGain}
+        playersWithTransfersThisRound={playersWithTransfersThisRound}
         chipUsage={chipUsageThisRound}
         leagueSize={participants}
       />
@@ -520,6 +522,7 @@ export default function Home() {
           gwFullyFinished={gwFullyFinished}
           onOpenWrapped={() => setWrappedOpen(true)}
           topCaptainPick={topCaptainPick}
+          topTransferGain={topTransferGain}
         />
       </div>
 

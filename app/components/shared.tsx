@@ -62,14 +62,17 @@ export function StatTileGrid({ children }: { children: React.ReactNode }) {
 }
 
 // pojedynczy kafelek — albo z emoji-ikoną, albo z fotą zawodnika (photoUrl ma pierwszeństwo),
-// duża wartość na środku (liczba albo nazwisko), mały podpis, i uppercase label jak w GW Pulse
+// duża wartość na środku (liczba albo nazwisko), mały podpis, i uppercase label jak w GW Pulse.
+// `tone` (opcjonalny) dokłada przytłumione, kolorowe obramowanie — ten sam podział good/bad/
+// special/neutral co StatModule/RankFill, więc kafelek od razu sygnalizuje "to dobra wiadomość"
+// czy "to zła wiadomość" (np. Worst GW na czerwono, Best GW na zielono), nie tylko sam tekst.
 export function StatTile({
-  icon, photoUrl, value, caption, label,
+  icon, photoUrl, value, caption, label, tone,
 }: {
-  icon?: string; photoUrl?: string; value: React.ReactNode; caption?: React.ReactNode; label: string;
+  icon?: string; photoUrl?: string; value: React.ReactNode; caption?: React.ReactNode; label: string; tone?: Tone;
 }) {
   return (
-    <div className="gwpulse-item">
+    <div className={`gwpulse-item${tone ? ` gwpulse-item--${tone}` : ''}`}>
       {photoUrl ? <PlayerAvatar src={photoUrl} alt={label} /> : icon && <span className="gwpulse-icon">{icon}</span>}
       <b>{value}</b>
       {caption && <span className="small">{caption}</span>}

@@ -525,10 +525,9 @@ export async function GET(req: NextRequest){
     // transferów przed tym gwizdkiem: suma (pkt wchodzącego − pkt wychodzącego) w latestGw, po
     // wszystkich transferach danego managera. Pomija wildcard/freehit (to przebudowa całego składu,
     // nie punktowa decyzja "kogo na kogo") — reużywa transfersHistory (już po redukcji cofniętych
-    // ruchów), zero dodatkowych zapytań. Kafelek w banerze "GW wystartowała" pokazuje managera z
-    // największym zyskiem (liczba może wyjść ujemna — to wtedy "kto najbardziej przestrzelił",
-    // nadal ciekawe).
-    const topTransferGain = leagueEntries
+    // ruchów), zero dodatkowych zapytań. Kafelek w GW Pulse (Liga) pokazuje managera z największym
+    // zyskiem (liczba może wyjść ujemna — to wtedy "kto najbardziej przestrzelił", nadal ciekawe).
+    const nonChipTransfersThisRound = leagueEntries
       .map((plr) => {
         const chip = latestChip[plr.entry];
         if (chip && (chip.code === 'wildcard' || chip.code === 'freehit')) return null;
@@ -537,8 +536,14 @@ export async function GET(req: NextRequest){
         const gain = thisRound.reduce((sum, t) => sum + (t.delta ?? 0), 0);
         return { entry: plr.entry, player_name: plr.player_name || '', transfers: thisRound.length, gain };
       })
-      .filter((r): r is { entry: number; player_name: string; transfers: number; gain: number } => r != null)
-      .sort((a, b) => b.gain - a.gain)[0] ?? null;
+      .filter((r): r is { entry: number; player_name: string; transfers: number; gain: number } => r != null);
+    const topTransferGain = [...nonChipTransfersThisRound].sort((a, b) => b.gain - a.gain)[0] ?? null;
+
+    // Ilu managerów w ogóle ruszyło coś z puli darmowych transferów w tej rundzie (bez WC/FH) —
+    // do kafelka w banerze "GW wystartowała". Samo "ilu ludzi coś zmieniło" jest ciekawsze niż
+    // wybieranie jednego "zwycięzcy" (to już robi Zysk z transferu w GW Pulse) — nie wymaga
+    // czekania na punkty, więc ma sens od razu po deadlinie, zanim ktokolwiek zdobędzie pkt.
+    const playersWithTransfersThisRound = nonChipTransfersThisRound.length;
 
     const chipCountsThisRound: Record<string, number> = {};
     leagueEntries.forEach(plr => {
@@ -738,6 +743,7 @@ export async function GET(req: NextRequest){
       captainBreakdown,      // [{element,name,photoUrl,count,pct}, ... top5] — rozkład kapitanów w latestGw
       differentialCaptain,   // {element,name,photoUrl,count,managers} | null — najmniej obstawiany kapitan w latestGw
       topTransferGain,       // {entry,player_name,transfers,gain} | null — największy zysk pkt z transferów (puli darmowej) w latestGw
+      playersWithTransfersThisRound, // liczba managerów, którzy zrobili transfer z puli darmowej w latestGw (bez WC/FH)
       transfersHistory,      // { entryId: [{event,elementOut,nameOut,elementIn,nameIn}, ...] } — pełna historia transferów sezonu
       chipUsageThisRound,    // [{code,label,count}, ...] — ile osób zagrało jaki chip w latestGw
       leagueSize,            // liczba uczestników — do wyliczeń % w bannerach
