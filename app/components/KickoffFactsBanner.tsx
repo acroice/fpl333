@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { CaptainBreakdownRow, DifferentialCaptain, TopTransferGain, ChipRoundUsage } from '../lib/types';
+import type { CaptainBreakdownRow, DifferentialCaptain, ChipRoundUsage } from '../lib/types';
 import { StatTileGrid, StatTile, chipIcon } from './shared';
 
 type Props = {
@@ -8,7 +8,7 @@ type Props = {
   active: boolean; // z backendu: 10 min po pierwszym gwizdku tej GW, dopóki runda trwa
   captainBreakdown: CaptainBreakdownRow[];
   differentialCaptain: DifferentialCaptain;
-  topTransferGain: TopTransferGain;
+  playersWithTransfersThisRound: number;
   chipUsage: ChipRoundUsage[];
   leagueSize: number;
 };
@@ -27,19 +27,20 @@ function chipWord(n: number) {
 
 // "🚀 GW wystartowała" — powiadomienie z ciekawostkami tuż po pierwszym gwizdku tej kolejki,
 // zanim jeszcze znamy wyniki: rozkład kapitanów (i kontrastowy "odważny wybór" — kto poszedł pod
-// prąd z opaską), użycie chipów w tej rundzie, i zysk punktowy z transferów zagranych przed
-// deadline'em. 4 kafelki w tym samym języku co GW Pulse (StatTile/StatTileGrid, wspólne z
-// GwSummaryBanner). Symetryczne do GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/W
-// TRAKCIE) — wzajemnie wykluczające się dzięki warunkom liczonym w backendzie.
+// prąd z opaską), użycie chipów w tej rundzie, i aktywność transferowa. 4 kafelki w tym samym
+// języku co GW Pulse (StatTile/StatTileGrid, wspólne z GwSummaryBanner). Symetryczne do
+// GwSummaryBanner (ten pokazuje się PO kolejce, ten PRZED/W TRAKCIE) — wzajemnie wykluczające się
+// dzięki warunkom liczonym w backendzie.
 // Uwaga: dawniej trzeci kafelek pokazywał "najpopularniejszy pick w składach" obok "Kapitana
 // tłumu" — w praktyce niemal zawsze ten sam zawodnik (najpopularniejszy pick = z reguły też
 // najpopularniejszy kapitan), więc dwa kafelki obok siebie powtarzały ten sam fakt. Zastąpiony
-// "Odważnym wyborem" (differentialCaptain) dla realnego kontrastu. 4. kafelek "Transfery tej
-// kolejki" początkowo liczył samą liczbę ruchów — zamieniony na "zysk z transferu"
-// (topTransferGain): realny efekt punktowy (pkt wchodzącego − pkt wychodzącego, zsumowane) u
-// managera, któremu wyszło to najlepiej, bez wildcard/freehit (to przebudowa całego składu, nie
-// punktowa decyzja "kogo na kogo").
-export default function KickoffFactsBanner({ gw, active, captainBreakdown, differentialCaptain, topTransferGain, chipUsage, leagueSize }: Props) {
+// "Odważnym wyborem" (differentialCaptain) dla realnego kontrastu. 4. kafelek "Zysk z transferu"
+// (topTransferGain) przeniesiony do GW Pulse w Lidze — to bardziej "wynikowa" statystyka (wymaga
+// punktów, nie tylko decyzji), więc lepiej pasuje tam niż w banerze widocznym od razu po gwizdku.
+// W jego miejsce: liczba managerów, którzy w ogóle ruszyli coś z puli darmowych transferów w tej
+// rundzie (bez WC/FH — to przebudowa całego składu, nie punktowa decyzja) — ciekawsze niż suchy
+// ranking, bo działa od razu po deadlinie, zanim ktokolwiek zdobędzie punkty.
+export default function KickoffFactsBanner({ gw, active, captainBreakdown, differentialCaptain, playersWithTransfersThisRound, chipUsage, leagueSize }: Props) {
   const [dismissed, setDismissed] = React.useState(false);
 
   React.useEffect(() => {
@@ -108,18 +109,15 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
       label="Chipy w rundzie"
     />
   );
-  if (topTransferGain) {
-    const sign = topTransferGain.gain > 0 ? '+' : '';
-    tiles.push(
-      <StatTile
-        key="transfergain"
-        icon="🔄"
-        value={`${sign}${topTransferGain.gain} pkt`}
-        caption={`${topTransferGain.player_name} · ${topTransferGain.transfers} transfer${topTransferGain.transfers === 1 ? '' : 'y'}`}
-        label="Zysk z transferu"
-      />
-    );
-  }
+  tiles.push(
+    <StatTile
+      key="transfersactive"
+      icon="🔄"
+      value={`${playersWithTransfersThisRound}/${leagueSize} managerów`}
+      caption={playersWithTransfersThisRound > 0 ? `zrobiło transfer przed GW${gw}` : 'nikt jeszcze nie ruszył składu'}
+      label="Aktywność transferowa"
+    />
+  );
 
   if (!tiles.length) return null;
 

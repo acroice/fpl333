@@ -112,6 +112,34 @@ okazji: tag właściciela w leaderboardzie różnic zmieniony z gołych liter "A
 managera** (np. "DC"), z tooltipem pełnego imienia — kolor (zielony/niebieski) zostaje jako
 dodatkowy szybki podział wizualny.
 
+### Redesign "next-gen": zakładka Liga (GW Pulse, GW Awards, drill-down składu)
+
+Ten sam system (`StatModule`/`RankFill`/`Tone`) doprowadzony do ostatniej zakładki, która go
+jeszcze nie miała — znów czysto wizualne, bez zmian w logice liczenia danych:
+
+- **GW Pulse** (⚡ neutralny) i **GW Awards** (🏅 złoty) opakowane w `StatModule`, każdy kafelek
+  GW Pulse dostał kolor ramki dopasowany do charakteru (Best GW/Biggest Rise zielone, Worst GW i
+  Bench Disaster czerwone, Captain Fantastic złoty, League Average niebieski) — `StatTile`
+  rozszerzony o opcjonalny prop `tone`.
+- **Drill-down managera** (`SquadDrilldown` po rozwinięciu wiersza w Lidze) przebudowany z tekstowej
+  listy rozdzielanej kropkami na rząd 4 pigułek-statchipów (🎯 Total, 🔄 Transfery, 🪑 Ławka,
+  💰 Wartość) + osobny rząd przełącznika widoku pod spodem. Każdy zawodnik w składzie (podstawowy i
+  ławka) ma teraz pasek `RankFill` pod spodem pokazującym % ownership w lidze — ten sam wizualny
+  język co ranking ownership w Statystykach.
+
+### Kafelek "Zysk z transferu": przeniesiony z banera startowego do GW Pulse
+
+Kafelek pokazujący realny efekt punktowy transferu (nie tylko fakt, że ktoś go zrobił) pasuje
+bardziej do GW Pulse — tam wymaga już policzonych punktów danej rundy, więc jest naturalnym
+sąsiadem Best GW / Biggest Rise, a nie czymś do pokazania od razu po gwizdku, zanim ktokolwiek
+zdobędzie punkty. W jego dawnym miejscu w "🚀 GW wystartowała": nowy kafelek **Aktywność
+transferowa** — `{playersWithTransfersThisRound}/{leagueSize} managerów`, "zrobiło transfer przed
+GW{n}" (dynamiczny numer rundy zamiast statycznego "tym gwizdkiem") — działa od razu po deadline,
+nie czeka na wyniki, i celowo pomija wildcard/freehit (przebudowa całego składu to nie punktowa
+decyzja "kogo na kogo"). Backend: `quarter-wins/route.ts` liczy `nonChipTransfersThisRound` raz i z
+niego wyprowadza zarówno `topTransferGain` (teraz konsumowany przez Ligę), jak i
+`playersWithTransfersThisRound` (konsumowany przez baner).
+
 ## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`

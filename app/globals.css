@@ -981,6 +981,12 @@ body.retro .qdone {
   border-radius: 10px;
   padding: 10px 12px;
 }
+/* opcjonalny wariant tonu (dobre/złe/specjalne/neutralne) — ten sam podział co .statmodule i
+   .record-item, żeby np. Worst GW od razu "czuło się" jak zła wiadomość, a Best GW jak dobra */
+.gwpulse-item--good { border-color: rgba(94,225,162,.22); }
+.gwpulse-item--bad { border-color: rgba(255,155,155,.22); }
+.gwpulse-item--special { border-color: rgba(240,201,117,.25); }
+.gwpulse-item--neutral { border-color: rgba(159,217,255,.22); }
 .gwpulse-icon { font-size: 15px; }
 .gwpulse-item b { font-size: 19px; font-weight: 800; color: var(--text); margin-top: 2px; }
 .gwpulse-item .small { white-space: normal; overflow-wrap: anywhere; }

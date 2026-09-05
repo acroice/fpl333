@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
-import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile } from '../components/shared';
+import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -61,6 +61,7 @@ type Props = {
   gwFullyFinished: boolean;
   onOpenWrapped: () => void;
   topCaptainPick: TopCaptainPick;
+  topTransferGain: TopTransferGain;
 };
 
 // znajdź wszystkie wpisy remisujące o wartość ekstremalną (max/min) — GW Pulse nie może
@@ -186,7 +187,7 @@ export default function LeagueSection({
   quarters, currentQuarterId, gwStatus, latestChip, chipHistory, captainInfo, overallRank, teamInfo, gwPoints,
   transfersHistory,
   openManagerEntry, toggleManager, squadCache, squadLoading, squadErrors,
-  useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped, topCaptainPick,
+  useProjection, setUseProjection, downloadCsv, awards, gwFullyFinished, onOpenWrapped, topCaptainPick, topTransferGain,
 }: Props) {
   const ready = !loading && !error && !preSeason && league.length > 0;
 
@@ -456,52 +457,69 @@ export default function LeagueSection({
         </>
       )}
 
-      {/* GW Pulse — tie-aware KPI, auto-fit na desktopie (2×N na mobile) */}
+      {/* GW Pulse — tie-aware KPI, auto-fit na desktopie (2×N na mobile). Tony na kafelkach (dobre/
+          złe/specjalne/neutralne) — ten sam podział co StatModule/RankFill w Statystykach/Sezonie/
+          Porównaj, żeby np. Worst GW od razu "czuło się" jak zła wiadomość. "Zysk z transferu"
+          przeniesiony tu z banera "GW wystartowała" — to statystyka WYNIKOWA (potrzebuje punktów
+          z rozegranych meczów), więc lepiej pasuje do podsumowania kolejki niż do powiadomienia
+          widocznego od razu po deadlinie; ton good/bad zależnie od znaku zysku. */}
       {pulse && (
-        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Pulse</div>
-          <div className="gwpulse-grid gwpulse-grid--auto">
-            <div className="gwpulse-item">
-              <span className="gwpulse-icon">🔥</span>
-              <b>{pulse.best.value}</b>
-              <span className="small">{namesOf(pulse.best.entries)}</span>
-              <span className="gwpulse-label">Best GW</span>
+        <div style={{ marginTop: 16 }}>
+          <StatModule icon="⚡" tone="neutral" title="GW Pulse" subtitle="Migawka bieżącej kolejki">
+            <div className="gwpulse-grid gwpulse-grid--auto">
+              <div className="gwpulse-item gwpulse-item--good">
+                <span className="gwpulse-icon">🔥</span>
+                <b>{pulse.best.value}</b>
+                <span className="small">{namesOf(pulse.best.entries)}</span>
+                <span className="gwpulse-label">Best GW</span>
+              </div>
+              <div className="gwpulse-item gwpulse-item--bad">
+                <span className="gwpulse-icon">💀</span>
+                <b>{pulse.worst.value}</b>
+                <span className="small">{namesOf(pulse.worst.entries)}</span>
+                <span className="gwpulse-label">Worst GW</span>
+              </div>
+              <div className="gwpulse-item gwpulse-item--good">
+                <span className="gwpulse-icon">📈</span>
+                <b>{pulse.riseDelta > 0 ? `+${pulse.riseDelta}` : '—'}</b>
+                <span className="small">{pulse.bestRise.length ? namesOf(pulse.bestRise) : 'brak danych'}</span>
+                <span className="gwpulse-label">Biggest Rise</span>
+              </div>
+              <div className="gwpulse-item gwpulse-item--neutral">
+                <span className="gwpulse-icon">⚡</span>
+                <b>{pulse.avg.toFixed(1)}</b>
+                <span className="small">pts</span>
+                <span className="gwpulse-label">League Average</span>
+              </div>
+              {awards?.benchTears && (
+                <StatTile
+                  icon="🪑"
+                  value={`${awards.benchTears.benchPoints} pkt`}
+                  caption={awards.benchTears.player_name}
+                  label="Bench Disaster"
+                  tone="bad"
+                />
+              )}
+              {topCaptainPick && (
+                <StatTile
+                  photoUrl={topCaptainPick.photoUrl}
+                  value={topCaptainPick.name}
+                  caption={`${topCaptainPick.points} pkt · ${topCaptainPick.managers.length === 1 ? topCaptainPick.managers[0].player_name : `${topCaptainPick.managers.length} managerów`}`}
+                  label="Captain Fantastic"
+                  tone="special"
+                />
+              )}
+              {topTransferGain && (
+                <StatTile
+                  icon="🔄"
+                  value={`${topTransferGain.gain > 0 ? '+' : ''}${topTransferGain.gain} pkt`}
+                  caption={`${topTransferGain.player_name} · ${topTransferGain.transfers} transfer${topTransferGain.transfers === 1 ? '' : 'y'}`}
+                  label="Zysk z transferu"
+                  tone={topTransferGain.gain >= 0 ? 'good' : 'bad'}
+                />
+              )}
             </div>
-            <div className="gwpulse-item">
-              <span className="gwpulse-icon">💀</span>
-              <b>{pulse.worst.value}</b>
-              <span className="small">{namesOf(pulse.worst.entries)}</span>
-              <span className="gwpulse-label">Worst GW</span>
-            </div>
-            <div className="gwpulse-item">
-              <span className="gwpulse-icon">📈</span>
-              <b>{pulse.riseDelta > 0 ? `+${pulse.riseDelta}` : '—'}</b>
-              <span className="small">{pulse.bestRise.length ? namesOf(pulse.bestRise) : 'brak danych'}</span>
-              <span className="gwpulse-label">Biggest Rise</span>
-            </div>
-            <div className="gwpulse-item">
-              <span className="gwpulse-icon">⚡</span>
-              <b>{pulse.avg.toFixed(1)}</b>
-              <span className="small">pts</span>
-              <span className="gwpulse-label">League Average</span>
-            </div>
-            {awards?.benchTears && (
-              <StatTile
-                icon="🪑"
-                value={`${awards.benchTears.benchPoints} pkt`}
-                caption={awards.benchTears.player_name}
-                label="Bench Disaster"
-              />
-            )}
-            {topCaptainPick && (
-              <StatTile
-                photoUrl={topCaptainPick.photoUrl}
-                value={topCaptainPick.name}
-                caption={`${topCaptainPick.points} pkt · ${topCaptainPick.managers.length === 1 ? topCaptainPick.managers[0].player_name : `${topCaptainPick.managers.length} managerów`}`}
-                label="Captain Fantastic"
-              />
-            )}
-          </div>
+          </StatModule>
         </div>
       )}
 
@@ -515,9 +533,9 @@ export default function LeagueSection({
       {/* GW Awards — odchudzone o Top Gun/Tough Week (duplikat GW Pulse Best/Worst); id do scrolla
           z przycisku "Zobacz wszystkie nagrody" w GW Wrapped */}
       {awards && (awards.chipMaster || awards.noChipWarrior || awards.valueKing || awards.rankCrasher || awards.rankRiser || awards.bestCaptain || awards.transferTangle || (pulse && pulse.bestRise.length > 0)) && (
-        <div id="gw-awards" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #1c2430' }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>GW Awards</div>
-          <div className="awardsrow">
+        <div id="gw-awards" style={{ marginTop: 16 }}>
+          <StatModule icon="🏅" tone="special" title="GW Awards" subtitle="Nagrody tej kolejki">
+            <div className="awardsrow">
             {awards.chipMaster && (
               <span className="statchip statchip--special" title={awards.chipMaster.bonus != null ? `Punkty zdobyte dzięki chipowi ${awards.chipMaster.chip?.label} (nie total z kolejki)` : 'Najlepszy wynik z zagranym chipem (dla tego chipa nie da się policzyć samego zysku)'}>
                 <span className="statchip-icon">🏅</span>
@@ -570,6 +588,7 @@ export default function LeagueSection({
               </span>
             )}
           </div>
+          </StatModule>
         </div>
       )}
     </section>
@@ -577,7 +596,9 @@ export default function LeagueSection({
 }
 
 // Drill-down składu — wydzielony, bo renderuje się identycznie w wersji desktop (wiersz tabeli)
-// i mobile (karta). Logika bez zmian względem poprzedniej wersji.
+// i mobile (karta). Logika bez zmian; wizualnie: statchip/awardsrow zamiast ściany tekstu z
+// kropkami na górze, RankFill (% ownership) w każdym wierszu zawodnika — ten sam next-gen system
+// co Statystyki/Sezon/Porównaj/GW Pulse.
 function SquadDrilldown({
   entry, squad, loading, errorMsg, useProjection, setUseProjection,
 }: {
@@ -599,13 +620,42 @@ function SquadDrilldown({
 
   return (
     <div className="small" style={{ lineHeight: 1.5 }}>
-      <div style={{ marginBottom: 8 }}>
-        GW{squad.gw} • Total: <strong>{displayTotal} pkt</strong>
+      {/* pigułki statystyk zamiast ściany tekstu rozdzielonej kropkami — reużywa .statchip/
+          .awardsrow (te same, co w GW Awards), więc drill-down czuje się częścią tego samego
+          systemu, nie osobnym stylem */}
+      <div className="awardsrow" style={{ marginBottom: 8 }}>
+        <span className="statchip statchip--special" title={showingProjected ? 'Projekcja na podstawie danych live — FPL policzy to oficjalnie po zamknięciu kolejki' : `Wynik w GW${squad.gw}`}>
+          <span className="statchip-icon">🎯</span>
+          <span className="statchip-text">
+            <span className="statchip-label">Total GW{squad.gw}</span>
+            <span className="statchip-value"><b>{displayTotal} pkt</b></span>
+          </span>
+        </span>
+        <span className="statchip statchip--neutral" title="Transfery zagrane w tej GW">
+          <span className="statchip-icon">🔄</span>
+          <span className="statchip-text">
+            <span className="statchip-label">Transfery</span>
+            <span className="statchip-value"><b>{squad.entryHistory.eventTransfers}</b>{squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost})`}</span>
+          </span>
+        </span>
+        <span className="statchip statchip--bad" title="Surowe punkty zawodników na ławce w tej GW">
+          <span className="statchip-icon">🪑</span>
+          <span className="statchip-text">
+            <span className="statchip-label">Ławka</span>
+            <span className="statchip-value"><b>{benchRawPoints} pkt</b></span>
+          </span>
+        </span>
+        <span className="statchip statchip--special" title="Wartość drużyny">
+          <span className="statchip-icon">💰</span>
+          <span className="statchip-text">
+            <span className="statchip-label">Wartość</span>
+            <span className="statchip-value"><b>£{(squad.entryHistory.value / 10).toFixed(1)}m</b></span>
+          </span>
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
         {showingProjected && <span className="chipbadge" title="Projekcja na podstawie danych live — FPL policzy to oficjalnie po zamknięciu kolejki">🔮 projekcja</span>}
-        {' • '}Transfery: {squad.entryHistory.eventTransfers}
-        {squad.entryHistory.eventTransfersCost > 0 && ` (-${squad.entryHistory.eventTransfersCost} pkt)`}
-        {' • '}Ławka: {benchRawPoints} pkt
-        {' • '}Wartość: £{(squad.entryHistory.value / 10).toFixed(1)}m
         {squad.activeChip && (
           <span className="chipbadge" title={squad.activeChip.name}>
             {chipIcon(squad.activeChip.code)} {squad.activeChip.label}
@@ -641,7 +691,8 @@ function SquadDrilldown({
 
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
       {displaySquad.filter(p => !p.isBench).map(p => (
-        <div key={p.element} className="squadplayer">
+        <div key={p.element} className="squadplayer squadplayer--viz">
+          <RankFill pct={p.ownershipPct} tone="neutral" />
           <span className="squadplayer-name">
             <PlayerAvatar src={p.photoUrl} alt={p.name} />
             <span className="pill">{p.position}</span>
@@ -656,7 +707,8 @@ function SquadDrilldown({
 
       <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
       {displaySquad.filter(p => p.isBench).map(p => (
-        <div key={p.element} className="squadplayer" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }}>
+        <div key={p.element} className="squadplayer squadplayer--viz" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }}>
+          <RankFill pct={p.ownershipPct} tone="neutral" />
           <span className="squadplayer-name">
             <PlayerAvatar src={p.photoUrl} alt={p.name} />
             <span className="pill">{p.position}</span>
