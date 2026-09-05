@@ -15,6 +15,16 @@ type Props = {
 
 const dismissKey = (gw: number) => `fpl333_kickoff_dismissed_${gw}`;
 
+// poprawna polska odmiana "chip/chipy/chipów" — sama liczba pod ikonką ("🃏 4") nic nie mówiła bez
+// zerknięcia na label pod spodem, więc wartość kafelka od razu zawiera słowo, nie tylko cyfrę
+function chipWord(n: number) {
+  if (n === 1) return 'chip';
+  const lastDigit = n % 10;
+  const lastTwo = n % 100;
+  if (lastDigit >= 2 && lastDigit <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) return 'chipy';
+  return 'chipów';
+}
+
 // "🚀 GW wystartowała" — powiadomienie z ciekawostkami tuż po pierwszym gwizdku tej kolejki,
 // zanim jeszcze znamy wyniki: rozkład kapitanów (i kontrastowy "odważny wybór" — kto poszedł pod
 // prąd z opaską), użycie chipów w tej rundzie, i zysk punktowy z transferów zagranych przed
@@ -83,7 +93,7 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
     <StatTile
       key="chips"
       icon="🃏"
-      value={chipTotal > 0 ? chipTotal : '0'}
+      value={chipTotal > 0 ? `${chipTotal} ${chipWord(chipTotal)}` : 'Brak'}
       caption={chipTotal > 0
         ? (
           <span className="kickoff-chip-row">
@@ -94,7 +104,7 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
             ))}
           </span>
         )
-        : 'nikt jeszcze'}
+        : 'nikt jeszcze nie zagrał w tej rundzie'}
       label="Chipy w rundzie"
     />
   );
