@@ -50,6 +50,33 @@ export type AutomaticSub = { elementIn: number; elementOut: number };
 // naraz, bez filtra po GW — filtrowanie do konkretnej kolejki robi wołający)
 export type EntryTransfer = { elementIn: number; elementOut: number; event: number; time: string };
 
+// Redukuje surowy log transferów FPL (dla JEDNEJ kolejki, jednego managera) do NETTO par
+// "wyszedł -> wszedł" — usuwa cofnięte ruchy. Przy budowaniu wildcarda/free hita w interfejsie
+// FPL każde przesunięcie zawodnika w planerze (wstaw, cofnij, wstaw kogoś innego) trafia do
+// /transfers/ jako osobny wpis, mimo że finalnie w składzie nic się nie zmieniło — bez tej
+// redukcji liczba transferów i suma punktowej różnicy potrafiły być mocno zawyżone/błędne przy
+// dużych przebudowach składu (zaobserwowane: 22 surowe wpisy, z czego tylko 10 realnie zostało w
+// składzie). Wejście MUSI być posortowane chronologicznie (rosnąco po czasie) i dotyczyć jednej GW.
+export function collapseTransferChain<T extends { elementOut: number; elementIn: number }>(
+  eventsChronological: T[]
+): { elementOut: number; elementIn: number }[] {
+  const chain = new Map<number, number>(); // head (oryginalny "wyszedł") -> aktualny finalny "wszedł"
+  const occupantToHead = new Map<number, number>(); // aktualny occupant slotu -> jego head
+  const headOrder: number[] = []; // kolejność pierwszego pojawienia się każdego head'a (stabilny porządek wyniku)
+
+  for (const t of eventsChronological) {
+    const head = occupantToHead.has(t.elementOut) ? occupantToHead.get(t.elementOut)! : t.elementOut;
+    if (!chain.has(head)) headOrder.push(head);
+    chain.set(head, t.elementIn);
+    occupantToHead.set(t.elementIn, head);
+    occupantToHead.delete(t.elementOut);
+  }
+
+  return headOrder
+    .filter(head => chain.get(head) !== head) // odfiltruj pełne cofnięcia (wrócił do punktu wyjścia)
+    .map(head => ({ elementOut: head, elementIn: chain.get(head)! }));
+}
+
 export type LiveElementStats = { points: number; minutes: number };
 
 export type PicksData = {
