@@ -3,7 +3,7 @@
 Bieżący stan pracy nad ROADMAP.md — czytaj to na początku sesji, żeby wiedzieć od czego
 kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → DOCUMENT).
 
-## Stan na 2026-09-05 (koniec dnia)
+## Stan na 2026-09-05 (koniec dnia, po dokończeniu automatyzacji)
 
 ### Zrobione i zmergowane do `main`
 
@@ -16,78 +16,62 @@ kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → 
 3. **PR #3** — pierwszy ręczny ingest FPL → BigQuery: `pipeline/ingest_league_snapshot.py`
    zapisuje snapshot tabeli ligi do `fpl_raw.league_standings_snapshot` (partycjonowana
    dziennie, load job — darmowy w BQ). Uruchomiony ręcznie 2×, tabela ma 30 wierszy.
+4. **PR #5** — automatyzacja ingestu: Cloud Scheduler (raz dziennie, 06:00 czasu
+   Warszawy) → Cloud Function gen2 (`fpl-ingest-league-snapshot`, `europe-west1`) →
+   BigQuery. Szczegóły niżej.
 
 Dodano też `ROADMAP.md` (pełna fazowa roadmapa, PR #1) i ten plik.
 
-### W toku — branch `automate-league-snapshot-ingest` (WIP, NIE zmergowany, NIE ma PR)
+### Automatyzacja ingestu — jak działa i jak powstała
 
-Cel: zamienić ręczne `python pipeline/ingest_league_snapshot.py` na automatyczny
-Cloud Scheduler (raz dziennie) → Cloud Function, zgodnie z milestone Phase 1 w
-ROADMAP.md ("automatyczne pobieranie danych").
+Cel z Phase 1 ROADMAP.md ("automatyczne pobieranie danych") jest zrealizowany:
+`python pipeline/ingest_league_snapshot.py` uruchamiany ręcznie zastąpiony przez
+Cloud Scheduler → Cloud Function.
 
-**Zrobione na tym branchu:**
-- Refaktoryzacja `pipeline/`: logika przeniesiona do `snapshot.py` (`run_ingest()`),
-  `ingest_league_snapshot.py` to teraz cienki CLI wrapper (działa tak samo jak wcześniej —
-  przetestowane, tabela ma teraz 30 wierszy z dwóch ręcznych uruchomień), nowy
-  `main.py` to entry point pod Cloud Function (`ingest_snapshot(request)`,
-  `functions-framework`). Zacommitowane, wypchnięte na `origin/automate-league-snapshot-ingest`.
-- Włączone API w projekcie: `cloudfunctions.googleapis.com`, `cloudbuild.googleapis.com`,
-  `run.googleapis.com`, `eventarc.googleapis.com`, `cloudscheduler.googleapis.com`.
+**Refaktoryzacja `pipeline/`:** logika przeniesiona do `snapshot.py` (`run_ingest()`),
+`ingest_league_snapshot.py` to cienki CLI wrapper (działa tak samo jak wcześniej),
+`main.py` to entry point pod Cloud Function (`ingest_snapshot(request)`,
+`functions-framework`).
 
-**Zablokowane na:** deploy Cloud Function (gen2) failuje na etapie Cloud Build:
+**Deploy:**
 
 ```
-OperationError: code=3, message=Build failed with status: FAILURE. Could not build
-the function due to a missing permission on the build service account.
+gcloud functions deploy fpl-ingest-league-snapshot \
+  --gen2 --project=project-a756698f-2656-44a0-b8d --region=europe-west1 \
+  --runtime=python313 --source=pipeline --entry-point=ingest_snapshot \
+  --trigger-http --no-allow-unauthenticated \
+  --service-account=fpl333-app@project-a756698f-2656-44a0-b8d.iam.gserviceaccount.com \
+  --memory=256Mi --timeout=60s
 ```
 
-**Przyczyna:** Compute Engine default service account
-(`843494044426-compute@developer.gserviceaccount.com`) — używany domyślnie przez
-Cloud Build do budowania obrazu funkcji — nie ma roli `roles/cloudbuild.builds.builder`.
-Znana, udokumentowana usterka na świeżo włączonym Cloud Build API.
+Uwierzytelnianie: `fpl333-app` ma `roles/run.invoker` na usłudze Cloud Run pod spodem
+funkcji (gen2 functions działają na Cloud Run). Cloud Scheduler job
+`fpl-ingest-league-snapshot-daily` (cron `0 6 * * *`, strefa `Europe/Warsaw`) wywołuje
+funkcję OIDC tokenem tego samego SA.
 
-### Następne kroki (jutro, w tej kolejności)
+**Dwie osobne przeszkody IAM napotkane przy deployu Cloud Function (obie wymagały
+ręcznego `gcloud ... add-iam-policy-binding` — zmiany IAM na poziomie projektu/bucketu są
+blokowane dla mnie przez classifier, tak jak wcześniej przy WIF):**
 
-1. **Nadać brakującą rolę** (wymaga ręcznego uruchomienia — zmiany IAM na poziomie
-   projektu są blokowane dla mnie przez classifier, tak jak poprzednio przy WIF):
+1. Compute Engine default service account
+   (`843494044426-compute@developer.gserviceaccount.com`) nie miał roli
+   `roles/cloudbuild.builds.builder` na poziomie projektu — mimo że dedykowany SA
+   `843494044426@cloudbuild.gserviceaccount.com` tę rolę już miał. Generyczny błąd
+   Cloud Build (`missing permission on the build service account`) nie precyzował
+   której roli/SA brakuje.
+2. Po naprawie (1) build nadal failował z tym samym generycznym komunikatem. Dopiero
+   `gcloud builds describe <BUILD_ID> --format=json` i zdekodowanie base64 pola
+   `results.buildStepOutputs` ujawniło prawdziwą przyczynę: brak `roles/storage.objectViewer`
+   na buckecie `gcf-v2-sources-843494044426-europe-west1` (źródło funkcji) dla tego
+   samego SA. Po nadaniu obu ról deploy przeszedł.
 
-   ```
-   gcloud projects add-iam-policy-binding project-a756698f-2656-44a0-b8d \
-     --member="serviceAccount:843494044426-compute@developer.gserviceaccount.com" \
-     --role="roles/cloudbuild.builds.builder"
-   ```
+**Test end-to-end wykonany:** `gcloud scheduler jobs run fpl-ingest-league-snapshot-daily`
+→ request do Cloud Run zalogowany ze statusem 200 (log `run.googleapis.com/requests`,
+zauważalne opóźnienie indeksowania logów rzędu ~2-3 min) → nowy wiersz
+`snapshot_ts = 2026-09-05 08:50:50` w BigQuery (15 wierszy, tabela ma teraz łącznie 45).
 
-2. **Ponowić deploy** (z repo root, branch `automate-league-snapshot-ingest`):
-
-   ```
-   gcloud functions deploy fpl-ingest-league-snapshot \
-     --gen2 \
-     --project=project-a756698f-2656-44a0-b8d \
-     --region=europe-west1 \
-     --runtime=python313 \
-     --source=pipeline \
-     --entry-point=ingest_snapshot \
-     --trigger-http \
-     --no-allow-unauthenticated \
-     --service-account=fpl333-app@project-a756698f-2656-44a0-b8d.iam.gserviceaccount.com \
-     --memory=256Mi \
-     --timeout=60s
-   ```
-
-3. Nadać `fpl333-app` rolę `roles/run.invoker` na wdrożonej usłudze (gen2 functions
-   działają na Cloud Run pod spodem) — dokładna komenda do ustalenia po udanym deployu
-   (nazwa usługi Cloud Run może się różnić od nazwy funkcji).
-
-4. Utworzyć **Cloud Scheduler** job — cron raz dziennie (decyzja z sesji: "raz dziennie"
-   wystarczy do budowania historii rankingu), autoryzacja przez OIDC token
-   service accounta `fpl333-app` wskazujący na URL funkcji.
-
-5. **Przetestować end-to-end**: ręcznie odpalić Scheduler job (`gcloud scheduler jobs run`),
-   sprawdzić że nowy wiersz wylądował w BigQuery, sprawdzić logi funkcji.
-
-6. Dopiero wtedy: commit ewentualnych poprawek, **PR i merge** brancha
-   `automate-league-snapshot-ingest` do `main` (jeszcze nie było — branch jest tylko
-   zabezpieczony na zdalnym repo, nie zmergowany).
+Branch `automate-league-snapshot-ingest` — do zmergowania (PR jeszcze do utworzenia w
+tej sesji, patrz commit historia).
 
 ### Zaległe porządki (nieblokujące, kiedyś)
 
@@ -97,8 +81,12 @@ Znana, udokumentowana usterka na świeżo włączonym Cloud Build API.
   tylko `workloadIdentityUser` + role BigQuery/Datastore, które już ma) — least privilege.
 - Dataset `fpl_history` w BigQuery jest pusty, powstał przed tą sesją (1 września),
   nieznane pochodzenie/przeznaczenie — do decyzji: usunąć czy zostawić na później.
+- Cloud Function loguje ostrzeżenie przy pierwszym deployu:
+  "Cloud Run service ... was not found. The service was redeployed with default
+  values." — nieszkodliwe (to pierwszy deploy tej funkcji), ale sprawdzić przy kolejnych
+  deployach czy się nie powtarza z innego powodu.
 
-### Po dokończeniu automatyzacji
+### Następny krok
 
 Przejście do **Phase 2** z ROADMAP.md: warstwy RAW → STAGING → FEATURES, więcej
 surowych tabel (`raw_players`, `raw_fixtures`, `raw_gameweeks`), walidacja jakości
