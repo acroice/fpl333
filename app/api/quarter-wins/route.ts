@@ -102,18 +102,45 @@ export async function GET(req: NextRequest){
     })();
 
     // dla każdego gracza: pobierz jego historię punktową (RÓWNOLEGLE, nie po kolei) i policz
-    // sumy w każdej ćwiartce — przy 15 managerach to jeden "okrążony" czas oczekiwania zamiast 15
-    const histories = await Promise.all(leagueEntries.map(plr => fetchEntryHistoryCached(plr.entry)));
+    // sumy w każdej ćwiartce — przy 15 managerach to jeden "okrążony" czas oczekiwania zamiast 15.
+    // Równolegle dociągamy live standings ligi (i tak cache'owane, patrz fetchLeagueEntries wyżej —
+    // to praktycznie darmowy odczyt z cache) po LIVE event_total: /entry/{id}/history/ dla
+    // TRWAJĄCEJ/świeżo zamkniętej (ale jeszcze nie potwierdzonej bonusami) kolejki potrafi zostawać
+    // w tyle o dokładnie tyle punktów, ile jeszcze nie doliczono bonusów — sprawdzone: ta sama GW
+    // pokazywała 50 pkt z historii, a 53 pkt (już z bonusami) w live standings Ligi. Efekt: Ćwiartki
+    // liczyły bieżącą kolejkę na innych (starszych) liczbach niż to, co widać w Lidze/GW Pulse — te
+    // "dwie różne informacje". Standings to JEDYNE źródło z faktycznie live event_total (patrz
+    // komentarz przy estimateLiveOverallRank niżej) — dla latestGw używamy go zamiast historii, dla
+    // wszystkich wcześniejszych (już zamkniętych, bonusy dawno potwierdzone) historia jest w 100%
+    // wiarygodna i tam jej nie ruszamy.
+    const [histories, liveStandings] = await Promise.all([
+      Promise.all(leagueEntries.map(plr => fetchEntryHistoryCached(plr.entry))),
+      fetchClassicStandingsCached(leagueId),
+    ]);
+    const liveEventTotalByEntry = new Map<number, number>(
+      liveStandings.results.map((r: any) => [r.entry, Number(r.event_total ?? 0)])
+    );
+
+    // Najświeższa kolejka, dla której mamy dane (max gw obecny w historii managerów) — potrzebna
+    // już tutaj (żeby wiedzieć, którą kolejkę zastąpić live wartością), a dalej też do badge'a
+    // chipa w tabeli głównej i do "Awards of the Week".
+    let latestGw = 0;
+    for (const h of histories) {
+      for (const item of h.current) {
+        if (item.gw > latestGw) latestGw = item.gw;
+      }
+    }
 
     leagueEntries.forEach((plr, idx) => {
       const hist = histories[idx].current; // [{gw, pts, cost, value, overallRank, benchPoints}]
+      const livePts = liveEventTotalByEntry.get(plr.entry);
 
       for (const q of ranges){
         let sum = 0;
         let hitsSum = 0;
         for (const item of hist){
           if (item.gw >= q.fromGW && item.gw <= q.toGW){
-            sum += item.pts;
+            sum += (item.gw === latestGw && livePts != null) ? livePts : item.pts;
             hitsSum += item.cost;
           }
         }
@@ -138,11 +165,18 @@ export async function GET(req: NextRequest){
     // historia GW-po-GW per manager (posortowana) — do sparkline'a formy w tabeli (pts), ale
     // też do sekcji Sezon/Statystyki (cost/value/benchPoints), z danych które już mamy w
     // pamięci z powyższej pętli, zero dodatkowych zapytań. Addytywne wzbogacenie — istniejący
-    // front, który czyta tylko .pts, działa bez zmian.
+    // front, który czyta tylko .pts, działa bez zmian. latestGw dostaje tę samą korektę na live
+    // event_total co quarterScores wyżej — inaczej wykres w Sezonie i rankingi w Statystykach
+    // pokazywałyby dla bieżącej kolejki inną liczbę niż Liga/GW Pulse.
     const gwPoints: Record<number, { gw: number; pts: number; cost: number; value: number; benchPoints: number }[]> = {};
     leagueEntries.forEach((plr, idx) => {
+      const livePts = liveEventTotalByEntry.get(plr.entry);
       gwPoints[plr.entry] = histories[idx].current
-        .map(x => ({ gw: x.gw, pts: x.pts, cost: x.cost, value: x.value, benchPoints: x.benchPoints }))
+        .map(x => ({
+          gw: x.gw,
+          pts: (x.gw === latestGw && livePts != null) ? livePts : x.pts,
+          cost: x.cost, value: x.value, benchPoints: x.benchPoints,
+        }))
         .sort((a, b) => a.gw - b.gw);
     });
 
@@ -209,14 +243,8 @@ export async function GET(req: NextRequest){
       }));
     }
 
-    // Najświeższa kolejka, dla której mamy dane (max gw obecny w historii managerów) —
-    // używana do badge'a chipa w tabeli głównej i do "Awards of the Week"
-    let latestGw = 0;
-    for (const h of histories) {
-      for (const item of h.current) {
-        if (item.gw > latestGw) latestGw = item.gw;
-      }
-    }
+    // latestGw policzone już wyżej (potrzebne wcześniej do korekty gwPoints/quarterScores na live
+    // event_total) — tu tylko dalej używane do badge'a chipa w tabeli głównej i "Awards of the Week".
 
     // Czy pokazać powiadomienie "Podsumowanie GW" — aktywne przez 24h od (estymowanego) końca
     // ostatniego meczu latestGw, licząc DOPIERO od completion.allFinished (bonusy potwierdzone na
