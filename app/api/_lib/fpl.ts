@@ -77,6 +77,34 @@ export function collapseTransferChain<T extends { elementOut: number; elementIn:
     .map(head => ({ elementOut: head, elementIn: chain.get(head)! }));
 }
 
+// Mnożnik zawodnika PO oficjalnych automatycznych zamianach FPL (automatic_subs) — bazowy
+// mnożnik z picks (0 dla ławki, 1/2/3 dla podstawy z opaską), wyzerowany dla kogoś kto WYPADŁ
+// (0 minut, zastąpiony), i przejęty od zastąpionego dla kogoś kto WSZEDŁ z ławki. Innymi słowy:
+// czy dany zawodnik faktycznie wliczył się do wyniku tej GW. Współdzielone przez squad/route.ts
+// (wyświetlanie składu) i quarter-wins/route.ts (żeby delta transferu nie liczyła punktów
+// zawodnika, który wszedł, ale przesiedział kolejkę na ławce — patrz komentarz przy delcie w
+// buildTransferRows/transfersHistory).
+export function effectiveMultiplierAfterSubs(
+  picks: { element: number; multiplier: number }[],
+  automaticSubs: { elementIn: number; elementOut: number }[]
+): Record<number, number> {
+  const subOutToIn = new Map(automaticSubs.map(s => [s.elementOut, s.elementIn]));
+  const subInToOut = new Map(automaticSubs.map(s => [s.elementIn, s.elementOut]));
+  const picksByElement = new Map(picks.map(p => [p.element, p]));
+  const result: Record<number, number> = {};
+  for (const p of picks) {
+    if (subOutToIn.has(p.element)) {
+      result[p.element] = 0; // wypadł (0 minut) — nie liczy się, mimo bazowego mnożnika > 0
+    } else if (subInToOut.has(p.element)) {
+      const outPick = picksByElement.get(subInToOut.get(p.element)!);
+      result[p.element] = outPick ? outPick.multiplier : 1; // wszedł z ławki — przejmuje mnożnik zastąpionego
+    } else {
+      result[p.element] = p.multiplier;
+    }
+  }
+  return result;
+}
+
 export type LiveElementStats = { points: number; minutes: number };
 
 export type PicksData = {

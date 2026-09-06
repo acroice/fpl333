@@ -5,6 +5,7 @@ import {
   fetchEntryPicksCached,
   fetchEntryTransfersCached,
   collapseTransferChain,
+  effectiveMultiplierAfterSubs,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchBootstrapCached,
@@ -489,9 +490,13 @@ export async function GET(req: NextRequest){
     // transferów i lista "kto na kogo" potrafiły być mocno zawyżone/zaśmiecone przy dużych
     // przebudowach składu (WC/FH). pointsOut/pointsIn/delta liczone TYLKO dla latestGw (jedyna GW,
     // dla której mamy już live stats w pamięci) — null dla starszych, Statystyki i tak ich nie
-    // potrzebują (liczą tylko koszt hita per GW).
+    // potrzebują (liczą tylko koszt hita per GW). Gdy wchodzący wylądował na ławce (benchedIn,
+    // sprawdzone przez effectiveMultiplier w składzie TEJ GW) delta = 0 — ten ruch w praktyce NIE
+    // wpłynął na wynik managera w tej GW, więc nie liczymy go jako "stratę" mimo że wychodzący
+    // zawodnik mógł gdzieś tam zdobyć swoje punkty (patrz komentarz przy buildTransferRows w
+    // squad/route.ts, ta sama logika).
     const allTransfers = await Promise.all(leagueEntries.map(e => fetchEntryTransfersCached(e.entry)));
-    const transfersHistory: Record<number, { event: number; elementOut: number; nameOut: string; elementIn: number; nameIn: string; pointsOut: number | null; pointsIn: number | null; delta: number | null }[]> = {};
+    const transfersHistory: Record<number, { event: number; elementOut: number; nameOut: string; elementIn: number; nameIn: string; pointsOut: number | null; pointsIn: number | null; benchedIn: boolean | null; delta: number | null }[]> = {};
     leagueEntries.forEach((plr, idx) => {
       const sorted = allTransfers[idx].slice().sort((a, b) => a.time.localeCompare(b.time));
       const byEvent = new Map<number, typeof sorted>();
@@ -499,12 +504,14 @@ export async function GET(req: NextRequest){
         if (!byEvent.has(t.event)) byEvent.set(t.event, []);
         byEvent.get(t.event)!.push(t);
       }
+      const latestMultiplier = effectiveMultiplierAfterSubs(allPicksLatest[idx].picks, allPicksLatest[idx].automaticSubs);
       const rows: typeof transfersHistory[number] = [];
       for (const [event, group] of byEvent.entries()) {
         const isLatest = event === latestGw;
         for (const t of collapseTransferChain(group)) {
           const pointsOut = isLatest ? (live[t.elementOut] ?? 0) : null;
           const pointsIn = isLatest ? (live[t.elementIn] ?? 0) : null;
+          const benchedIn = isLatest ? (latestMultiplier[t.elementIn] ?? 0) === 0 : null;
           rows.push({
             event,
             elementOut: t.elementOut,
@@ -513,7 +520,8 @@ export async function GET(req: NextRequest){
             nameIn: bootstrap.elementsById[t.elementIn]?.web_name ?? '—',
             pointsOut,
             pointsIn,
-            delta: isLatest ? (pointsIn! - pointsOut!) : null,
+            benchedIn,
+            delta: isLatest ? (benchedIn ? 0 : pointsIn! - pointsOut!) : null,
           });
         }
       }

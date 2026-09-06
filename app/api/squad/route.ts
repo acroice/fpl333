@@ -4,6 +4,7 @@ import {
   fetchEntryPicksCached,
   fetchEntryTransfersCached,
   collapseTransferChain,
+  effectiveMultiplierAfterSubs,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchFinishedTeamsCached,
@@ -75,14 +76,19 @@ function buildSquad(
 // log FPL zawiera też cofnięte ruchy (np. przy budowaniu wildcarda w interfejsie ktoś wstawia
 // zawodnika, zmienia zdanie, wraca do poprzedniego — każdy krok trafia do /transfers/ osobno,
 // mimo że finalnie nic się nie zmieniło), więc bez redukcji ta lista potrafiła pokazywać
-// dwucyfrową liczbę "transferów" zamiast realnych kilku. Punkty OUT/IN liczone z `live` (tej samej
-// kolejki), więc działają niezależnie od tego, czy wychodzący zawodnik został w składzie — a delta
-// to realny zysk/strata z samego ruchu, na żywo w miarę jak obaj grają swoje mecze.
+// dwucyfrową liczbę "transferów" zamiast realnych kilku. pointsOut/pointsIn to SUROWE punkty
+// zawodników z `live` (ile zdobyli w tej kolejce, niezależnie od czyjegokolwiek składu) — czysto
+// informacyjne, "kto lepiej zagrał". Gdy wchodzący wylądował na ławce (benchedIn, sprawdzone przez
+// effectiveMultiplier w TYM składzie) delta = 0: ten konkretny ruch w praktyce NIE wpłynął na wynik
+// managera w tej GW (zawodnik przesiedział ją na ławce), więc nie ma sensu liczyć go jako "stratę"
+// — mimo że wychodzący zawodnik gdzieś tam mógł zdobyć swoje punkty (te wciąż widać w pointsOut,
+// tylko nie wchodzą już do bilansu tego ruchu).
 function buildTransferRows(
   transfers: { elementIn: number; elementOut: number; event: number; time: string }[],
   gw: number,
   live: Record<number, number>,
-  bootstrap: BootstrapSlim
+  bootstrap: BootstrapSlim,
+  effectiveMultiplier: Record<number, number>
 ) {
   const chronological = transfers
     .filter(t => t.event === gw)
@@ -93,6 +99,7 @@ function buildTransferRows(
       const elIn = bootstrap.elementsById[t.elementIn];
       const pointsOut = live[t.elementOut] ?? 0;
       const pointsIn = live[t.elementIn] ?? 0;
+      const benchedIn = (effectiveMultiplier[t.elementIn] ?? 0) === 0;
       return {
         elementOut: t.elementOut,
         nameOut: elOut?.web_name ?? '—',
@@ -102,7 +109,8 @@ function buildTransferRows(
         nameIn: elIn?.web_name ?? '—',
         photoUrlIn: elIn ? playerPhotoUrl(elIn.code) : '',
         pointsIn,
-        delta: pointsIn - pointsOut,
+        benchedIn,
+        delta: benchedIn ? 0 : pointsIn - pointsOut,
       };
     });
 }
@@ -159,25 +167,11 @@ export async function GET(req: NextRequest) {
     }
     const leagueSize = leagueEntries.length;
 
-    // Skład "jak wybrany" — bazowy mnożnik z picks, bez żadnych zamian (subbedIn/subbedOut puste).
-    const baseMultiplier: Record<number, number> = {};
-    for (const p of targetPicks.picks) baseMultiplier[p.element] = p.multiplier;
-
     // Automatyczne zamiany FPL (oficjalne) — jeśli już są dostępne (kolejka zamknięta), stosujemy
     // je: podstawowy skład/ławka i punkty per zawodnik odzwierciedlają to, co faktycznie się liczyło.
-    const officialSubOutToIn = new Map(targetPicks.automaticSubs.map(s => [s.elementOut, s.elementIn]));
+    const officialMultiplier = effectiveMultiplierAfterSubs(targetPicks.picks, targetPicks.automaticSubs);
     const officialSubInToOut = new Map(targetPicks.automaticSubs.map(s => [s.elementIn, s.elementOut]));
-    const picksByElement = new Map(targetPicks.picks.map(p => [p.element, p]));
-
-    const officialMultiplier: Record<number, number> = { ...baseMultiplier };
-    for (const p of targetPicks.picks) {
-      if (officialSubOutToIn.has(p.element)) {
-        officialMultiplier[p.element] = 0;
-      } else if (officialSubInToOut.has(p.element)) {
-        const outPick = picksByElement.get(officialSubInToOut.get(p.element)!);
-        officialMultiplier[p.element] = outPick ? outPick.multiplier : 1;
-      }
-    }
+    const officialSubOutToIn = new Map(targetPicks.automaticSubs.map(s => [s.elementOut, s.elementIn]));
 
     const squad = buildSquad(
       targetPicks.picks,
@@ -196,6 +190,10 @@ export async function GET(req: NextRequest) {
     let projectedSquad: ReturnType<typeof buildSquad> | null = null;
     let projectedTotal: number | null = null;
     let hasProjection = false;
+    // multiplier "na żywo" najbliższy prawdy w tym momencie — projekcja, jeśli jest (kolejka w
+    // trakcie), inaczej oficjalne automatic_subs. Do liczenia delty transferu niżej (buildTransferRows),
+    // żeby wchodzący zawodnik na ławce liczył się jako 0, nie jako pełne surowe punkty.
+    let liveMultiplier = officialMultiplier;
 
     if (targetPicks.automaticSubs.length === 0) {
       const [minutes, fixtureTeams] = await Promise.all([
@@ -203,6 +201,7 @@ export async function GET(req: NextRequest) {
         fetchFinishedTeamsCached(gw),
       ]);
       const sim = simulateAutosubs(targetPicks.picks, minutes, fixtureTeams, bootstrap.elementsById);
+      liveMultiplier = sim.effectiveMultiplier;
 
       projectedSquad = buildSquad(
         targetPicks.picks,
@@ -227,7 +226,7 @@ export async function GET(req: NextRequest) {
       ? { code: targetPicks.activeChip, label: CHIP_LABELS[targetPicks.activeChip] || targetPicks.activeChip, name: CHIP_NAMES[targetPicks.activeChip] || targetPicks.activeChip }
       : null;
 
-    const transfers = buildTransferRows(entryTransfers, gw, live, bootstrap);
+    const transfers = buildTransferRows(entryTransfers, gw, live, bootstrap, liveMultiplier);
 
     return NextResponse.json({
       gw,

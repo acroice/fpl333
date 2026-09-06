@@ -121,6 +121,25 @@ export function RankFill({ pct, tone }: { pct: number; tone: Tone }) {
   return <span className={`rankbar-fill rankbar-fill--${tone}`} style={{ width: `${pct}%` }} aria-hidden="true" />;
 }
 
+// inicjały managera (np. "Damian Cichocki" -> "DC") — kompaktowy, czytelny tag właściciela
+// zamiast gołych liter "A"/"B" (Porównaj) albo braku jakiejkolwiek grafiki przy nazwisku (Liga,
+// managerowie w przeciwieństwie do zawodników nie mają zdjęć z API FPL)
+export function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '—';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// awatar-inicjały managera w tabeli Ligi. Top3 rankingu dostaje kolor medalu (ten sam duch co
+// rankBadge 🥇🥈🥉 w ćwiartkach) — to GENUINE osiągnięcie, w odróżnieniu od np. rankingu "kto
+// zostawił najwięcej na ławce" w Statystykach, gdzie świadomie zrezygnowaliśmy z medali, bo tamto
+// nie jest czymś do świętowania. `rank` jest opcjonalny (np. Porównaj nie ma pojęcia rankingu).
+export function ManagerAvatar({ name, rank }: { name: string; rank?: number }) {
+  const tier = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'plain';
+  return <span className={`manageravatar manageravatar--${tier}`} title={name} aria-hidden="true">{initials(name)}</span>;
+}
+
 // mały herb klubu — jeśli się nie załaduje, po prostu znika (sam skrót klubu w tekście wystarczy)
 export function ClubBadge({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);

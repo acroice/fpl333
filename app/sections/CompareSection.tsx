@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, SquadData, SquadPlayer, LeagueOverview } from '../lib/types';
-import { PlayerAvatar, ClubBadge, StatModule } from '../components/shared';
+import { PlayerAvatar, ClubBadge, StatModule, initials } from '../components/shared';
 
 type Props = {
   active: boolean;
@@ -21,16 +21,6 @@ type Props = {
 // które i tak zdobyli, tak jak w drilldownie składu w Lidze
 function pointsFor(p: SquadPlayer) {
   return p.multiplier > 0 ? p.total : p.points;
-}
-
-// inicjały managera (np. "Damian Cichocki" -> "DC") do kompaktowego, czytelnego tagu właściciela
-// w leaderboardzie różnicowych zawodników — zastępuje gołe "A"/"B", które nic same z siebie nie
-// mówiły bez zerknięcia na selektory wyżej
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '—';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 // "⚔️ Porównaj" — dawny showCompare panel z page.tsx przeniesiony 1:1 (wybór managerów, diff

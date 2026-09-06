@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -122,10 +122,17 @@ function renderTransferBadge(entry: number, gw: number | null | undefined, trans
     return (
       <>
         {rows.map((t, i) => (
-          <span key={i} className="transferpill transferpill--compact" title={`${t.nameOut} → ${t.nameIn} w GW${gw}`}>
+          <span
+            key={i}
+            className="transferpill transferpill--compact"
+            title={t.benchedIn
+              ? `${t.nameOut} → ${t.nameIn} w GW${gw} — ${t.nameIn} na ławce, nie liczy się do wyniku`
+              : `${t.nameOut} → ${t.nameIn} w GW${gw}`}
+          >
             <span className="transferpill-out">{t.nameOut}</span>
             <span aria-hidden="true">→</span>
             <span className="transferpill-in">{t.nameIn}</span>
+            {t.benchedIn && <span className="transferpill-bench" title="Na ławce, nie liczy się do wyniku">🪑</span>}
             {t.delta != null && (
               <span className={`transferpill-delta${t.delta > 0 ? ' transferpill-delta--good' : t.delta < 0 ? ' transferpill-delta--bad' : ''}`}>
                 ({t.delta > 0 ? `+${t.delta}` : t.delta})
@@ -143,7 +150,7 @@ function renderTransferBadge(entry: number, gw: number | null | undefined, trans
   return (
     <span
       className="chipbadge chipbadge--transfer"
-      title={`${rows.map(t => `${t.nameOut} → ${t.nameIn}`).join(', ')} — bilans: ${sign}${totalDelta} pkt w GW${gw}`}
+      title={`${rows.map(t => `${t.nameOut} → ${t.nameIn}${t.benchedIn ? ' (ławka)' : ''}`).join(', ')} — bilans: ${sign}${totalDelta} pkt w GW${gw}`}
     >
       🔄 {rows.length}
       <span className={`transferpill-delta${totalDelta > 0 ? ' transferpill-delta--good' : totalDelta < 0 ? ' transferpill-delta--bad' : ''}`}>
@@ -281,6 +288,21 @@ export default function LeagueSection({
     return <span className="gapcell">{gap}</span>;
   };
 
+  // wynik GW z jawnym rozbiciem hita — e.event_total to już NETTO (FPL sam odejmuje koszt
+  // płatnych transferów w standings), ale sam netto wynik nie mówi, że ktoś w ogóle wziął hita.
+  // Przy cost > 0 doklejamy "(-X) =" przed liczbą, tak jak poprosiłeś — reszta (kto na kogo)
+  // i tak jest widoczna w plakietce transferów obok nazwiska / w drill-downie.
+  const renderGwScore = (e: LeagueEntry) => {
+    const cost = teamInfo[e.entry]?.transfersCost ?? 0;
+    if (cost <= 0) return <>{e.event_total}</>;
+    const gross = e.event_total + cost;
+    return (
+      <span title={`Wynik brutto ${gross} pkt − hit ${cost} pkt (płatne transfery) = ${e.event_total} pkt netto`}>
+        <span className="gwscore-hit">(-{cost})</span> = <strong>{e.event_total}</strong>
+      </span>
+    );
+  };
+
   return (
     <section className="card">
       {/* Header: kontekst GW + lider — mały, funkcjonalny, bez hero section */}
@@ -359,6 +381,7 @@ export default function LeagueSection({
                         <td>{e.rank}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <ManagerAvatar name={e.player_name} rank={e.rank} />
                             {e.player_name}
                             <span className="qchevron">{isOpenManager ? '▲' : '▼'}</span>
                             {chip && (
@@ -380,7 +403,7 @@ export default function LeagueSection({
                           </div>
                         </td>
                         <td>
-                          {e.event_total}
+                          {renderGwScore(e)}
                           {overallRank[e.entry] && <div className="small gwscore-or">{renderWorldRank(overallRank[e.entry])}</div>}
                         </td>
                         <td><strong>{e.total}</strong></td>
@@ -417,39 +440,51 @@ export default function LeagueSection({
               const squad = squadCache[e.entry];
 
               return (
+                // Karta = wiersz [rank | avatar | reszta] — CAŁA reszta (nazwisko, drużyna, plakietki,
+                // kapitan, delta/GW/gap) żyje w jednej kolumnie (.leaguecard-body), więc nazwisko ma
+                // zawsze swój OSOBNY wiersz i nigdy nie musi dzielić miejsca z plakietkami chipów/
+                // transferów na wąskim ekranie — to właśnie one "zjadały" nazwiska w starym układzie
+                // (wszystko w jednej linii flex). Plakietki mają teraz własny wiersz niżej, zawijany.
                 <div key={e.entry} className="leaguecard" onClick={() => toggleManager(e.entry)}>
-                  <div className="leaguecard-row1">
-                    <span className="leaguecard-rank">{e.rank}</span>
-                    <span className="leaguecard-manager">
-                      {e.player_name}
-                      {chip && <span className="chipbadge" title={chip.name || chip.label}>{chipIcon(chip.code)}</span>}
-                    </span>
-                    {renderTransferBadge(e.entry, awards?.gw, transfersHistory)}
-                    {renderUsedChips(chipHistory[e.entry], chip)}
-                    <span className="leaguecard-total">{e.total}</span>
-                  </div>
-                  {captain && (
-                    <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
-                      <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
-                      <span>{captain.name}</span>
+                  <span className="leaguecard-rank">{e.rank}</span>
+                  <ManagerAvatar name={e.player_name} rank={e.rank} />
+                  <div className="leaguecard-body">
+                    <div className="leaguecard-headline">
+                      <span className="leaguecard-manager">
+                        {e.player_name}
+                        <span className="qchevron">{isOpenManager ? '▲' : '▼'}</span>
+                      </span>
+                      <span className="leaguecard-total">{e.total}</span>
                     </div>
-                  )}
-                  <div className="leaguecard-row2">
-                    <span>{renderDelta(e)} · GW {e.event_total}{overallRank[e.entry] && <> · {renderWorldRank(overallRank[e.entry])}</>}</span>
-                    <span>{renderGap(e)}</span>
-                  </div>
-                  {isOpenManager && (
-                    <div className="leaguecard-drill" onClick={ev => ev.stopPropagation()}>
-                      <SquadDrilldown
-                        entry={e.entry}
-                        squad={squad}
-                        loading={squadLoading[e.entry]}
-                        errorMsg={squadErrors[e.entry]}
-                        useProjection={useProjection}
-                        setUseProjection={setUseProjection}
-                      />
+                    <div className="leaguecard-team">{e.entry_name}</div>
+                    <div className="leaguecard-badges">
+                      {chip && <span className="chipbadge" title={chip.name || chip.label}>{chipIcon(chip.code)} {chip.label}</span>}
+                      {renderTransferBadge(e.entry, awards?.gw, transfersHistory)}
+                      {renderUsedChips(chipHistory[e.entry], chip)}
                     </div>
-                  )}
+                    {captain && (
+                      <div className="leaguecard-captain" title={`Kapitan: ${captain.name} — ${captain.points} pkt`}>
+                        <PlayerAvatar src={captain.photoUrl} alt={captain.name} />
+                        <span>{captain.name}</span>
+                      </div>
+                    )}
+                    <div className="leaguecard-row2">
+                      <span>{renderDelta(e)} · GW {renderGwScore(e)}{overallRank[e.entry] && <> · {renderWorldRank(overallRank[e.entry])}</>}</span>
+                      <span>{renderGap(e)}</span>
+                    </div>
+                    {isOpenManager && (
+                      <div className="leaguecard-drill" onClick={ev => ev.stopPropagation()}>
+                        <SquadDrilldown
+                          entry={e.entry}
+                          squad={squad}
+                          loading={squadLoading[e.entry]}
+                          errorMsg={squadErrors[e.entry]}
+                          useProjection={useProjection}
+                          setUseProjection={setUseProjection}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -676,11 +711,14 @@ function SquadDrilldown({
             <span
               key={i}
               className="transferpill"
-              title={`${t.nameOut} ${t.pointsOut} pkt → ${t.nameIn} ${t.pointsIn} pkt w GW${squad.gw}`}
+              title={t.benchedIn
+                ? `${t.nameOut} ${t.pointsOut} pkt → ${t.nameIn} ${t.pointsIn} pkt (na ławce, nie liczy się do wyniku) w GW${squad.gw}`
+                : `${t.nameOut} ${t.pointsOut} pkt → ${t.nameIn} ${t.pointsIn} pkt w GW${squad.gw}`}
             >
               <span className="transferpill-out">{t.nameOut}</span>
               <span aria-hidden="true">→</span>
               <span className="transferpill-in">{t.nameIn}</span>
+              {t.benchedIn && <span className="transferpill-bench" title="Na ławce, nie liczy się do wyniku">🪑</span>}
               <span className={`transferpill-delta${t.delta > 0 ? ' transferpill-delta--good' : t.delta < 0 ? ' transferpill-delta--bad' : ''}`}>
                 ({t.delta > 0 ? `+${t.delta}` : t.delta})
               </span>

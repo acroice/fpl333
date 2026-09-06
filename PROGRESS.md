@@ -3,6 +3,52 @@
 Bieżący stan pracy nad ROADMAP.md — czytaj to na początku sesji, żeby wiedzieć od czego
 kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → DOCUMENT).
 
+## Stan na 2026-09-06 (sesja 3 — front-end dashboardu, kontynuacja sesji 2)
+
+Dalszy ciąg polerowania UX (patrz sesja 2 niżej) — Phase 2 z ROADMAP.md nadal nietknięta.
+
+### Sprzątanie: `next.config.js`
+
+Usunięta przestarzała `experimental.appDir` (Next.js 14 ma App Router domyślnie, opcja nie jest
+już rozpoznawana i tylko generowała warning przy starcie dev servera) — zero zmian w zachowaniu.
+
+### Redesign "next-gen": zakładka Liga — tabela/karty rankingu + hit widoczny przy wyniku
+
+Zgłoszenie: karta managera na mobile "zjadała" nazwiska (ucinały je plakietki chipów/transferów w
+tej samej linii flex), a przy okazji poproszono o next-gen upgrade tabeli (inspiracja:
+plan.livefpl.net) i o widoczny hit przy wyniku GW.
+
+- **Prawdziwa przyczyna ucinania nazwisk**: `.leaguecard-row1` trzymał nazwisko, plakietkę chipa,
+  plakietkę transferów i total w JEDNEJ linii flex — na wąskim ekranie z aktywnymi plakietkami
+  nazwisku zostawało za mało miejsca. Naprawione przebudową karty na `[rank | avatar |
+  .leaguecard-body]`, gdzie CAŁA reszta (nazwisko, drużyna, plakietki, kapitan, delta/GW/gap) żyje
+  w jednej kolumnie, jedna pod drugą — nazwisko ma teraz zawsze własny, pełnoszerokościowy wiersz,
+  plakietki dostały osobny, zawijany wiersz niżej. Przy okazji dodana nazwa drużyny na mobile
+  (wcześniej widoczna tylko na desktopie).
+- **`ManagerAvatar`** (nowy komponent w `shared.tsx`) — kółko z inicjałami managera (managerowie,
+  w odróżnieniu od zawodników, nie mają zdjęć z API FPL), Top3 rankingu podświetlony kolorem
+  medalu (złoto/srebro/brąz) — ten sam duch co `rankBadge()` 🥇🥈🥉 w ćwiartkach. `initials()`
+  przeniesione z `CompareSection.tsx` do `shared.tsx` (był to duplikat czekający na reużycie).
+- **Hit przy wyniku GW**: gdy manager wziął płatny transfer, obok wyniku pojawia się `(-4) = 51`
+  (czerwony hit + wynik netto), z tooltipem pokazującym wynik brutto. Dane (`teamInfo.transfersCost`)
+  już istniały w API, brakowało tylko wyświetlenia w Lidze.
+
+### Bugfix: delta transferu liczyła punkty zawodnika, który wylądował na ławce
+
+Zgłoszenie: manager miał pokazane "-3" z transferu na Dubravkę, mimo że Dubravka w ogóle nie grał
+w podstawowym składzie tej GW (siedział na ławce). Przyczyna: `delta = pointsIn - pointsOut`
+liczyła SUROWE punkty wchodzącego zawodnika z `live`, niezależnie od tego, czy w ogóle wliczyły się
+do wyniku managera. Naprawione: nowy współdzielony helper `effectiveMultiplierAfterSubs()` w
+`_lib/fpl.ts` (uwzględnia oficjalne automatyczne zamiany FPL) mówi, czy wchodzący faktycznie zagrał
+w podstawowym składzie tej GW — gdy nie (`benchedIn: true`), **delta = 0** (ten konkretny ruch w
+praktyce nie wpłynął na wynik tej kolejki), zamiast fałszywie liczyć go jako stratę. Zastosowane
+wszędzie, gdzie liczymy deltę transferu jednej GW: `squad/route.ts` (drill-down składu w Lidze) i
+`quarter-wins/route.ts` (`transfersHistory`/plakietki w głównym wierszu Ligi, `topTransferGain` w
+GW Pulse). UI: mała ikonka 🪑 przy nazwisku zawodnika na ławce w pigułce transferu, z tooltipem
+"na ławce, nie liczy się do wyniku" — żeby było widać PRZYCZYNĘ delty 0, nie tylko sam wynik.
+Zweryfikowane na żywym przykładzie z tej sesji: Dubravka i Konsa (obaj na ławce) przeszli z
+`-3`/`-4` na `delta: 0`.
+
 ## Stan na 2026-09-05 (sesja 2 — front-end dashboardu, poza kolejnością ROADMAP.md)
 
 Cała ta sesja to celowa przerwa w Phase 2 (patrz sekcja niżej) na życzenie — polerowanie UX
