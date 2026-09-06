@@ -64,6 +64,33 @@ Zweryfikowane na żywym przykładzie z tej sesji: Dubravka i Konsa (obaj na ław
   (media query ≤600px): druga część (`.squadplayer > span:last-child`) dostaje `flex-basis: 100%`,
   więc zawsze schodzi na własną linię pod nazwiskiem, wyrównaną wcięciem. Desktop bez zmian.
 
+### Bugfix: Ćwiartki (i Sezon/Statystyki) liczyły bieżącą kolejkę na innych liczbach niż Liga
+
+Zgłoszenie: po tym jak Liga dostała bardziej "dynamiczne/estymowane" live wyniki (live event_total,
+live overall rank, live projekcja składu — patrz wcześniejsze sesje), Ćwiartki zaczęły pokazywać
+**inną liczbę punktów** dla tej samej, trwającej kolejki. Przyczyna: `quarterScores`/`gwPoints` w
+`quarter-wins/route.ts` liczyły się z `/entry/{id}/history/` — ten endpoint FPL dla
+TRWAJĄCEJ/świeżo zakończonej (ale jeszcze nie potwierdzonej bonusami) kolejki zostaje w tyle
+dokładnie o tyle punktów, ile jeszcze nie doliczono bonusów. Sprawdzone na żywo: GW3 pokazywała
+`50 pkt` z historii, a `53 pkt` (już z bonusami) w live standings Ligi (`event_total`) — **jedynym**
+źródłem FPL z faktycznie live wynikiem (potwierdzone też wcześniej przy `estimateLiveOverallRank`).
+
+Naprawione u źródła: dla `latestGw` backend podmienia punkty z historii na żywy `event_total` ze
+standings (już i tak cache'owanych, zero dodatkowego kosztu) — zarówno w liczeniu Ćwiartek
+(Top3, zwycięzca bieżącej ćwiartki), jak i w `gwPoints` (czyli automatycznie też wykres Sezonu i
+rankingi Bench/Stabilność w Statystykach dostają tę samą korektę — ta sama liczba wszędzie w
+appce, nie tylko w Ćwiartkach). Starsze, już zamknięte kolejki zostają na historii FPL bez zmian —
+tam jest ona w 100% wiarygodna, nic tam nie trzeba poprawiać. Zweryfikowane: Damian Cichocki GW3
+poszedł z `50` → `53` pkt, sumując się do `204` — dokładnie tyle, ile total w Lidze.
+
+### Stan repo na koniec sesji 3
+
+`main` ma wszystko z tej sesji zmergowane (PR #13–#16), working tree czysty, brak lokalnych
+branchy WIP. Front-end dashboardu (baner GW, Statystyki/Sezon/Porównaj/Liga next-gen, Ownership
+drill-down, spójność live-wyników Ćwiartki↔Liga) jest w stabilnym, zamkniętym stanie. Kolejna
+sesja może zacząć od Phase 2 z ROADMAP.md (RAW → STAGING → FEATURES, patrz plan w sekcji sesji 1
+niżej) — nic z front-endu nie czeka w tej chwili na dokończenie.
+
 ## Stan na 2026-09-05 (sesja 2 — front-end dashboardu, poza kolejnością ROADMAP.md)
 
 Cała ta sesja to celowa przerwa w Phase 2 (patrz sekcja niżej) na życzenie — polerowanie UX
