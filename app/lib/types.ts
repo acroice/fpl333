@@ -165,9 +165,14 @@ export type TopCaptainPick = {
 
 export type ChipUsageRow = { code: string; label: string; name: string; count: number; pct: number };
 
+// kto konkretnie ma danego zawodnika (rozwinięcie wiersza w sekcji Ownership) — z tym samym
+// rozróżnieniem ławka/podstawa co reszta appki, żeby "1/15" dało się od razu sprawdzić, czy ten
+// jeden manager w ogóle grał tym zawodnikiem, czy trzymał go w rezerwie
+export type PlayerOwner = { entry: number; player_name: string; isBench: boolean; isCaptain: boolean };
+
 export type TopOwnedRow = {
   element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
-  ownedCount: number; ownedPct: number; captainCount: number;
+  ownedCount: number; ownedPct: number; captainCount: number; owners: PlayerOwner[];
 };
 
 export type CaptaincyRow = {
@@ -177,7 +182,7 @@ export type CaptaincyRow = {
 
 export type DifferentialRow = {
   element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
-  points: number; ownedCount: number; ownedPct: number;
+  points: number; ownedCount: number; ownedPct: number; owners: PlayerOwner[];
 };
 
 export type LeagueOverview = {
