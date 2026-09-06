@@ -333,6 +333,17 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   min-width:0;
 }
 
+/* wiersz Ownership (Statystyki) klikalny — rozwija listę "kto konkretnie go ma" */
+.ownershiprow { cursor: pointer; }
+/* lista managerów pod rozwiniętym wierszem Ownership — pigułki jak .transferpill, żeby wyglądały
+   spójnie z resztą systemu, nie jak nowy, osobny styl */
+.ownerslist { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px 8px; }
+.ownerpill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 999px; font-size: 11px;
+  background: rgba(159,217,255,.08); border: 1px solid rgba(159,217,255,.22); color: var(--text);
+}
+
 /* okrągły awatar zawodnika (oficjalne zdjęcie PL) */
 .playeravatar {
   width:26px;
@@ -1165,6 +1176,19 @@ body.retro .qdone {
   .leaguetable-mobile { display: block; }
   .gwpulse-grid { grid-template-columns: 1fr 1fr; }
   .leaguectx-left { font-size: 17px; }
+
+  /* Wiersz zawodnika (.squadplayer) w drill-downzie składu Ligi i w Ownership (Statystyki) —
+     na wąskim ekranie nazwisko+klub+plakietki i "pkt · %" na tej samej linii zlewały się ze sobą
+     (za mało miejsca dla obu). Na mobile: druga część (punkty/udział/chevron) schodzi na własną
+     linię pod nazwiskiem, wyrównaną wcięciem pod tekst (za awatarem+pozycją). Desktop zostaje bez
+     zmian — tam miejsca wystarcza, nie ma sensu zajmować dodatkowego wiersza bez potrzeby. */
+  .squadplayer { flex-wrap: wrap; }
+  .squadplayer > span:last-child {
+    flex: 1 0 100%;
+    margin: 2px 0 0 34px;
+    font-size: 12px;
+    color: var(--muted);
+  }
 }
 
 /* przycisk-pigułka otwierający GW Wrapped w nagłówku Ligi — pill z uniesieniem/cieniem przy

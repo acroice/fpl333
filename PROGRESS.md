@@ -49,6 +49,21 @@ GW Pulse). UI: mała ikonka 🪑 przy nazwisku zawodnika na ławce w pigułce tr
 Zweryfikowane na żywym przykładzie z tej sesji: Dubravka i Konsa (obaj na ławce) przeszli z
 `-3`/`-4` na `delta: 0`.
 
+### Ownership (Statystyki): rozwijalne "kto go ma" + drill-down składu Ligi na mobile
+
+- **Ownership → klik = lista managerów**: każdy wiersz w "Najczęściej wybierani"/"Różnicowi
+  zawodnicy" jest teraz klikalny (chevron ▼/▲ przy %) i rozwija pigułki z managerami, którzy mają
+  danego zawodnika — z oznaczeniem 🪑, jeśli trzymali go na ławce (nie 🏅/(C), jeśli był kapitanem).
+  Najbardziej przydatne właśnie przy niskiej obstawie (np. "1/15" z Różnicowych) — od razu widać
+  KTO i czy w ogóle skorzystał z jego punktów, bez szukania po całej Lidze. Backend:
+  `league-overview/route.ts` buduje `owners[]` per zawodnik z `allPicks` (ma już te dane —
+  zero dodatkowych zapytań), ławka liczona z uwzględnieniem automatycznych zamian (ten sam duch co
+  `squadplayer.isBench` w `squad/route.ts`).
+- **Drill-down składu w Lidze na mobile**: wiersz zawodnika (nazwisko+klub w jednej linii, punkty/
+  % obstawy w drugiej tej samej linii flex) zlewał się na wąskim ekranie. Naprawione czysto w CSS
+  (media query ≤600px): druga część (`.squadplayer > span:last-child`) dostaje `flex-basis: 100%`,
+  więc zawsze schodzi na własną linię pod nazwiskiem, wyrównaną wcięciem. Desktop bez zmian.
+
 ## Stan na 2026-09-05 (sesja 2 — front-end dashboardu, poza kolejnością ROADMAP.md)
 
 Cała ta sesja to celowa przerwa w Phase 2 (patrz sekcja niżej) na życzenie — polerowanie UX

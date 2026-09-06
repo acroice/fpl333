@@ -56,12 +56,24 @@ export async function GET(req: NextRequest) {
     // wyglądało jak błąd, więc tu celowo zwykłe 0-100%)
     const ownedCount: Record<number, number> = {};
     const captainCount: Record<number, number> = {};
-    for (const p of allPicks) {
+    // kto konkretnie ma danego zawodnika — do rozwijanego "kto" pod wierszem w Ownership
+    // (Statystyki). Ławka liczona z uwzględnieniem automatycznych zamian (ten sam duch co
+    // squadplayer.isBench w squad/route.ts): kto wszedł z ławki pokazujemy jako podstawę, kto
+    // wypadł (nie zagrał) jako ławkę, inaczej po prostu oryginalny slot (12-15 = ławka).
+    const ownersByElement: Record<number, { entry: number; player_name: string; isBench: boolean; isCaptain: boolean }[]> = {};
+    allPicks.forEach((p, idx) => {
+      const entry = leagueEntries[idx].entry;
+      const player_name = leagueEntries[idx].player_name || '';
       for (const pick of p.picks) {
         ownedCount[pick.element] = (ownedCount[pick.element] || 0) + 1;
         if (pick.isCaptain) captainCount[pick.element] = (captainCount[pick.element] || 0) + 1;
+        const subbedIn = p.automaticSubs.some(s => s.elementIn === pick.element);
+        const subbedOut = p.automaticSubs.some(s => s.elementOut === pick.element);
+        const isBench = subbedIn ? false : subbedOut ? true : pick.position > 11;
+        if (!ownersByElement[pick.element]) ownersByElement[pick.element] = [];
+        ownersByElement[pick.element].push({ entry, player_name, isBench, isCaptain: pick.isCaptain });
       }
-    }
+    });
 
     const ownershipRows = Object.entries(ownedCount).map(([elementStr, count]) => {
       const element = Number(elementStr);
@@ -78,6 +90,7 @@ export async function GET(req: NextRequest) {
         ownedCount: count,
         ownedPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
         captainCount: captainCount[element] || 0,
+        owners: ownersByElement[element] ?? [],
       };
     });
 

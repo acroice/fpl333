@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow } from '../lib/types';
+import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow, PlayerOwner } from '../lib/types';
 import { PlayerAvatar, ClubBadge, chipIcon, rankBadge, StatModule, barPct, RankFill } from '../components/shared';
 
 type Props = {
@@ -29,6 +29,25 @@ type Props = {
 // Paski tła (RankFill/barPct) w rankingach i wierszach zawodników to jedyna wizualna zmiana ponad
 // samą treść — szybki skan "kto ile" bez czytania każdej liczby, w tym samym duchu co pasek
 // postępu ćwiartki w Lidze.
+// Rozwinięcie wiersza w Ownership: "kto konkretnie go ma" — najbardziej przydatne właśnie przy
+// niskiej obstawie (np. "1/15 kozak" z Różnicowych), gdzie od razu chce się wiedzieć KTO, i czy
+// trzymał go w podstawowym składzie, czy tylko na ławce (zamiast klikać po kolei w każdego managera
+// w Lidze, żeby to sprawdzić).
+function renderOwnersPanel(owners: PlayerOwner[]) {
+  if (!owners.length) return null;
+  return (
+    <div className="ownerslist">
+      {owners.map(o => (
+        <span key={o.entry} className="ownerpill" title={o.isBench ? 'Na ławce' : 'W podstawowym składzie'}>
+          {o.player_name}
+          {o.isCaptain && ' (C)'}
+          {o.isBench && ' 🪑'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function StatsSection({
   active, loadOverview, overview, overviewLoading, overviewError,
   entryIndex, gwPoints, chipHistory, teamInfo, topCaptainPick, transfersHistory,
@@ -47,6 +66,10 @@ export default function StatsSection({
   const [showAllConsistency, setShowAllConsistency] = React.useState(false);
   // które wiersze w Transfers mają rozwiniętą listę "kto na kogo, w której GW" (per manager)
   const [expandedTransfers, setExpandedTransfers] = React.useState<Record<number, boolean>>({});
+  // które wiersze w Ownership mają rozwiniętą listę "kto konkretnie go ma" (klucz: element,
+  // wspólny dla Najczęściej wybieranych i Różnicowych — id zawodnika jest unikalny w obu listach)
+  const [expandedOwners, setExpandedOwners] = React.useState<Record<number, boolean>>({});
+  const toggleOwners = (element: number) => setExpandedOwners(prev => ({ ...prev, [element]: !prev[element] }));
 
   // Transfers: suma minusowych pkt (koszt transferów ponad limit) w całym sezonie per manager
   const transferRows = React.useMemo(() => {
@@ -203,16 +226,19 @@ export default function StatsSection({
           <div className="small">
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Najczęściej wybierani:</div>
             {(showAllTopOwned ? overview.topOwned : overview.topOwned.slice(0, 6)).map(p => (
-              <div key={p.element} className="squadplayer squadplayer--viz">
-                <RankFill pct={p.ownedPct} tone="neutral" />
-                <span className="squadplayer-name">
-                  <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                  <span className="pill">{p.position}</span>
-                  {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
-                  {p.captainCount > 0 && ` — C: ${p.captainCount}`}
-                </span>
-                <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize}</span>
-              </div>
+              <React.Fragment key={p.element}>
+                <div className="squadplayer squadplayer--viz ownershiprow" onClick={() => toggleOwners(p.element)}>
+                  <RankFill pct={p.ownedPct} tone="neutral" />
+                  <span className="squadplayer-name">
+                    <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                    <span className="pill">{p.position}</span>
+                    {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
+                    {p.captainCount > 0 && ` — C: ${p.captainCount}`}
+                  </span>
+                  <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize} <span className="qchevron">{expandedOwners[p.element] ? '▲' : '▼'}</span></span>
+                </div>
+                {expandedOwners[p.element] && renderOwnersPanel(p.owners)}
+              </React.Fragment>
             ))}
             {overview.topOwned.length > 6 && (
               <button className="showmore-btn" onClick={() => setShowAllTopOwned(v => !v)}>
@@ -226,15 +252,18 @@ export default function StatsSection({
             ) : (
               <>
                 {(showAllDifferentials ? overview.differentials : overview.differentials.slice(0, 6)).map(p => (
-                  <div key={p.element} className="squadplayer squadplayer--viz">
-                    <RankFill pct={p.ownedPct} tone="neutral" />
-                    <span className="squadplayer-name">
-                      <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                      <span className="pill">{p.position}</span>
-                      {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
-                    </span>
-                    <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize}</span>
-                  </div>
+                  <React.Fragment key={p.element}>
+                    <div className="squadplayer squadplayer--viz ownershiprow" onClick={() => toggleOwners(p.element)}>
+                      <RankFill pct={p.ownedPct} tone="neutral" />
+                      <span className="squadplayer-name">
+                        <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                        <span className="pill">{p.position}</span>
+                        {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
+                      </span>
+                      <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize} <span className="qchevron">{expandedOwners[p.element] ? '▲' : '▼'}</span></span>
+                    </div>
+                    {expandedOwners[p.element] && renderOwnersPanel(p.owners)}
+                  </React.Fragment>
                 ))}
                 {overview.differentials.length > 6 && (
                   <button className="showmore-btn" onClick={() => setShowAllDifferentials(v => !v)}>
