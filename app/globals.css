@@ -155,6 +155,9 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 .transferpill-delta { color:var(--muted); }
 .transferpill-delta--good { color:#5ee1a2; }
 .transferpill-delta--bad { color:#ff9b9b; }
+/* ikonka przy wchodzącym zawodniku, który wylądował na ławce — wyjaśnia od razu, dlaczego delta
+   obok NIE liczy jego surowych punktów (nie wliczyły się do wyniku, więc go pomijamy) */
+.transferpill-bench { opacity: .75; font-size: 11px; }
 
 /* rozkład chipów w kafelku "Chipy w rundzie" (KickoffFactsBanner) — jedna pigułka z ikoną per typ
    chipa + licznik, zamiast tekstu "2×WC · 1×BB" (mało czytelne, zwłaszcza sam znak "×") */
@@ -963,6 +966,24 @@ body.retro .qdone {
   letter-spacing: .4px;
 }
 
+/* Awatar-inicjały managera (Liga, Porównaj) — managerowie w przeciwieństwie do zawodników nie
+   mają zdjęć z API FPL, więc kółko z inicjałami daje im chociaż minimum wizualnej tożsamości.
+   Top3 rankingu Ligi podświetlony kolorem medalu (ten sam duch co 🥇🥈🥉 w ćwiartkach). */
+.manageravatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .2px;
+  background: rgba(159,217,255,.12); border: 1px solid rgba(159,217,255,.28); color: #9fd9ff;
+}
+.manageravatar--gold { background: rgba(240,201,117,.18); border-color: rgba(240,201,117,.4); color: #f0c975; }
+.manageravatar--silver { background: rgba(200,207,216,.18); border-color: rgba(200,207,216,.4); color: #c8cfd8; }
+.manageravatar--bronze { background: rgba(205,127,50,.2); border-color: rgba(205,127,50,.42); color: #e0a06a; }
+
+/* wynik GW z hitem: "(-4) = 51" doklejone przed liczbą, żeby od razu było widać, że manager
+   zapłacił za transfer — bez tego sam netto wynik (51) wyglądał identycznie jak u kogoś, kto
+   nie ruszał składu wcale. */
+.gwscore-hit { color: #ff9b9b; font-weight: 700; font-size: 11px; }
+
 /* desktop widoczny domyślnie, mobile karty schowane — odwrócone w media query niżej */
 .leaguetable-mobile { display: none; }
 
@@ -1033,19 +1054,23 @@ body.retro .qdone {
   color: #9fd9ff;
 }
 
-/* --- Mobile: karty rankingu (nie ściśnięta tabela) --- */
+/* --- Mobile: karty rankingu (nie ściśnięta tabela) ---
+   Wiersz [rank | avatar | .leaguecard-body]. CAŁA reszta (nazwisko, drużyna, plakietki, kapitan,
+   delta/GW/gap) żyje w jednej kolumnie .leaguecard-body, jedna pod drugą — dzięki temu nazwisko
+   ma zawsze swój własny wiersz i nigdy nie dzieli miejsca z plakietkami chipów/transferów na
+   wąskim ekranie (to one wcześniej "zjadały" nazwiska, gdy wszystko było w jednej linii flex). */
 .leaguecard {
-  padding: 10px 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 6px;
   border-bottom: 1px solid #1c2430;
   cursor: pointer;
 }
 .leaguecard:last-child { border-bottom: none; }
-.leaguecard-row1 {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.leaguecard-rank { font-weight: 700; color: var(--muted); font-size: 13px; flex-shrink: 0; width: 18px; }
+.leaguecard-rank { font-weight: 700; color: var(--muted); font-size: 13px; flex-shrink: 0; width: 14px; padding-top: 5px; text-align: center; }
+.leaguecard-body { flex: 1; min-width: 0; }
+.leaguecard-headline { display: flex; align-items: center; gap: 8px; }
 .leaguecard-manager {
   flex: 1;
   min-width: 0;
@@ -1060,6 +1085,11 @@ body.retro .qdone {
   gap: 5px;
 }
 .leaguecard-total { font-weight: 800; font-size: 16px; color: var(--text); flex-shrink: 0; }
+.leaguecard-team { font-size: 11px; color: var(--muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* plakietki (chip aktywny, transfery, chipy już zagrane) — własny zawijany wiersz, osobno od
+   nazwiska; :empty{display:none} bo nie każdy manager ma coś tu do pokazania w danej GW */
+.leaguecard-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.leaguecard-badges:empty { display: none; }
 /* kapitan na karcie mobile — mały awatar + nazwisko, na tyle miejsca ile jest; na skrajnie
    wąskich ekranach nazwisko się bezpiecznie przytnie (…), a pełny skład (z kapitanem oznaczonym
    (C)) jest i tak tap-away przez rozwinięcie karty */
@@ -1067,8 +1097,7 @@ body.retro .qdone {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 4px;
-  padding-left: 26px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--muted);
   overflow: hidden;
@@ -1079,13 +1108,12 @@ body.retro .qdone {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 3px;
-  padding-left: 26px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--muted);
 }
 .leaguecard-drill {
-  margin: 10px 0 4px 26px;
+  margin: 10px 0 4px;
   padding-top: 10px;
   border-top: 1px solid #1c2430;
   cursor: default;

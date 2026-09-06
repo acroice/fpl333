@@ -84,14 +84,16 @@ export type SquadPlayer = {
   ownershipPct: number; // zwykły % ownership w naszej lidze, BEZ mnożnika za kapitana/wicekapitana
 };
 
-// jeden transfer "kto na kogo" w tej GW — z punktami OUT/IN zdobytymi w TEJ kolejce (niezależnie
-// od tego, czy dany zawodnik został w składzie) i różnicą (delta) między nimi, czyli realnym
-// zyskiem/stratą z tego konkretnego ruchu. Live przez trwającą kolejkę — aktualizuje się w miarę
-// jak obaj zawodnicy grają swoje mecze.
+// jeden transfer "kto na kogo" w tej GW — pointsOut/pointsIn to SUROWE punkty zdobyte w TEJ
+// kolejce (czysto informacyjne, "kto lepiej zagrał"), ale gdy wchodzący wylądował na ławce
+// (benchedIn) delta = 0: ten ruch w praktyce nie wpłynął na wynik managera tej GW, więc nie liczymy
+// go jako "stratę" mimo że wychodzący zawodnik mógł gdzieś tam zdobyć swoje punkty. Live przez
+// trwającą kolejkę — aktualizuje się w miarę jak obaj zawodnicy grają swoje mecze.
 export type SquadTransferRow = {
   elementOut: number; nameOut: string; photoUrlOut: string; pointsOut: number;
   elementIn: number; nameIn: string; photoUrlIn: string; pointsIn: number;
-  delta: number; // pointsIn - pointsOut
+  benchedIn: boolean; // wszedł, ale przesiedział tę GW na ławce
+  delta: number; // pointsIn - pointsOut, albo 0 gdy benchedIn (patrz komentarz wyżej)
 };
 
 export type SquadData = {
@@ -143,12 +145,14 @@ export type DifferentialCaptain = {
 export type TopTransferGain = { entry: number; player_name: string; transfers: number; gain: number } | null;
 
 // jeden transfer z pełnej historii sezonu managera — do sekcji "Transfers" w Statystykach oraz do
-// małego podglądu w głównym wierszu Ligi. pointsOut/pointsIn/delta liczone TYLKO dla transferu z
-// bieżącej GW (live stats dla starszych kolejek nie są dociągane — Statystyki i tak ich nie
-// potrzebują, liczą tylko koszt hita per GW) — null dla wszystkich wcześniejszych transferów.
+// małego podglądu w głównym wierszu Ligi. pointsOut/pointsIn/delta/benchedIn liczone TYLKO dla
+// transferu z bieżącej GW (live stats dla starszych kolejek nie są dociągane — Statystyki i tak
+// ich nie potrzebują, liczą tylko koszt hita per GW) — null dla wszystkich wcześniejszych
+// transferów. delta liczy wchodzącego zawodnika jako 0, gdy benchedIn (patrz SquadTransferRow) —
+// żeby nie wyglądało na stratę to, co w ogóle nie wpłynęło na wynik.
 export type SeasonTransferRow = {
   event: number; elementOut: number; nameOut: string; elementIn: number; nameIn: string;
-  pointsOut: number | null; pointsIn: number | null; delta: number | null;
+  pointsOut: number | null; pointsIn: number | null; benchedIn: boolean | null; delta: number | null;
 };
 export type ChipRoundUsage = { code: string; label: string; count: number };
 
