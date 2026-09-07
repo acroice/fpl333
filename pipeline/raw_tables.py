@@ -1,4 +1,4 @@
-"""Rdzen logiki: FPL API (bootstrap-static + fixtures) -> trzy tabele RAW -> BigQuery.
+"""Rdzen logiki: FPL API (bootstrap-static + fixtures + event/live) -> cztery tabele RAW -> BigQuery.
 
 Rozszerzenie Phase 1 (RAW = league_standings_snapshot, patrz snapshot.py) o Phase 2 z
 ROADMAP.md: raw_players, raw_gameweeks, raw_fixtures - surowiec pod przysza warstwe
@@ -26,6 +26,39 @@ elements ma ~100 pol) - dokladnie te pola, ktore Phase 3 juz nazywa wprost jako
 features, plus tyle kontekstu (zespol, pozycja, dostepnosc), zeby dalo sie to polaczyc
 w warstwie STAGING/FEATURES. To ta sama zasada, co juz zastosowana w TABLE_SCHEMA w
 snapshot.py (jawny, wybrany schemat, nie zrzut calego JSON-a).
+
+Czwarta tabela - raw_player_gameweek_live - to osobny przypadek, bo dziala INACZEJ
+niz powyzsze trzy (nie "cala tabela od nowa kazdego dnia", tylko PRZYROSTOWO):
+
+- Zrodlo: /api/event/{gw}/live/ zwraca WSZYSTKICH zawodnikow naraz, ale dla JEDNEJ
+  konkretnej kolejki (ten sam endpoint, ktorego app/api/_lib/fpl.ts uzywa do liczenia
+  live wynikow w Lidze - sprawdzony, stabilny). To 1 zapytanie na kolejke, nie 654
+  zapytan na zawodnika (odrzucony wczesniejszy pomysl z /api/element-summary/{id}/,
+  ktory dawalby to samo, ale kosztowalby 654 zapytania NA KAZDE uruchomienie zamiast
+  raz na kolejke).
+- Kolejka raz zakonczona i rozliczona (bonusy potwierdzone) JUZ SIE NIE ZMIENIA - nie
+  ma sensu pobierac jej ponownie kazdego dnia jak przy cenach/formie (ktore faktycznie
+  sa ruchomym celem). Dlatego ingest jest PRZYROSTOWY: sprawdzamy, ktore gw juz mamy w
+  tabeli, dociagamy TYLKO brakujace. Efekt: po jednorazowym backfillu (GW juz
+  rozegranych) kolejne uruchomienia w normalnym tygodniu robia 0 dodatkowych zapytan do
+  FPL i 0 load jobow, dopoki nie zamknie sie kolejna kolejka - wtedy dokladnie 1
+  dodatkowe zapytanie. To ograniczaja koszt/ruch do FPL API do maksymalnie ~38 zapytan
+  w CALYM sezonie, nie 654 x liczba tygodni.
+- Filtr `data_checked` (nie samo `finished`) - ta sama dyscyplina, co juz wymuszona w
+  app/api/_lib/fpl.ts (GwCompletionInfo.allFinished) po bugfixach live-punktow z
+  poprzednich sesji: `finished_provisional`/`finished` na fixture potrafia byc true
+  zanim FPL doliczy bonusy, wiec ingestowanie kolejki przed `data_checked=true` dalo by
+  tymczasowe, jeszcze nierozliczone liczby na stale do tabeli historycznej.
+- WAZNE dla Phase 3 (unikanie data leakage): ta tabela ma tylko WYNIKI (minuty, gole,
+  punkty) - CELOWO nie ma tu ceny/formy zawodnika (endpoint live/ ich nie zwraca). Cena
+  "z tamtego momentu" nie jest tu dostepna tanio (per-GW cene ma tylko
+  /api/element-summary/{id}/, ktore znow kosztowaloby 654 zapytania/tydzien) - a ceny
+  DZISIEJSZEJ z raw_players NIE WOLNO doklejac do wierszy sprzed GW4 (dokladnie
+  wtedy zaczelismy dziennie snapshotowac raw_players), bo to bylby leakage: model
+  "widzialby" przyszla cene (po dobrej formie) ucząc sie na danych sprzed tej formy.
+  Dlatego trening pierwszego modelu (Phase 3) powinien uzywac ceny/formy TYLKO od GW4
+  w przod - GW1-3 zostaja w tej tabeli (przydatne np. do analiz/ćwiartek), ale bez
+  cenowych features przy budowie treningowego datasetu.
 """
 
 from __future__ import annotations
@@ -49,10 +82,12 @@ FPL_HEADERS = {
 
 BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/"
+EVENT_LIVE_URL_TMPL = "https://fantasy.premierleague.com/api/event/{gw}/live/"
 
 PLAYERS_TABLE = "raw_players"
 GAMEWEEKS_TABLE = "raw_gameweeks"
 FIXTURES_TABLE = "raw_fixtures"
+PLAYER_GW_TABLE = "raw_player_gameweek_live"
 
 PLAYERS_SCHEMA = [
     bigquery.SchemaField("ingested_ts", "TIMESTAMP", mode="REQUIRED"),
@@ -133,6 +168,39 @@ FIXTURES_SCHEMA = [
     bigquery.SchemaField("started", "BOOL", mode="NULLABLE"),
 ]
 
+# Tylko WYNIKI (nie cena/forma - patrz uzasadnienie w naglowku pliku, sekcja o data
+# leakage). Jedno zapytanie na kolejke (event/live), nie na zawodnika.
+PLAYER_GW_SCHEMA = [
+    bigquery.SchemaField("gw", "INT64", mode="REQUIRED"),
+    bigquery.SchemaField("element", "INT64", mode="REQUIRED"),
+    bigquery.SchemaField("ingested_ts", "TIMESTAMP", mode="REQUIRED"),
+    bigquery.SchemaField("minutes", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("starts", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("goals_scored", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("assists", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("clean_sheets", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("goals_conceded", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("own_goals", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("penalties_saved", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("penalties_missed", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("yellow_cards", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("red_cards", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("saves", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("bonus", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("bps", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("influence", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("creativity", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("threat", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("ict_index", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("expected_goals", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("expected_assists", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("expected_goal_involvements", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("expected_goals_conceded", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("total_points", "INT64", mode="NULLABLE"),
+    bigquery.SchemaField("in_dreamteam", "BOOL", mode="NULLABLE"),
+    bigquery.SchemaField("played", "BOOL", mode="NULLABLE"),
+]
+
 
 def _iso_or_none(value: str | None) -> str | None:
     return value if value else None
@@ -149,6 +217,14 @@ def fetch_fixtures() -> list[dict]:
     jedna GW na raz - tu chcemy kompletny terminarz (w tym przyszle, nierozegrane mecze,
     ktore dopiero staja sie 'opponent' features dla kolejnych GW)."""
     resp = requests.get(FIXTURES_URL, headers=FPL_HEADERS, timeout=20)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_event_live(gw: int) -> dict:
+    """Wszyscy zawodnicy naraz, dla JEDNEJ kolejki - patrz uzasadnienie w naglowku pliku
+    (dlaczego to, a nie element-summary per zawodnik)."""
+    resp = requests.get(EVENT_LIVE_URL_TMPL.format(gw=gw), headers=FPL_HEADERS, timeout=20)
     resp.raise_for_status()
     return resp.json()
 
@@ -251,6 +327,54 @@ def build_fixtures_rows(fixtures: list[dict], ts_iso: str) -> list[dict]:
     return rows
 
 
+def build_player_gw_rows(elements: list[dict], gw: int, ts_iso: str) -> list[dict]:
+    """`elements` to lista z /api/event/{gw}/live/ - kazdy ma {id, stats: {...}}.
+    Zapisujemy WSZYSTKICH 654 zawodnikow (nie tylko tych, ktorzy zagrali) - 0 minut to
+    tez poprawna, przydatna obserwacja treningowa, filtrowanie/wazenie nalezy do
+    warstwy FEATURES, nie RAW."""
+    rows = []
+    for el in elements:
+        s = el.get("stats", {})
+
+        def flt(key: str) -> float | None:
+            v = s.get(key)
+            return float(v) if v not in (None, "") else None
+
+        rows.append(
+            {
+                "gw": gw,
+                "element": el["id"],
+                "ingested_ts": ts_iso,
+                "minutes": s.get("minutes"),
+                "starts": s.get("starts"),
+                "goals_scored": s.get("goals_scored"),
+                "assists": s.get("assists"),
+                "clean_sheets": s.get("clean_sheets"),
+                "goals_conceded": s.get("goals_conceded"),
+                "own_goals": s.get("own_goals"),
+                "penalties_saved": s.get("penalties_saved"),
+                "penalties_missed": s.get("penalties_missed"),
+                "yellow_cards": s.get("yellow_cards"),
+                "red_cards": s.get("red_cards"),
+                "saves": s.get("saves"),
+                "bonus": s.get("bonus"),
+                "bps": s.get("bps"),
+                "influence": flt("influence"),
+                "creativity": flt("creativity"),
+                "threat": flt("threat"),
+                "ict_index": flt("ict_index"),
+                "expected_goals": flt("expected_goals"),
+                "expected_assists": flt("expected_assists"),
+                "expected_goal_involvements": flt("expected_goal_involvements"),
+                "expected_goals_conceded": flt("expected_goals_conceded"),
+                "total_points": s.get("total_points"),
+                "in_dreamteam": s.get("in_dreamteam"),
+                "played": s.get("played"),
+            }
+        )
+    return rows
+
+
 def _ensure_dataset(client: bigquery.Client) -> bigquery.DatasetReference:
     dataset_ref = bigquery.DatasetReference(GCP_PROJECT_ID, BQ_DATASET)
     try:
@@ -270,6 +394,10 @@ def _ensure_table(
     schema: list[bigquery.SchemaField],
     description: str,
 ) -> bigquery.TableReference:
+    """Domyslnie partycja dzienna po ingested_ts (snapshot 'jak wygladalo dzisiaj') -
+    pasuje do raw_players/raw_gameweeks/raw_fixtures. raw_player_gameweek_live uzywa
+    zamiast tego _ensure_table_by_gw (partycja po numerze kolejki - patrz tam,
+    dlaczego inna partycja pasuje lepiej do danych faktycznych, nie ruchomego stanu)."""
     table_ref = dataset_ref.table(table_name)
     try:
         client.get_table(table_ref)
@@ -282,6 +410,44 @@ def _ensure_table(
         table.description = description
         client.create_table(table)
     return table_ref
+
+
+def _ensure_table_by_gw(
+    client: bigquery.Client,
+    dataset_ref: bigquery.DatasetReference,
+    table_name: str,
+    schema: list[bigquery.SchemaField],
+    description: str,
+) -> bigquery.TableReference:
+    """Partycja po numerze kolejki (RANGE 1-38), nie po dacie ingestu - ta tabela to
+    NIE ruchomy stan (jak reszta), tylko raz ustalone fakty historyczne (wynik danej
+    kolejki juz sie nie zmienia po data_checked=true), wiec 'kiedy to zaladowalismy'
+    nie jest osia, po ktorej ktokolwiek bedzie filtrowac zapytania - 'ktora to kolejka'
+    tak, stad partycjonowanie po gw."""
+    table_ref = dataset_ref.table(table_name)
+    try:
+        client.get_table(table_ref)
+    except NotFound:
+        table = bigquery.Table(table_ref, schema=schema)
+        table.range_partitioning = bigquery.RangePartitioning(
+            field="gw",
+            range_=bigquery.PartitionRange(start=0, end=39, interval=1),
+        )
+        table.description = description
+        client.create_table(table)
+    return table_ref
+
+
+def _existing_gws(client: bigquery.Client, table_ref: bigquery.TableReference) -> set[int]:
+    """Ktore kolejki juz mamy w raw_player_gameweek_live - do przyrostowego ingestu
+    (patrz uzasadnienie w naglowku pliku). Pusty zbior, jesli tabela jeszcze nie
+    istnieje (pierwsze uruchomienie)."""
+    try:
+        client.get_table(table_ref)
+    except NotFound:
+        return set()
+    query = f"SELECT DISTINCT gw FROM `{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}`"
+    return {row.gw for row in client.query(query).result()}
 
 
 def _load_rows(client: bigquery.Client, table_ref: bigquery.TableReference, rows: list[dict], schema: list[bigquery.SchemaField]) -> int:
@@ -299,9 +465,10 @@ def _load_rows(client: bigquery.Client, table_ref: bigquery.TableReference, rows
 
 def run_ingest_raw_tables() -> dict:
     """Pelny przebieg: bootstrap-static (-> raw_players, raw_gameweeks) + fixtures
-    (-> raw_fixtures), jeden ingested_ts wspolny dla wszystkich trzech, zeby dalo sie
-    polaczyc 'jak wygladal caly stan FPL w tym samym momencie'. Zwraca podsumowanie
-    (dict), wspolne dla trybu CLI i Cloud Function."""
+    (-> raw_fixtures) + PRZYROSTOWO event/live dla nowo rozliczonych kolejek (->
+    raw_player_gameweek_live). Jeden ingested_ts wspolny dla pierwszych trzech, zeby
+    dalo sie polaczyc 'jak wygladal caly stan FPL w tym samym momencie'. Zwraca
+    podsumowanie (dict), wspolne dla trybu CLI i Cloud Function."""
     ingested_ts = datetime.datetime.now(datetime.timezone.utc)
     ts_iso = ingested_ts.isoformat()
 
@@ -327,14 +494,39 @@ def run_ingest_raw_tables() -> dict:
         client, dataset_ref, FIXTURES_TABLE, FIXTURES_SCHEMA,
         "Snapshot calego terminarza sezonu (/fixtures/, wszystkie GW naraz) - jeden ingest = jeden dzien.",
     )
+    player_gw_table = _ensure_table_by_gw(
+        client, dataset_ref, PLAYER_GW_TABLE, PLAYER_GW_SCHEMA,
+        "Wyniki WSZYSTKICH zawodnikow per kolejka (event/live), tylko dla kolejek z potwierdzonymi "
+        "bonusami (data_checked=true). Ingest przyrostowy - patrz komentarz w run_ingest_raw_tables(). "
+        "CELOWO bez ceny/formy (data leakage dla GW1-3, patrz naglowek pliku) - do treningu Phase 3 "
+        "uzywac ceny/formy z raw_players tylko od GW4 w przod.",
+    )
 
     players_loaded = _load_rows(client, players_table, players_rows, PLAYERS_SCHEMA)
     gameweeks_loaded = _load_rows(client, gameweeks_table, gameweeks_rows, GAMEWEEKS_SCHEMA)
     fixtures_loaded = _load_rows(client, fixtures_table, fixtures_rows, FIXTURES_SCHEMA)
+
+    # Przyrostowo: dociagamy TYLKO kolejki z potwierdzonymi bonusami, ktorych jeszcze
+    # nie mamy w tabeli. W typowym tygodniu (bez nowo rozliczonej kolejki) to zero
+    # dodatkowych zapytan do FPL i zero load jobow - patrz uzasadnienie w naglowku pliku.
+    confirmed_gws = sorted(ev["id"] for ev in bootstrap["events"] if ev.get("data_checked"))
+    existing_gws = _existing_gws(client, player_gw_table)
+    missing_gws = [gw for gw in confirmed_gws if gw not in existing_gws]
+
+    player_gw_rows: list[dict] = []
+    for gw in missing_gws:
+        live = fetch_event_live(gw)
+        player_gw_rows.extend(build_player_gw_rows(live["elements"], gw, ts_iso))
+    player_gw_loaded = _load_rows(client, player_gw_table, player_gw_rows, PLAYER_GW_SCHEMA)
 
     return {
         "ingested_ts": ts_iso,
         "raw_players": {"rows_loaded": players_loaded, "table": f"{players_table.project}.{players_table.dataset_id}.{players_table.table_id}"},
         "raw_gameweeks": {"rows_loaded": gameweeks_loaded, "table": f"{gameweeks_table.project}.{gameweeks_table.dataset_id}.{gameweeks_table.table_id}"},
         "raw_fixtures": {"rows_loaded": fixtures_loaded, "table": f"{fixtures_table.project}.{fixtures_table.dataset_id}.{fixtures_table.table_id}"},
+        "raw_player_gameweek_live": {
+            "rows_loaded": player_gw_loaded,
+            "gws_fetched": missing_gws,
+            "table": f"{player_gw_table.project}.{player_gw_table.dataset_id}.{player_gw_table.table_id}",
+        },
     }

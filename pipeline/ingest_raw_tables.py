@@ -17,11 +17,13 @@ from raw_tables import run_ingest_raw_tables
 
 
 def main() -> None:
-    print("Pobieram bootstrap-static + fixtures i zapisuje raw_players/raw_gameweeks/raw_fixtures...")
+    print("Pobieram bootstrap-static + fixtures + (przyrostowo) event/live i zapisuje 4 tabele RAW...")
     summary = run_ingest_raw_tables()
-    for table_key in ("raw_players", "raw_gameweeks", "raw_fixtures"):
+    for table_key in ("raw_players", "raw_gameweeks", "raw_fixtures", "raw_player_gameweek_live"):
         info = summary[table_key]
         print(f"  {table_key}: zaladowano {info['rows_loaded']} wierszy do {info['table']}")
+    gws = summary["raw_player_gameweek_live"]["gws_fetched"]
+    print(f"  (nowo dociagniete kolejki: {gws if gws else 'brak - wszystko juz w tabeli'})")
     print(f"Gotowe (ingested_ts={summary['ingested_ts']}).")
 
 

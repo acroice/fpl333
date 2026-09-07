@@ -155,6 +155,50 @@ $0/miesiąc dodatkowo. Do zweryfikowania przez użytkownika w Billing, jeśli ch
 **Następny krok:** warstwa STAGING (czyszczenie/normalizacja/dedup) i FEATURES (pierwsza tabela
 cech, np. `player_gameweek_features`, łącząca RAW pod model z Phase 3).
 
+### Piąta tabela RAW — `raw_player_gameweek_live` (wyniki per zawodnik per kolejka)
+
+Zanim FEATURES, brakowało jeszcze jednego RAW źródła: `raw_players` to skumulowany stan NA DZIŚ
+(`total_points` = suma za sezon), z czego nie da się wyciągnąć "ile punktów zdobył zawodnik W
+KONKRETNEJ GW3" bez historii dziennych snapshotów sprzed GW1-3, których nie mamy (zaczęliśmy
+dopiero dziś). Bez osobnej tabeli per-gameweek `player_gameweek_features` z Phase 3 nie miałoby z
+czego realnie powstać.
+
+**Trzy rundy przemyślenia rozwiązania** (na wyraźną prośbę — "przemyśl całościowo", potem "z
+perspektyw MLowych"), każda poprawiająca poprzednią:
+
+1. **Pierwszy pomysł**: `/api/element-summary/{id}/` (pełna historia GW-po-GW, ale PER ZAWODNIK)
+   — 654 zapytania na jedno uruchomienie. Odrzucony na etapie przemyślenia kosztów.
+2. **Poprawka**: `/api/event/{gw}/live/` daje WSZYSTKICH zawodników naraz, ale dla JEDNEJ kolejki —
+   1 zapytanie na kolejkę zamiast 654 na zawodnika. Rozegrane kolejki (3) → 3 zapytania backfill,
+   dalej max ~38 w całym sezonie (przyrostowo, tylko nowo rozliczone). Dopięte do już istniejącej
+   `ingest_raw_tables`, zero nowej infrastruktury.
+3. **Poprawka ML-owa**: `event/live/` NIE ma ceny/formy zawodnika z tamtego momentu (pole `value`
+   istnieje tylko w `element-summary`). Doklejenie DZISIEJSZEJ ceny z `raw_players` do historycznych
+   wierszy GW1-3 byłoby **data leakage** (model widziałby przyszłą cenę ucząc się na starszych
+   danych) — dokładnie ten sam rodzaj błędu, co live-punkty naprawiane wcześniej w tej sesji w
+   `app/`, tylko przeniesiony na grunt ML. Rozstrzygnięcie: tabela ma WYŁĄCZNIE wyniki (bez ceny),
+   a do treningu pierwszego modelu (Phase 3) cenę/formę brać z `raw_players` dopiero **od GW4** —
+   GW1-3 zostają w tabeli (przydatne do analiz), ale bez cenowych features przy budowie datasetu
+   treningowego.
+
+**Implementacja** (`raw_tables.py`, `run_ingest_raw_tables()` rozszerzone o 4. tabelę):
+- `raw_player_gameweek_live`, partycjonowana PO NUMERZE KOLEJKI (`RANGE 0-39`), nie po dacie
+  ingestu jak pozostałe trzy — to ustalone fakty historyczne (raz rozliczona kolejka się nie
+  zmienia), nie ruchomy stan.
+- Ingest przyrostowy: `SELECT DISTINCT gw` z tabeli, porównanie z kolejkami o
+  `data_checked=true` z bootstrap-static (ta sama dyscyplina co `GwCompletionInfo.allFinished` w
+  `app/api/_lib/fpl.ts` — nie samo `finished`, żeby nie zapisać na stałe jeszcze nierozliczonych
+  bonusów), zapytanie do FPL TYLKO o brakujące kolejki.
+- Zweryfikowane: pierwsze uruchomienie dociągnęło GW1-3 (610+626+654=1890 wierszy — rosnąca liczba
+  zawodników w grze, FPL dopisuje nowych w trakcie sezonu, nie błąd), drugie uruchomienie zaraz
+  potem dociągnęło 0 wierszy (poprawna logika przyrostowa). Krzyżowo sprawdzone: Haaland GW3 w
+  tabeli = 9 pkt, bonus 3 — zgodne z niezależnie sprawdzonym wcześniej w tej sesji
+  `/api/event/3/live/`.
+- Cloud Function `fpl-ingest-raw-tables` **przedeployowana** (rewizja 00002) z tą zmianą — bez
+  dodatkowych przeszkód IAM (URL usługi Cloud Run i binding `run.invoker` sprzed pierwszego deployu
+  zostają, deploy tylko podmienia kod). Scheduler job przetestowany ponownie po redeployu —
+  `status: {}`, 0 nowych wierszy (stan ustalony, zero kolejek do dociągnięcia).
+
 ### Stan repo na koniec sesji 4
 
 `main` ma wszystko z tej sesji zmergowane (PR #17–#22, fast-forward, każdy z osobnym, opisowym
@@ -162,9 +206,11 @@ commitem), working tree czysty, brak lokalnych/zdalnych branchy WIP (każdy PR k
 po merge'u). Każdy merge front-endu wywołał automatyczny deploy na Vercelu (GitHub integration),
 potwierdzony statusem `success` przez GitHub API — PR z Phase 2 (`pipeline/`) nie dotyka Next.js,
 więc nie wywołuje deployu Vercela. `ingest_raw_tables` wdrożony i zautomatyzowany (Cloud Function +
-Cloud Scheduler, patrz wyżej) — Phase 2 ma teraz DZIAŁAJĄCY, codzienny ingest wszystkich czterech
-tabel RAW (`league_standings_snapshot` + `raw_players`/`raw_gameweeks`/`raw_fixtures`). Kolejna
-sesja kontynuuje Phase 2: warstwa STAGING/FEATURES (patrz plan wyżej i w sekcji sesji 1
+Cloud Scheduler, patrz wyżej), przedeployowany ponownie po dodaniu `raw_player_gameweek_live` —
+Phase 2 ma teraz DZIAŁAJĄCY, codzienny (dla ruchomego stanu) + przyrostowy (dla wyników per GW)
+ingest wszystkich pięciu tabel RAW (`league_standings_snapshot` + `raw_players`/`raw_gameweeks`/
+`raw_fixtures`/`raw_player_gameweek_live`). Kolejna sesja kontynuuje Phase 2: warstwa
+STAGING/FEATURES (patrz plan wyżej i w sekcji sesji 1
 niżej) — front-end dashboardu zostaje w stabilnym, zamkniętym stanie.
 
 ## Stan na 2026-09-06 (sesja 3 — front-end dashboardu, kontynuacja sesji 2)

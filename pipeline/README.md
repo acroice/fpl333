@@ -48,16 +48,25 @@ gcloud auth application-default login
     funkcja i osobny Scheduler job od Phase 1 — nie ruszają już działającej
     automatyzacji `league_standings_snapshot`.
 
-- **`raw_tables.py`** — właściwa logika ingestu Phase 2 (`run_ingest_raw_tables()`):
-  jedno pobranie `bootstrap-static` (→ `fpl_raw.raw_players` z `elements`, `fpl_raw.raw_gameweeks`
-  z `events`) + jedno pobranie `/fixtures/` całego sezonu naraz (→ `fpl_raw.raw_fixtures`), wszystkie
-  trzy partycjonowane dziennie po `ingested_ts`, zapis load jobem (WRITE_APPEND, jak w
-  `snapshot.py`). Jedna funkcja na trzy tabele (nie trzy osobne) — `bootstrap-static` i tak trzeba
-  pobrać raz, żeby dostać zarówno `elements`, jak i `events`; przy tej skali granularne retry per
-  tabela nie dają realnej korzyści. Kolumny per tabela to świadomie wybrany podzbiór (nie cały
-  surowy JSON, który dla `elements` ma ~100 pól) — dokładnie te pola, których Phase 3 z ROADMAP.md
-  nazywa wprost jako features (minutes, starts, xG, xA, form, price, FDR/opponent_strength), plus
-  tyle kontekstu, żeby dało się to połączyć w warstwie STAGING/FEATURES.
+- **`raw_tables.py`** — właściwa logika ingestu Phase 2 (`run_ingest_raw_tables()`), CZTERY tabele:
+  - `raw_players` (z `bootstrap-static.elements`), `raw_gameweeks` (z `bootstrap-static.events`,
+    jedno pobranie na obie), `raw_fixtures` (z `/fixtures/`, cały sezon naraz) — snapshot całego
+    stanu, partycjonowane dziennie po `ingested_ts`, WRITE_APPEND co uruchomienie (jak w
+    `snapshot.py`). Kolumny per tabela to świadomie wybrany podzbiór (nie cały surowy JSON, który
+    dla `elements` ma ~100 pól) — dokładnie te pola, których Phase 3 z ROADMAP.md nazywa wprost
+    jako features (minutes, starts, xG, xA, form, price, FDR/opponent_strength).
+  - `raw_player_gameweek_live` (z `/api/event/{gw}/live/`) — INNY wzorzec: przyrostowy, nie
+    codzienny full-refresh. Jedno zapytanie daje WSZYSTKICH zawodników dla JEDNEJ kolejki (nie 654
+    zapytań na zawodnika — odrzucony wariant z `/api/element-summary/{id}/`). Ingestowane tylko
+    kolejki z potwierdzonymi bonusami (`data_checked=true`, ta sama dyscyplina co
+    `GwCompletionInfo.allFinished` w `app/api/_lib/fpl.ts`), i tylko te, których jeszcze nie ma w
+    tabeli (`SELECT DISTINCT gw`) — w typowym tygodniu bez nowo rozliczonej kolejki to 0 dodatkowych
+    zapytań do FPL. Partycjonowana po numerze kolejki (`RANGE 0-39`), nie po dacie ingestu — to
+    ustalone fakty historyczne, nie ruchomy stan. **Celowo bez ceny/formy zawodnika** (endpoint
+    `live/` ich nie zwraca) — dokładanie DZISIEJSZEJ ceny z `raw_players` do wierszy sprzed GW4
+    byłoby data leakage (model widziałby przyszłą cenę ucząc się na starszych danych). Do treningu
+    pierwszego modelu (Phase 3) cenę/formę brać z `raw_players` tylko od GW4 w przód — GW1-3 mają
+    tu tylko wyniki, bez cenowych features.
 
 - **`ingest_raw_tables.py`** — cienki CLI wrapper na `run_ingest_raw_tables()`, do
   ręcznego odpalenia lokalnie:
@@ -66,5 +75,10 @@ gcloud auth application-default login
   python ingest_raw_tables.py
   ```
 
-  Zweryfikowane ręcznie (2026-09-07): 654 wiersze `raw_players`, 38 `raw_gameweeks`,
-  380 `raw_fixtures` — poprawne typy, dane sprawdzone bezpośrednio zapytaniem do BigQuery.
+  Zweryfikowane ręcznie (2026-09-07): 654 `raw_players`, 38 `raw_gameweeks`, 380 `raw_fixtures`,
+  1890 `raw_player_gameweek_live` (610+626+654 — rosnąca liczba elementów w grze GW1→GW3, nowi
+  zawodnicy dopisywani przez FPL w trakcie sezonu, nie błąd) — poprawne typy i wartości sprawdzone
+  bezpośrednio zapytaniem do BigQuery, w tym krzyżowo (Haaland GW3: 9 pkt, bonus 3 — zgodne z
+  niezależnie sprawdzonym wcześniej `/api/event/3/live/`). Drugie uruchomienie zaraz po pierwszym
+  potwierdziło logikę przyrostową: 0 nowych wierszy w `raw_player_gameweek_live` (GW1-3 już w
+  tabeli, żadna nowa kolejka jeszcze nierozliczona).
