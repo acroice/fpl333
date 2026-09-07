@@ -133,12 +133,14 @@ export function initials(name: string) {
 
 // Podpis dla wielu managerów naraz (remis w nagrodzie, kilku z tym samym kapitanem, itd.) —
 // pełne imiona przy małej grupie (≤3, mieści się bez rozpychania kafelka), inicjały oddzielone
-// "/" przy większej. Zastępuje dawny wzorzec "X managerów" (sam count, bez informacji KTO) w
-// bannerach i GW Wrapped/Awards.
+// "/" przy średniej (4-6, wciąż czytelne). Powyżej 6 same inicjały robią się nieczytelną plątaniną
+// w wąskim kafelku, więc wraca zwykły label z liczbą ("X managerów") — dokładnie jak dawny
+// wzorzec przy dużej grupie, tylko teraz z pełnymi imionami/inicjałami dla mniejszych grup.
 export function namesOrInitials(names: string[]): string {
   if (!names.length) return '—';
   if (names.length <= 3) return names.join(' · ');
-  return names.map(n => initials(n)).join('/');
+  if (names.length <= 6) return names.map(n => initials(n)).join('/');
+  return `${names.length} managerów`;
 }
 
 // To samo dla nagród liczonych backendem (Award, patrz lib/types.ts) — przy remisie wartości
