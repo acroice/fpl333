@@ -1,6 +1,20 @@
 'use client';
 import React from 'react';
-import type { Quarter, PlayerOwner } from '../lib/types';
+import type { Quarter, PlayerOwner, LeagueEntry } from '../lib/types';
+
+// znajdź wszystkie wpisy remisujące o wartość ekstremalną (max/min) danego klucza — żaden ranking
+// tie-aware (GW Pulse, GW Wrapped) nie może arbitralnie wybrać jednej osoby przy remisie.
+// Współdzielone przez LeagueSection (Best/Worst GW, Biggest Rise) i GwWrappedModal (Największy
+// awans) — wcześniej to samo liczyły dwie osobne, ręcznie pisane kopie w obu plikach.
+export function extremeTied(rows: LeagueEntry[], key: (e: LeagueEntry) => number, mode: 'max' | 'min') {
+  if (!rows.length) return { value: 0, entries: [] as LeagueEntry[] };
+  const value = mode === 'max' ? Math.max(...rows.map(key)) : Math.min(...rows.map(key));
+  return { value, entries: rows.filter(e => key(e) === value) };
+}
+
+export function namesOf(entries: LeagueEntry[]) {
+  return entries.map(e => e.player_name).join(' · ');
+}
 
 // klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu) — steruje kolorem kropki:
 // trwa = zielona (live), wkrótce = żółta (pending), zakończona = czerwona (closed)
@@ -108,12 +122,16 @@ export function StatModule({
   );
 }
 
-// Szerokość paska tła (%) proporcjonalna do wartości względem max w danej liście, z widoczną
-// minimalną szerokością (4%) — żeby nawet najmniejsza wartość na liście była wizualnie zauważalna,
-// ten sam zabieg co przy pasku postępu ćwiartki (.qheader-progressbar-fill).
+// Szerokość paska tła (%) proporcjonalna do WARTOŚCI BEZWZGLĘDNEJ względem max w danej liście, z
+// widoczną minimalną szerokością (4%) — żeby nawet najmniejsza wartość na liście była wizualnie
+// zauważalna, ten sam zabieg co przy pasku postępu ćwiartki (.qheader-progressbar-fill). Abs()
+// ma znaczenie tam, gdzie `value` bywa ujemne (np. zysk z chipa może wyjść na minusie, wkład
+// punktowy zawodnika przy czerwonej kartce też) — bez niego ujemna wartość i tak lądowała na
+// twardej podłodze 4%, więc -1 i -10 wyglądały identycznie; z abs() szerokość dalej pokazuje
+// MAGNITUDĘ, a kierunek (dobrze/źle) i tak niesie osobno kolor (`tone` w RankFill).
 export function barPct(value: number, max: number) {
   if (max <= 0) return 0;
-  return Math.max(Math.round((value / max) * 100), 4);
+  return Math.max(Math.round((Math.abs(value) / max) * 100), 4);
 }
 
 // pasek tła pod wierszem rankingu (.rankbar--viz/.squadplayer--viz) — patrz komentarz w globals.css

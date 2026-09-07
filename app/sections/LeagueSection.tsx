@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials, OwnersPanel, barPct } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials, OwnersPanel, barPct, extremeTied, namesOf } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -64,17 +64,6 @@ type Props = {
   topTransferGain: TopTransferGain;
 };
 
-// znajdź wszystkie wpisy remisujące o wartość ekstremalną (max/min) — GW Pulse nie może
-// arbitralnie wybrać jednej osoby przy remisie
-function extremeTied(rows: LeagueEntry[], key: (e: LeagueEntry) => number, mode: 'max' | 'min') {
-  if (!rows.length) return { value: 0, entries: [] as LeagueEntry[] };
-  const value = mode === 'max' ? Math.max(...rows.map(key)) : Math.min(...rows.map(key));
-  return { value, entries: rows.filter(e => key(e) === value) };
-}
-
-function namesOf(entries: LeagueEntry[]) {
-  return entries.map(e => e.player_name).join(' · ');
-}
 
 // przekreślone ikonki chipów już wykorzystanych (kiedykolwiek w sezonie) — jak na livefpl.
 // Wyklucza najświeższe zagranie, jeśli to właśnie ono jest już pokazane jako aktywna plakietka
