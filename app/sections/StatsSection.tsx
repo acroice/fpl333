@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
-import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow, PlayerOwner } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, rankBadge, StatModule, barPct, RankFill, namesOrInitials } from '../components/shared';
+import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow } from '../lib/types';
+import { PlayerAvatar, ClubBadge, chipIcon, rankBadge, StatModule, barPct, RankFill, namesOrInitials, OwnersPanel } from '../components/shared';
 
 type Props = {
   active: boolean;
@@ -44,24 +44,6 @@ function statsChipIcon(code: string) {
   return code === 'bboost' ? `${chipIcon(code)}🚀` : chipIcon(code);
 }
 
-function renderOwnersPanel(owners: PlayerOwner[]) {
-  if (!owners.length) return null;
-  return (
-    <div className="ownerslist">
-      {owners.map(o => (
-        <span
-          key={o.entry}
-          className={`ownerpill${o.isTripleCaptain ? ' ownerpill--tc' : ''}`}
-          title={o.isTripleCaptain ? 'Triple Captain — potrojone punkty' : o.isBench ? 'Na ławce' : 'W podstawowym składzie'}
-        >
-          {o.player_name}
-          {o.isTripleCaptain ? ' 👑³' : o.isCaptain && ' (C)'}
-          {o.isBench && ' 🪑'}
-        </span>
-      ))}
-    </div>
-  );
-}
 
 export default function StatsSection({
   active, loadOverview, overview, overviewLoading, overviewError,
@@ -85,6 +67,10 @@ export default function StatsSection({
   // wspólny dla Najczęściej wybieranych i Różnicowych — id zawodnika jest unikalny w obu listach)
   const [expandedOwners, setExpandedOwners] = React.useState<Record<number, boolean>>({});
   const toggleOwners = (element: number) => setExpandedOwners(prev => ({ ...prev, [element]: !prev[element] }));
+  // to samo w Captaincy, ale osobny stan — inna sekcja, nie chcemy żeby rozwinięcie w jednej
+  // (np. Haalanda w Ownership) "za darmo" rozwijało tego samego zawodnika w drugiej
+  const [expandedCaptains, setExpandedCaptains] = React.useState<Record<number, boolean>>({});
+  const toggleCaptainOwners = (element: number) => setExpandedCaptains(prev => ({ ...prev, [element]: !prev[element] }));
 
   // Transfers: suma minusowych pkt (koszt transferów ponad limit) w całym sezonie per manager
   const transferRows = React.useMemo(() => {
@@ -219,15 +205,21 @@ export default function StatsSection({
         ) : (
           <div className="small">
             {overview.captaincy.map(p => (
-              <div key={p.element} className="squadplayer squadplayer--viz">
-                <RankFill pct={p.captainPct} tone="special" />
-                <span className="squadplayer-name">
-                  <PlayerAvatar src={p.photoUrl} alt={p.name} />
-                  <span className="pill">{p.position}</span>
-                  {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
-                </span>
-                <span>{p.points} pkt · {p.captainPct}% C · {p.captainCount}/{overview.leagueSize}</span>
-              </div>
+              <React.Fragment key={p.element}>
+                <div className="squadplayer squadplayer--viz ownershiprow" onClick={() => toggleCaptainOwners(p.element)}>
+                  <RankFill pct={p.captainPct} tone="special" />
+                  <span className="squadplayer-name">
+                    <PlayerAvatar src={p.photoUrl} alt={p.name} />
+                    <span className="pill">{p.position}</span>
+                    {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} />
+                  </span>
+                  <span>
+                    {p.points} pkt · {p.captainPct}% C · {p.captainCount}/{overview.leagueSize}
+                    {' '}<span className="qchevron">{expandedCaptains[p.element] ? '▲' : '▼'}</span>
+                  </span>
+                </div>
+                {expandedCaptains[p.element] && <OwnersPanel owners={p.captainOwners} />}
+              </React.Fragment>
             ))}
           </div>
         )}
@@ -270,7 +262,7 @@ export default function StatsSection({
                   </span>
                   <span>{p.ownedPct}% · {p.ownedCount}/{overview.leagueSize} <span className="qchevron">{expandedOwners[p.element] ? '▲' : '▼'}</span></span>
                 </div>
-                {expandedOwners[p.element] && renderOwnersPanel(p.owners)}
+                {expandedOwners[p.element] && <OwnersPanel owners={p.owners} />}
               </React.Fragment>
             ))}
             {overview.topOwned.length > 6 && (
@@ -295,7 +287,7 @@ export default function StatsSection({
                       </span>
                       <span>{p.points} pkt · {p.ownedCount}/{overview.leagueSize} <span className="qchevron">{expandedOwners[p.element] ? '▲' : '▼'}</span></span>
                     </div>
-                    {expandedOwners[p.element] && renderOwnersPanel(p.owners)}
+                    {expandedOwners[p.element] && <OwnersPanel owners={p.owners} />}
                   </React.Fragment>
                 ))}
                 {overview.differentials.length > 6 && (

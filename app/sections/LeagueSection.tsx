@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials, OwnersPanel } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -650,6 +650,13 @@ function SquadDrilldown({
   useProjection: Record<number, boolean>;
   setUseProjection: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
 }) {
+  // które wiersze zawodników mają rozwiniętą listę "kto konkretnie go ma" — ten sam wzorzec co
+  // Ownership w Statystykach (patrz OwnersPanel w shared.tsx). Lokalny stan: ten komponent montuje
+  // się od nowa przy każdej zmianie otwartego managera (tylko jeden wiersz Ligi bywa rozwinięty
+  // naraz), więc nie trzeba nic czyścić ręcznie przy przełączaniu.
+  const [expandedSquadOwners, setExpandedSquadOwners] = React.useState<Record<number, boolean>>({});
+  const toggleSquadOwners = (element: number) => setExpandedSquadOwners(prev => ({ ...prev, [element]: !prev[element] }));
+
   if (loading) return <div className="small">Ładowanie składu…</div>;
   if (errorMsg) return <div className="small" style={{ color: '#ff9b9b' }}>{errorMsg}</div>;
   if (!squad) return <div className="small">Brak danych</div>;
@@ -735,38 +742,46 @@ function SquadDrilldown({
 
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Podstawowy skład:</div>
       {displaySquad.filter(p => !p.isBench).map(p => (
-        <div key={p.element} className="squadplayer squadplayer--viz">
-          <RankFill pct={p.ownershipPct} tone="neutral" />
-          <span className="squadplayer-name">
-            <PlayerAvatar src={p.photoUrl} alt={p.name} />
-            <span className="pill">{p.position}</span>
-            {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-            {p.isCaptain && ' (C)'}
-            {p.isViceCaptain && ' (VC)'}
-            {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
-          </span>
-          <span>{p.total} pkt · {p.ownershipPct}%</span>
-        </div>
+        <React.Fragment key={p.element}>
+          <div className="squadplayer squadplayer--viz ownershiprow" onClick={() => toggleSquadOwners(p.element)}>
+            <RankFill pct={p.ownershipPct} tone="neutral" />
+            <span className="squadplayer-name">
+              <PlayerAvatar src={p.photoUrl} alt={p.name} />
+              <span className="pill">{p.position}</span>
+              {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+              {p.isCaptain && ' (C)'}
+              {p.isViceCaptain && ' (VC)'}
+              {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
+            </span>
+            <span>{p.total} pkt · {p.ownershipPct}% <span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span></span>
+          </div>
+          {expandedSquadOwners[p.element] && <OwnersPanel owners={p.owners} />}
+        </React.Fragment>
       ))}
 
       <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Ławka:</div>
       {displaySquad.filter(p => p.isBench).map(p => (
-        <div key={p.element} className="squadplayer squadplayer--viz" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }}>
-          <RankFill pct={p.ownershipPct} tone="neutral" />
-          <span className="squadplayer-name">
-            <PlayerAvatar src={p.photoUrl} alt={p.name} />
-            <span className="pill">{p.position}</span>
-            {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
-            {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
-          </span>
-          <span>
-            {p.points} pkt
-            <span className={`countmark ${p.multiplier > 0 ? 'countmark--on' : 'countmark--off'}`} title={p.multiplier > 0 ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
-              {p.multiplier > 0 ? '✓' : '–'}
+        <React.Fragment key={p.element}>
+          <div className="squadplayer squadplayer--viz ownershiprow" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }} onClick={() => toggleSquadOwners(p.element)}>
+            <RankFill pct={p.ownershipPct} tone="neutral" />
+            <span className="squadplayer-name">
+              <PlayerAvatar src={p.photoUrl} alt={p.name} />
+              <span className="pill">{p.position}</span>
+              {p.name} <ClubBadge src={p.teamBadgeUrl} alt={p.team} /> ({p.team})
+              {p.subbedOut && <span className="subbadge" title="Wypadł automatyczną zamianą (nie zagrał)">↓ wypadł</span>}
             </span>
-            {' · '}{p.ownershipPct}%
-          </span>
-        </div>
+            <span>
+              {p.points} pkt
+              {/* ✓/✕ zamiast ✓/– — myślnik wyglądał jak DRUGI separator tuż obok " · ", myląco
+                  (patrz zgłoszenie: "dzieli zarówno kropka jak i myślnik") */}
+              <span className={`countmark ${p.multiplier > 0 ? 'countmark--on' : 'countmark--off'}`} title={p.multiplier > 0 ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
+                {p.multiplier > 0 ? '✓' : '✕'}
+              </span>
+              {' · '}{p.ownershipPct}% <span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span>
+            </span>
+          </div>
+          {expandedSquadOwners[p.element] && <OwnersPanel owners={p.owners} />}
+        </React.Fragment>
       ))}
     </div>
   );

@@ -86,6 +86,7 @@ export type SquadPlayer = {
   subbedOut: boolean;  // wypadł automatyczną zamianą (nie zagrał, mimo że był w podstawowej 11)
   multiplier: number;
   ownershipPct: number; // zwykły % ownership w naszej lidze, BEZ mnożnika za kapitana/wicekapitana
+  owners: PlayerOwner[]; // kto konkretnie go ma — do rozwijanego panelu pod wierszem (jak w Ownership)
 };
 
 // jeden transfer "kto na kogo" w tej GW — pointsOut/pointsIn to SUROWE punkty zdobyte w TEJ
@@ -190,6 +191,7 @@ export type TopOwnedRow = {
 export type CaptaincyRow = {
   element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
   points: number; captainCount: number; captainPct: number;
+  captainOwners: PlayerOwner[]; // tylko ci, którzy GO kapitanowali — do rozwijanego "kto go kapitanuje"
 };
 
 export type DifferentialRow = {
