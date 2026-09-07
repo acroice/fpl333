@@ -122,6 +122,10 @@ export type Award = {
   bonus?: number | null; // Chip Master: pkt zdobyte dzięki chipowi (BB/TC); null gdy nie da się policzyć (WC/FH)
   captainName?: string; captainPts?: number; templateCaptainName?: string; templateCaptainPts?: number; // Best Captain
   benchPoints?: number; // Bench Tears: pkt zostawione na ławce
+  // WSZYSCY remisujący o tę samą (ekstremalną) wartość nagrody, gdy jest ich więcej niż jeden —
+  // entry/player_name wyżej zostają "głównym" wpisem (pierwszy z listy), tiedEntries niesie pełną
+  // listę do wyświetlenia (patrz awardNames w components/shared.tsx). Brak/undefined = jeden zwycięzca.
+  tiedEntries?: { entry: number; player_name: string }[];
 } | null;
 
 export type Awards = {

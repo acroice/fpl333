@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { Awards, LeagueEntry, TopCaptainPick } from '../lib/types';
-import { StatTileGrid, StatTile } from './shared';
+import { StatTileGrid, StatTile, awardNames, namesOrInitials } from './shared';
 
 type Props = {
   awards: Awards | null;
@@ -49,7 +49,7 @@ export default function GwSummaryBanner({ awards, league, topCaptainPick, active
   const tiles: React.ReactNode[] = [];
   if (awards.topGun) {
     tiles.push(
-      <StatTile key="topgun" icon="🔥" value={`${awards.topGun.points} pkt`} caption={awards.topGun.player_name} label="Najlepszy wynik GW" />
+      <StatTile key="topgun" icon="🔥" value={`${awards.topGun.points} pkt`} caption={awardNames(awards.topGun)} label="Najlepszy wynik GW" />
     );
   }
   if (leader) {
@@ -58,9 +58,7 @@ export default function GwSummaryBanner({ awards, league, topCaptainPick, active
     );
   }
   if (topCaptainPick) {
-    const managerCaption = topCaptainPick.managers.length === 1
-      ? topCaptainPick.managers[0].player_name
-      : `${topCaptainPick.managers.length} managerów`;
+    const managerCaption = namesOrInitials(topCaptainPick.managers.map(m => m.player_name));
     tiles.push(
       <StatTile
         key="topcaptain"
@@ -73,11 +71,11 @@ export default function GwSummaryBanner({ awards, league, topCaptainPick, active
   }
   if (benchTears) {
     tiles.push(
-      <StatTile key="bench" icon="🪑" value={`${benchTears.benchPoints} pkt`} caption={benchTears.player_name} label="Łzy na ławce" />
+      <StatTile key="bench" icon="🪑" value={`${benchTears.benchPoints} pkt`} caption={awardNames(benchTears)} label="Łzy na ławce" />
     );
   } else if (awards.toughWeek) {
     tiles.push(
-      <StatTile key="tough" icon="💀" value={`${awards.toughWeek.points} pkt`} caption={awards.toughWeek.player_name} label="Najgorszy tydzień" />
+      <StatTile key="tough" icon="💀" value={`${awards.toughWeek.points} pkt`} caption={awardNames(awards.toughWeek)} label="Najgorszy tydzień" />
     );
   }
 

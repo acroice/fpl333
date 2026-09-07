@@ -357,6 +357,22 @@ export async function GET(req: NextRequest){
       if (!rows.length) return null;
       return rows.reduce((worst, r) => (key(r) < key(worst) ? r : worst));
     }
+    // Wszyscy remisujący o wartość ekstremalną (max/min) danego klucza — ten sam duch co
+    // extremeTied we froncie (GW Pulse w LeagueSection.tsx), tylko po stronie backendu, dla nagród
+    // liczonych z danych, których front nie ma (bonus z chipa, wartość drużyny, zmiana rankingu).
+    // topBy/bottomBy wyżej zwracają tylko PIERWSZEGO napotkanego przy remisie — używane nadal do
+    // wyłonienia "głównego" wpisu nagrody, ale lista remisujących z tej funkcji trafia do
+    // tiedEntries, żeby front mógł wymienić WSZYSTKICH, a nie arbitralnie jednego.
+    function allTiedBy<T>(rows: T[], key: (r: T) => number, mode: 'max' | 'min'): T[] {
+      if (!rows.length) return [];
+      const extreme = mode === 'max' ? Math.max(...rows.map(key)) : Math.min(...rows.map(key));
+      return rows.filter(r => key(r) === extreme);
+    }
+    // tiedEntries dla mkAward — undefined (nie pusta tablica), gdy tylko jedna osoba, żeby front
+    // (awardNames w shared.tsx) mógł po prostu sprawdzić `tiedEntries?.length` i spaść na
+    // player_name pojedynczego zwycięzcy bez żadnej dodatkowej logiki.
+    const tiedNames = <T extends { entry: number; player_name: string }>(rows: T[]) =>
+      rows.length > 1 ? rows.map(r => ({ entry: r.entry, player_name: r.player_name })) : undefined;
 
     const withChip = latestRows.filter(r => r.chip);
     const withoutChip = latestRows.filter(r => !r.chip);
@@ -652,13 +668,11 @@ export async function GET(req: NextRequest){
     // dał punktów vs kogo zastąpił) — nie da się tego wiarygodnie policzyć z obecnego API bez
     // śledzenia który zawodnik został wpuszczony w miejsce którego, więc taka metryka byłaby
     // zmyślona. To, co tu liczymy, jest w 100% pewne: sam koszt hita w punktach.
-    let transferTangle: { entry: number; player_name: string; entry_name: string; transfersCost: number } | null = null;
-    leagueEntries.forEach(plr => {
-      const cost = teamInfo[plr.entry]?.transfersCost ?? 0;
-      if (cost > 0 && (!transferTangle || cost > transferTangle.transfersCost)) {
-        transferTangle = { entry: plr.entry, player_name: plr.player_name || '', entry_name: plr.entry_name || '', transfersCost: cost };
-      }
-    });
+    const transferTangleCandidates = leagueEntries
+      .map(plr => ({ entry: plr.entry, player_name: plr.player_name || '', entry_name: plr.entry_name || '', transfersCost: teamInfo[plr.entry]?.transfersCost ?? 0 }))
+      .filter(r => r.transfersCost > 0);
+    const transferTangleTied = allTiedBy(transferTangleCandidates, r => r.transfersCost, 'max');
+    const transferTangle = transferTangleTied[0] ?? null;
 
     // Kapitan każdego managera w latestGw (do kolumny "Kapitan" w głównej tabeli) — nazwa,
     // zdjęcie, punkty na żywo. Ta sama informacja co powyżej (captainByEntry), tylko wzbogacona
@@ -732,48 +746,62 @@ export async function GET(req: NextRequest){
     const mkAward = (r: typeof latestRows[number] | null, extra?: object) =>
       r ? { entry: r.entry, player_name: r.player_name, entry_name: r.entry_name, ...extra } : null;
 
-    const topGun = topBy(latestRows, r => r.points);
-    const toughWeek = bottomBy(latestRows, r => r.points);
+    // Każda nagroda niżej liczy WSZYSTKICH remisujących (allTiedBy), nie tylko pierwszego z topBy/
+    // bottomBy — przy remisie (np. dwóch managerów z tym samym wynikiem GW) nagroda ma wymienić
+    // obu, nie arbitralnie jednego. `xTied[0]` zostaje "głównym" wpisem (encja/nazwa w polach
+    // entry/player_name Award, jak dotychczas), a pełna lista trafia do tiedEntries niżej.
+    const topGunTied = allTiedBy(latestRows, r => r.points, 'max');
+    const topGun = topGunTied[0] ?? null;
+    const toughWeekTied = allTiedBy(latestRows, r => r.points, 'min');
+    const toughWeek = toughWeekTied[0] ?? null;
     // Bench Tears: kto zostawił najwięcej punktów na ławce w tej GW — bardziej "bolesna" i
     // konkretna ciekawostka niż suchy najgorszy total (to i tak pokazuje GW Pulse "Worst GW").
     // Tylko gdy ktoś faktycznie coś zostawił (>0), inaczej nagroda się nie pojawia. Liczone z
     // benchPointsLiveByEntry (live), nie z r.benchPoints (z /history/, patrz komentarz przy tej
     // mapie wyżej) — inaczej "Łzy na ławce" w Podsumowaniu GW/GW Wrapped pokazywałyby laggy liczbę.
-    const benchTearsRow = topBy(
-      latestRows.filter(r => (benchPointsLiveByEntry.get(r.entry) ?? 0) > 0),
-      r => benchPointsLiveByEntry.get(r.entry) ?? 0
-    );
+    const benchTearsPool = latestRows.filter(r => (benchPointsLiveByEntry.get(r.entry) ?? 0) > 0);
+    const benchTearsTied = allTiedBy(benchTearsPool, r => benchPointsLiveByEntry.get(r.entry) ?? 0, 'max');
+    const benchTearsRow = benchTearsTied[0] ?? null;
     const withComputableBonus = withChip.filter(r => chipBonus[r.entry] != null);
     // wybieramy po realnym zysku z chipa, jeśli da się go policzyć; inaczej fallback na total
-    const chipMaster = withComputableBonus.length
-      ? topBy(withComputableBonus, r => chipBonus[r.entry])
-      : topBy(withChip, r => r.points);
+    const chipMasterPool = withComputableBonus.length ? withComputableBonus : withChip;
+    const chipMasterKey = withComputableBonus.length
+      ? (r: typeof latestRows[number]) => chipBonus[r.entry]
+      : (r: typeof latestRows[number]) => r.points;
+    const chipMasterTied = allTiedBy(chipMasterPool, chipMasterKey, 'max');
+    const chipMaster = chipMasterTied[0] ?? null;
     const chipMasterBonus = chipMaster ? (chipBonus[chipMaster.entry] ?? null) : null;
-    const noChipWarrior = topBy(withoutChip, r => r.points);
-    const valueKing = topBy(latestRows, r => r.value);
-    const rankCrasher = topBy(rankFallers, r => r.rankChange);
+    const noChipWarriorTied = allTiedBy(withoutChip, r => r.points, 'max');
+    const noChipWarrior = noChipWarriorTied[0] ?? null;
+    const valueKingTied = allTiedBy(latestRows, r => r.value, 'max');
+    const valueKing = valueKingTied[0] ?? null;
+    const rankCrasherTied = allTiedBy(rankFallers, r => r.rankChange, 'max');
+    const rankCrasher = rankCrasherTied[0] ?? null;
     // Rank Riser: lustrzane odbicie Rank Crashera — największa POPRAWA rankingu ogólnego FPL vs
     // poprzednia GW (rankChange ujemne = ranking spadł liczbowo = awans). Ta sama, już policzona
     // lista (rankFallers), tylko szukamy minimum zamiast maksimum.
-    const rankRiser = bottomBy(rankFallers, r => r.rankChange);
-    const bestCaptain = topBy(differentialCaptains, r => r.captainPts);
+    const rankRiserTied = allTiedBy(rankFallers, r => r.rankChange, 'min');
+    const rankRiser = rankRiserTied[0] ?? null;
+    const bestCaptainTied = allTiedBy(differentialCaptains, r => r.captainPts, 'max');
+    const bestCaptain = bestCaptainTied[0] ?? null;
 
     const awards = {
       gw: latestGw,
-      topGun: mkAward(topGun, { points: topGun?.points }),
-      toughWeek: mkAward(toughWeek, { points: toughWeek?.points }),
+      topGun: mkAward(topGun, { points: topGun?.points, tiedEntries: tiedNames(topGunTied) }),
+      toughWeek: mkAward(toughWeek, { points: toughWeek?.points, tiedEntries: tiedNames(toughWeekTied) }),
       chipMaster: mkAward(chipMaster, {
         points: chipMaster?.points,
         chip: chipMaster?.chip,
         bonus: chipMasterBonus, // pkt zdobyte DZIĘKI chipowi; null gdy nie da się policzyć (WC/FH)
+        tiedEntries: tiedNames(chipMasterTied),
       }),
-      noChipWarrior: mkAward(noChipWarrior, { points: noChipWarrior?.points }),
-      valueKing: mkAward(valueKing, { value: valueKing?.value }),
+      noChipWarrior: mkAward(noChipWarrior, { points: noChipWarrior?.points, tiedEntries: tiedNames(noChipWarriorTied) }),
+      valueKing: mkAward(valueKing, { value: valueKing?.value, tiedEntries: tiedNames(valueKingTied) }),
       rankCrasher: rankCrasher && rankCrasher.rankChange > 0
-        ? mkAward(rankCrasher, { rankChange: rankCrasher.rankChange })
+        ? mkAward(rankCrasher, { rankChange: rankCrasher.rankChange, tiedEntries: tiedNames(rankCrasherTied) })
         : null, // brak sensownego spadku (albo brak danych z poprzedniej GW, np. GW1) -> ukryty na froncie
       rankRiser: rankRiser && rankRiser.rankChange < 0
-        ? mkAward(rankRiser, { rankChange: rankRiser.rankChange })
+        ? mkAward(rankRiser, { rankChange: rankRiser.rankChange, tiedEntries: tiedNames(rankRiserTied) })
         : null, // brak sensownej poprawy (albo brak danych z poprzedniej GW) -> ukryty na froncie
       bestCaptain: bestCaptain
         ? mkAward(bestCaptain, {
@@ -781,12 +809,15 @@ export async function GET(req: NextRequest){
             captainPts: bestCaptain.captainPts,
             templateCaptainName,
             templateCaptainPts,
+            tiedEntries: tiedNames(bestCaptainTied),
           })
         : null, // nikt nie pobił template captaina inną kapitanką w tej kolejce -> ukryty na froncie
-      benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchPointsLiveByEntry.get(benchTearsRow.entry) ?? 0 }) : null,
+      benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchPointsLiveByEntry.get(benchTearsRow.entry) ?? 0, tiedEntries: tiedNames(benchTearsTied) }) : null,
       // value tu = pkt straconych na hicie (nie wartość drużyny jak w valueKing — Award ma
       // generyczne pola reużywane per typ nagrody, patrz komentarz przy definicji transferTangle)
-      transferTangle: transferTangle ? { entry: transferTangle.entry, player_name: transferTangle.player_name, entry_name: transferTangle.entry_name, value: transferTangle.transfersCost } : null,
+      transferTangle: transferTangle
+        ? { entry: transferTangle.entry, player_name: transferTangle.player_name, entry_name: transferTangle.entry_name, value: transferTangle.transfersCost, tiedEntries: tiedNames(transferTangleTied) }
+        : null,
     };
 
     return NextResponse.json({

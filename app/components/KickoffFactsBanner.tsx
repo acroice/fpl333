@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { CaptainBreakdownRow, DifferentialCaptain, ChipRoundUsage } from '../lib/types';
-import { StatTileGrid, StatTile, chipIcon } from './shared';
+import { StatTileGrid, StatTile, chipIcon, namesOrInitials } from './shared';
 
 type Props = {
   gw: number;
@@ -77,9 +77,7 @@ export default function KickoffFactsBanner({ gw, active, captainBreakdown, diffe
     );
   }
   if (differentialCaptain) {
-    const managerCaption = differentialCaptain.managers.length === 1
-      ? differentialCaptain.managers[0].player_name
-      : `${differentialCaptain.managers.length} managerów`;
+    const managerCaption = namesOrInitials(differentialCaptain.managers.map(m => m.player_name));
     tiles.push(
       <StatTile
         key="differential"

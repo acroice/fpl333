@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { Awards, LeagueEntry, CaptainInfo, TopCaptainPick } from '../lib/types';
-import { PlayerAvatar } from './shared';
+import { PlayerAvatar, awardNames, namesOrInitials } from './shared';
 
 type Props = {
   open: boolean;
@@ -41,33 +41,35 @@ export default function GwWrappedModal({
   const mvpCaptain = mvp ? captainInfo[mvp.entry] : null;
 
   // karty drugorzędne — tylko te, dla których mamy realne, policzone dane (żadnych zmyślonych
-  // metryk typu "transfer impact", których nie da się wiarygodnie policzyć z obecnego API)
+  // metryk typu "transfer impact", których nie da się wiarygodnie policzyć z obecnego API).
+  // Sześć slotów (2×3) jest wizualnie symetryczne — te pierwsze 6 to podstawowy, "najciekawszy"
+  // zestaw; gdy któregoś tygodnia zabraknie danych na któryś z nich (np. nikt nie pobił template
+  // captaina), dopełniamy niżej z puli zapasowej w kolejności ważności, żeby siatka nie robiła się
+  // krzywa. `sub` wszędzie przez awardNames/namesOrInitials — przy remisie (kilku managerów z tą
+  // samą wartością) wymienia WSZYSTKICH, nie jednego arbitralnie wybranego.
   type Card = { key: string; icon?: string; photoUrl?: string; accent: 'good' | 'bad' | 'special' | 'neutral'; label: string; title: React.ReactNode; sub: React.ReactNode };
   const cards: Card[] = [];
 
   if (climber) {
-    const names = climber.entries.map(e => e.player_name).join(' · ');
     cards.push({
       key: 'climber', icon: '📈', accent: 'good', label: 'Największy awans',
-      title: `+${climber.delta} miejsc`, sub: names,
+      title: `+${climber.delta} miejsc`, sub: namesOrInitials(climber.entries.map(e => e.player_name)),
     });
   }
   if (awards.toughWeek) {
     cards.push({
       key: 'tough', icon: '💀', accent: 'bad', label: 'Najgorszy tydzień',
-      title: `${awards.toughWeek.points} pkt`, sub: awards.toughWeek.player_name,
+      title: `${awards.toughWeek.points} pkt`, sub: awardNames(awards.toughWeek),
     });
   }
   if (awards.benchTears) {
     cards.push({
       key: 'bench', icon: '🪑', accent: 'bad', label: 'Łzy na ławce',
-      title: `${awards.benchTears.benchPoints} pkt`, sub: awards.benchTears.player_name,
+      title: `${awards.benchTears.benchPoints} pkt`, sub: awardNames(awards.benchTears),
     });
   }
   if (topCaptainPick) {
-    const capSub = topCaptainPick.managers.length === 1
-      ? topCaptainPick.managers[0].player_name
-      : `${topCaptainPick.managers.length} managerów`;
+    const capSub = namesOrInitials(topCaptainPick.managers.map(m => m.player_name));
     cards.push({
       key: 'topcap', photoUrl: topCaptainPick.photoUrl, accent: 'special', label: 'Kapitan Kolejki',
       title: topCaptainPick.name, sub: `${topCaptainPick.points} pkt · ${capSub}`,
@@ -77,13 +79,47 @@ export default function GwWrappedModal({
     const bonusText = awards.chipMaster.bonus != null ? `+${awards.chipMaster.bonus} z chipa` : `${awards.chipMaster.points} pkt`;
     cards.push({
       key: 'chip', icon: '🏅', accent: 'special', label: `Mistrz Chipa · ${awards.chipMaster.chip?.label}`,
-      title: bonusText, sub: awards.chipMaster.player_name,
+      title: bonusText, sub: awardNames(awards.chipMaster),
     });
   }
   if (awards.bestCaptain) {
     cards.push({
       key: 'bestcap', icon: '🧠', accent: 'good', label: 'Odważny Kapitan',
-      title: `${awards.bestCaptain.captainName} ${awards.bestCaptain.captainPts}`, sub: awards.bestCaptain.player_name,
+      title: `${awards.bestCaptain.captainName} ${awards.bestCaptain.captainPts}`, sub: awardNames(awards.bestCaptain),
+    });
+  }
+
+  // Pula zapasowa — dopełnia do 6 kart, gdy powyższy podstawowy zestaw nie ma kompletu (np. nikt
+  // nie pobił template captaina tej kolejki), w kolejności "co najbardziej pasuje" jako kolejny
+  // najciekawszy fakt. Nie duplikuje żadnego typu z podstawowego zestawu wyżej.
+  if (cards.length < 6 && awards.noChipWarrior) {
+    cards.push({
+      key: 'nochip', icon: '🛡️', accent: 'neutral', label: 'No-Chip Warrior',
+      title: `${awards.noChipWarrior.points} pkt`, sub: awardNames(awards.noChipWarrior),
+    });
+  }
+  if (cards.length < 6 && awards.valueKing) {
+    cards.push({
+      key: 'value', icon: '💰', accent: 'special', label: 'Value King',
+      title: `£${((awards.valueKing.value ?? 0) / 10).toFixed(1)}m`, sub: awardNames(awards.valueKing),
+    });
+  }
+  if (cards.length < 6 && awards.rankRiser) {
+    cards.push({
+      key: 'rankriser', icon: '🚀', accent: 'good', label: 'Rank Riser',
+      title: `+${Math.abs(awards.rankRiser.rankChange ?? 0).toLocaleString('pl')}`, sub: awardNames(awards.rankRiser),
+    });
+  }
+  if (cards.length < 6 && awards.rankCrasher) {
+    cards.push({
+      key: 'rankcrasher', icon: '🔻', accent: 'bad', label: 'Rank Crasher',
+      title: `-${awards.rankCrasher.rankChange?.toLocaleString('pl')}`, sub: awardNames(awards.rankCrasher),
+    });
+  }
+  if (cards.length < 6 && awards.transferTangle) {
+    cards.push({
+      key: 'tangle', icon: '🔀', accent: 'bad', label: 'Transfer Tangle',
+      title: `-${awards.transferTangle.value}`, sub: awardNames(awards.transferTangle),
     });
   }
 
