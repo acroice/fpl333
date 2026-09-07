@@ -59,7 +59,7 @@ export type OverallRankInfo = { rank: number; prevRank: number | null } | null;
 
 export type TeamInfo = {
   value: number; transfers: number; transfersCost: number;
-  freeTransfers: number; // wolne transfery w banku na POCZĄTEK tej kolejki, przed zagranymi transferami
+  freeTransfers: number; // wolne transfery, które manager ma TERAZ do dyspozycji (po latestGw)
   played: number; playedTotal: number;
 };
 

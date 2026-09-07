@@ -79,15 +79,21 @@ export function collapseTransferChain<T extends { elementOut: number; elementIn:
     .map(head => ({ elementOut: head, elementIn: chain.get(head)! }));
 }
 
-// Ile wolnych transferów (FT) manager ma W BANKU na POCZĄTEK danej kolejki, czyli przed
-// transferami zagranymi w tej GW. FPL nie zwraca tego wprost przez publiczne API (ani /history/,
-// ani /event/{gw}/picks/ nie mają pola "free transfers remaining") — symulujemy zasady banku FT
-// obowiązujące od sezonu 2024/25 (zweryfikowane ręcznie na żywych danych naszej ligi — dwóch
-// managerów, jeden bez hita i jeden z hitem 4 pkt, oba dały bank zgodny z realnym event_transfers_cost):
+// Ile wolnych transferów (FT) manager ma TERAZ do dyspozycji — czyli do wykorzystania w
+// najbliższym oknie transferowym, PO doliczeniu transferów zagranych (albo niezagranych) w
+// latestGw. Transfery blokują się na DEADLINE danej kolejki (przed pierwszym gwizdkiem), więc
+// event_transfers dla latestGw jest już ostateczne, zanim mecze się skończą — nie trzeba czekać
+// na gwFullyFinished, żeby to policzyć. FPL nie zwraca tej liczby wprost przez publiczne API (ani
+// /history/, ani /event/{gw}/picks/ nie mają pola "free transfers remaining") — symulujemy zasady
+// banku FT obowiązujące od sezonu 2024/25 (zweryfikowane ręcznie na żywych danych naszej ligi —
+// dwóch managerów, jeden bez hita i jeden z hitem 4 pkt, oba dały bank zgodny z realnym
+// event_transfers_cost, plus trzeci przypadek zgłoszony przez użytkownika: manager, który
+// oszczędził transfer w latestGw, poprawnie wychodzi na 2 zamiast 1):
 // - od GW2 startowo 1 FT (GW1 to dobór wyjściowego składu, nie "transfer" w tym sensie);
-// - każda kolejna kolejka bez Wildcard/Free Hit: bank = min(max(bank - zagrane_transfery, 0) + 1, 5)
-//   — czyli odejmujemy zagrane transfery (nie mniej niż 0, gdy wzięto hita zeszło się to do zera),
-//   dokładamy +1 za tę kolejkę, capujemy na 5 (limit banku od 2024/25, wcześniej było 2);
+// - każda kolejna kolejka (WŁĄCZNIE z latestGw) bez Wildcard/Free Hit:
+//   bank = min(max(bank - zagrane_transfery, 0) + 1, 5) — odejmujemy zagrane transfery (nie mniej
+//   niż 0, gdy wzięto hita zeszło się to do zera), dokładamy +1 za tę kolejkę, capujemy na 5
+//   (limit banku od 2024/25, wcześniej było 2);
 // - Wildcard/Free Hit NIE konsumują ani nie zwiększają banku — od 2024/25 "saved transfers will
 //   no longer reset to zero" po zagraniu chipa, bank przechodzi bez zmian na kolejną kolejkę.
 // Efekt uboczny tej formuły (zgodny z prawdziwymi zasadami FPL): wynik NIGDY nie jest 0 — najmniej
@@ -95,13 +101,13 @@ export function collapseTransferChain<T extends { elementOut: number; elementIn:
 export function computeFreeTransfersAvailable(
   history: GwHistory[],
   chips: ChipUsage[],
-  targetGw: number
+  latestGw: number
 ): number {
-  if (targetGw < 2) return 0; // GW1: pojęcie "wolnego transferu" jeszcze nie ma zastosowania
+  if (latestGw < 1) return 0; // brak jeszcze żadnej rozegranej kolejki
   const chipByGw = new Map(chips.map(c => [c.event, c.name]));
   const madeByGw = new Map(history.map(h => [h.gw, h.transfers]));
   let bank = 1; // wartość wchodząc w GW2
-  for (let gw = 2; gw < targetGw; gw++) {
+  for (let gw = 2; gw <= latestGw; gw++) {
     const chip = chipByGw.get(gw);
     if (chip === 'wildcard' || chip === 'freehit') continue; // bank zamrożony na czas chipa
     const made = madeByGw.get(gw) ?? 0;

@@ -400,7 +400,7 @@ export default function LeagueSection({
                             {teamInfo[e.entry] && (
                               <span className="teaminfo">
                                 {' · '}
-                                <span title="Wolne transfery w banku na początek tej kolejki, przed zagranymi transferami — ile transferów faktycznie zagrano widać w plakietce przy nazwisku">
+                                <span title="Wolne transfery, które manager ma TERAZ do dyspozycji (po doliczeniu tej kolejki) — ile transferów faktycznie zagrano widać w plakietce przy nazwisku">
                                   FT {teamInfo[e.entry].freeTransfers}
                                 </span>
                                 {' · '}TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
