@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     // (Statystyki). Ławka liczona z uwzględnieniem automatycznych zamian (ten sam duch co
     // squadplayer.isBench w squad/route.ts): kto wszedł z ławki pokazujemy jako podstawę, kto
     // wypadł (nie zagrał) jako ławkę, inaczej po prostu oryginalny slot (12-15 = ławka).
-    const ownersByElement: Record<number, { entry: number; player_name: string; isBench: boolean; isCaptain: boolean }[]> = {};
+    const ownersByElement: Record<number, { entry: number; player_name: string; isBench: boolean; isCaptain: boolean; isTripleCaptain: boolean }[]> = {};
     allPicks.forEach((p, idx) => {
       const entry = leagueEntries[idx].entry;
       const player_name = leagueEntries[idx].player_name || '';
@@ -70,8 +70,12 @@ export async function GET(req: NextRequest) {
         const subbedIn = p.automaticSubs.some(s => s.elementIn === pick.element);
         const subbedOut = p.automaticSubs.some(s => s.elementOut === pick.element);
         const isBench = subbedIn ? false : subbedOut ? true : pick.position > 11;
+        // Triple Captain: kapitan TEGO managera w tej GW, I ma aktywny chip 3xc — do wizualnego
+        // wyróżnienia w rozwijanym "kto go ma" (Statystyki → Ownership), żeby od razu było widać
+        // "kto zagrał na nim Triple Captaina", nie tylko "kto go kapitanował" (zwykłe x2).
+        const isTripleCaptain = pick.isCaptain && p.activeChip === '3xc';
         if (!ownersByElement[pick.element]) ownersByElement[pick.element] = [];
-        ownersByElement[pick.element].push({ entry, player_name, isBench, isCaptain: pick.isCaptain });
+        ownersByElement[pick.element].push({ entry, player_name, isBench, isCaptain: pick.isCaptain, isTripleCaptain });
       }
     });
 

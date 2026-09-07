@@ -17,15 +17,19 @@ type Props = {
   transfersHistory: Record<number, SeasonTransferRow[]>;
 };
 
-// "🧠 Statystyki" — 6 modułów, w tej kolejności: Captaincy, Ownership, Chips, Bench, Stabilność,
-// Transfers. Captaincy i Ownership to dawny "Wgląd w ligę" (showOverview) przeniesiony 1:1, tylko
-// rozbity na dwa moduły. Chips/Bench/Stabilność/Transfers są nowsze, liczone w całości z danych,
-// które i tak już mamy na froncie (gwPoints wzbogacone, chipHistory, transfersHistory z
-// quarter-wins) — zero dodatkowych zapytań z TEGO komponentu do FPL. Chips jest wyżej — bardziej
-// angażująca treść (kto zagrał jaki chip) niż Bench/Stabilność/Transfers, więc wyżej w scrollu.
-// Transfers (płatne/hity) świadomie na samym końcu — to najbardziej "księgowa"/najmniej
-// angażująca treść z całej zakładki. Tam, gdzie danych faktycznie brakuje (historia kapitanów,
-// ROI transferów, template ligi), jest jawna notka zamiast zmyślonych liczb.
+// "🧠 Statystyki" — 7 modułów, w tej kolejności: Captaincy, Chip Tracker, Ownership, Chips, Bench,
+// Stabilność, Transfers. Captaincy i Ownership to dawny "Wgląd w ligę" (showOverview) przeniesiony
+// 1:1, tylko rozbity na dwa moduły. Chip Tracker (obok Captaincy) i Chips (niżej) świadomie
+// ROZDZIELONE mimo podobnej treści — różny ZAKRES: Chip Tracker to GW-owy snapshot z tego samego
+// overview co Captaincy/Ownership (kto ma aktywny chip W TEJ kolejce), Chips niżej to historia
+// całego sezonu z chipHistory. Trzymanie ich razem w jednym module (jak było wcześniej) było
+// mylące — podtytuł obiecywał "cały sezon", a pigułki na górze pokazywały tylko bieżącą GW.
+// Bench/Stabilność/Transfers są nowsze, liczone w całości z danych, które i tak już mamy na
+// froncie (gwPoints wzbogacone, chipHistory, transfersHistory z quarter-wins) — zero dodatkowych
+// zapytań z TEGO komponentu do FPL. Transfers (płatne/hity) świadomie na samym końcu — to
+// najbardziej "księgowa"/najmniej angażująca treść z całej zakładki. Tam, gdzie danych faktycznie
+// brakuje (historia kapitanów, ROI transferów, template ligi), jest jawna notka zamiast
+// zmyślonych liczb.
 // Paski tła (RankFill/barPct) w rankingach i wierszach zawodników to jedyna wizualna zmiana ponad
 // samą treść — szybki skan "kto ile" bez czytania każdej liczby, w tym samym duchu co pasek
 // postępu ćwiartki w Lidze.
@@ -33,14 +37,25 @@ type Props = {
 // niskiej obstawie (np. "1/15 kozak" z Różnicowych), gdzie od razu chce się wiedzieć KTO, i czy
 // trzymał go w podstawowym składzie, czy tylko na ławce (zamiast klikać po kolei w każdego managera
 // w Lidze, żeby to sprawdzić).
+// W Statystykach (Chip Tracker + Chips) Bench Boost dostaje dodatkową ikonkę 🚀 obok standardowej
+// 🪑 — samo krzesełko zlewało się z resztą treści w tych bardziej "osiągnięciowych" widokach;
+// w Lidze/bannerach (chipIcon() bezpośrednio) zostaje samo 🪑, bez zmian.
+function statsChipIcon(code: string) {
+  return code === 'bboost' ? `${chipIcon(code)}🚀` : chipIcon(code);
+}
+
 function renderOwnersPanel(owners: PlayerOwner[]) {
   if (!owners.length) return null;
   return (
     <div className="ownerslist">
       {owners.map(o => (
-        <span key={o.entry} className="ownerpill" title={o.isBench ? 'Na ławce' : 'W podstawowym składzie'}>
+        <span
+          key={o.entry}
+          className={`ownerpill${o.isTripleCaptain ? ' ownerpill--tc' : ''}`}
+          title={o.isTripleCaptain ? 'Triple Captain — potrojone punkty' : o.isBench ? 'Na ławce' : 'W podstawowym składzie'}
+        >
           {o.player_name}
-          {o.isCaptain && ' (C)'}
+          {o.isTripleCaptain ? ' 👑³' : o.isCaptain && ' (C)'}
           {o.isBench && ' 🪑'}
         </span>
       ))}
@@ -129,11 +144,13 @@ export default function StatsSection({
   // pasek jest tu miarą "wychylenia", nie "dobra/zła", stąd długość rośnie wraz z niestabilnością
   const maxStdDev = consistencyRows[consistencyRows.length - 1]?.stdDev ?? 0;
 
-  // Chips: pogrupowane per typ chipa (osobny segment na BB/WC/FH/TC/AM). Dla BB/TC sortujemy
-  // malejąco wg REALNEGO zysku z chipa (bonus z backendu — dla BB suma pkt z ławki, dla TC pkt
-  // kapitana ponad zwykłe podwojenie; nie total kolejki). Dla WC/FH/AM taki "zysk" nie jest
-  // dobrze zdefiniowany (to chipy transferowe/menedżerskie) — te segmenty zostają jako zwykła,
-  // chronologiczna lista "kto kiedy zagrał", bez zmyślonego rankingu po fałszywej liczbie.
+  // Chips: pogrupowane per typ chipa (osobny segment na BB/FH/TC). Sortujemy malejąco wg
+  // REALNEGO zysku z chipa (bonus z backendu — dla BB suma pkt z ławki, dla TC pkt kapitana
+  // ponad zwykłe podwojenie, dla FH różnica względem składu sprzed chipa w tej samej kolejce;
+  // nigdy total kolejki). Wildcard i Assistant Manager świadomie POMIJAMY w tym widoku (patrz
+  // activeChipCodes niżej) — dla nich nie ma dobrze zdefiniowanego "zysku" (WC to trwała
+  // przebudowa składu na przyszłość, nie efekt jednej kolejki; AM to inny mechanizm, w ogóle
+  // nieobsługiwany), więc zostawałaby po nich tylko goła, mało przydatna lista "kto kiedy zagrał".
   const chipGroups = React.useMemo(() => {
     const byCode: Record<string, { entry: number; label: string; name: string; event: number; bonus: number | null }[]> = {};
     for (const [entryStr, chips] of Object.entries(chipHistory)) {
@@ -150,7 +167,7 @@ export default function StatsSection({
     }
     return byCode;
   }, [chipHistory]);
-  const activeChipCodes = ['bboost', 'wildcard', 'freehit', '3xc', 'manager'].filter(code => (chipGroups[code]?.length ?? 0) > 0);
+  const activeChipCodes = ['bboost', 'freehit', '3xc'].filter(code => (chipGroups[code]?.length ?? 0) > 0);
 
   // Transfers, pogrupowane po GW z kosztem hita W TEJ GW doczepionym z gwPoints — żeby przy
   // -{totalCost} dało się pokazać, KTÓRE kolejki (i jakie transfery w nich) się na to złożyły.
@@ -219,6 +236,24 @@ export default function StatsSection({
         </div>
       </StatModule>
 
+      {/* Chip Tracker — świadomie ODDZIELONY od modułu "Chips" niżej: to jest GW-owy snapshot
+          ("kto ma aktywny chip W TEJ kolejce"), nie historia sezonu. Wcześniej te same pigułki
+          siedziały na górze modułu "Chips", którego podtytuł obiecuje "cały sezon" — myląca
+          sprzeczność (GW-owe dane w sezonowym module). Miejsce obok Captaincy nieprzypadkowe: ten
+          moduł ma ten sam charakter co pigułka "OBECNY GW" w Captaincy — bieżący stan kolejki, nie
+          narastająca historia. */}
+      {overview && overview.chipUsage.length > 0 && (
+        <StatModule icon="🃏" tone="special" title="Chip Tracker" subtitle={`Kto ma aktywny chipa w tej kolejce (GW${overview.gw})`}>
+          <div className="awardsrow">
+            {overview.chipUsage.map(c => (
+              <span key={c.code} className="awardpill" title={c.name}>
+                {c.code !== 'none' && `${statsChipIcon(c.code)} `}{c.label}: {c.count} ({c.pct}%)
+              </span>
+            ))}
+          </div>
+        </StatModule>
+      )}
+
       <StatModule icon="👥" tone="neutral" title="Ownership" subtitle="Kogo najczęściej wybierają, a kto jest różnicowym strzałem">
         {overview && (
           <div className="small">
@@ -278,15 +313,6 @@ export default function StatsSection({
       </StatModule>
 
       <StatModule icon="🃏" tone="special" title="Chips" subtitle="Kto i kiedy zagrał jakiego chipa w tym sezonie">
-        {overview && overview.chipUsage.length > 0 && (
-          <div className="awardsrow" style={{ marginBottom: 12 }}>
-            {overview.chipUsage.map(c => (
-              <span key={c.code} className="awardpill" title={c.name}>
-                {c.code !== 'none' && `${chipIcon(c.code)} `}{c.label}: {c.count} ({c.pct}%)
-              </span>
-            ))}
-          </div>
-        )}
         {activeChipCodes.length === 0 ? (
           <div className="small">Nikt jeszcze nie zagrał chipa w tym sezonie.</div>
         ) : (
@@ -296,7 +322,7 @@ export default function StatsSection({
             return (
               <div key={code} style={{ marginBottom: 14 }}>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                  {chipIcon(code)} {rows[0].name}
+                  {statsChipIcon(code)} {rows[0].name}
                 </div>
                 {rows.map((r, i) => (
                   <div key={`${r.entry}-${r.event}`} className={`rankbar${r.bonus != null ? ' rankbar--viz' : ''}`}>
@@ -306,13 +332,25 @@ export default function StatsSection({
                       <span className="rankbar-name">
                         {entryIndex[r.entry]?.manager ?? '—'} <span className="small">({entryIndex[r.entry]?.team ?? '—'})</span>
                       </span>
-                      <span className="rankbar-pts">{r.bonus != null ? `+${r.bonus} z chipa` : `GW${r.event}`}</span>
+                      {/* bez sztywnego "+" — zysk (zwłaszcza z Free Hit) może wyjść ujemny, gdy
+                          chip wypadł gorzej niż stary skład by zdobył tej samej kolejki */}
+                      <span className="rankbar-pts">{r.bonus != null ? `${r.bonus > 0 ? '+' : ''}${r.bonus} z chipa` : `GW${r.event}`}</span>
                     </div>
                     <div className="rankbar-gap">
                       {r.bonus != null ? `GW${r.event}` : 'brak zdefiniowanego zysku dla tego chipa'}
                     </div>
                   </div>
                 ))}
+                {code === 'freehit' && (
+                  <div className="infobox">
+                    ℹ️ <strong>Zysk z Free Hit</strong> = punkty składu z chipem − punkty, które
+                    zdobyłby skład sprzed użycia Free Hita w tej samej kolejce.
+                    <br /><br />
+                    Dla składu sprzed FH symulowane są automatyczne zmiany z ławki zgodnie z
+                    rzeczywistymi minutami i zasadami FPL. Zakładamy jedynie, że bez użycia chipa
+                    manager nie dokonałby innych zmian w składzie.
+                  </div>
+                )}
               </div>
             );
           })

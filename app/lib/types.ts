@@ -177,7 +177,10 @@ export type ChipUsageRow = { code: string; label: string; name: string; count: n
 // kto konkretnie ma danego zawodnika (rozwinięcie wiersza w sekcji Ownership) — z tym samym
 // rozróżnieniem ławka/podstawa co reszta appki, żeby "1/15" dało się od razu sprawdzić, czy ten
 // jeden manager w ogóle grał tym zawodnikiem, czy trzymał go w rezerwie
-export type PlayerOwner = { entry: number; player_name: string; isBench: boolean; isCaptain: boolean };
+export type PlayerOwner = {
+  entry: number; player_name: string; isBench: boolean; isCaptain: boolean;
+  isTripleCaptain: boolean; // kapitan I zagrany z chipem 3xc (Triple Captain) — potrojone, nie podwojone punkty
+};
 
 export type TopOwnedRow = {
   element: number; name: string; team: string; teamBadgeUrl: string; position: string; photoUrl: string;
