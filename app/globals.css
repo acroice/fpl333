@@ -343,6 +343,11 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
   padding: 2px 8px; border-radius: 999px; font-size: 11px;
   background: rgba(159,217,255,.08); border: 1px solid rgba(159,217,255,.22); color: var(--text);
 }
+/* Triple Captain — złota wersja pigułki, ten sam odcień co reszta "special" akcentów w appce
+   (statchip--special, statmodule--special), żeby od razu odróżniała się od zwykłego (C) */
+.ownerpill--tc {
+  background: rgba(240,201,117,.16); border: 1px solid rgba(240,201,117,.4); font-weight: 600;
+}
 
 /* okrągły awatar zawodnika (oficjalne zdjęcie PL) */
 .playeravatar {
@@ -1052,6 +1057,20 @@ body.retro .qdone {
 /* wariant "kolejka wystartowała" (przed wynikami) — niebieski akcent, odróżnia od zielonego
    "Podsumowania GW" (po wynikach); oba wzajemnie się wykluczają, ale kolor i tak pomaga rozpoznać */
 .gwsummary-banner--kickoff { border-left-color: #9fd9ff; }
+
+/* --- Info box: notka wyjaśniająca METODOLOGIĘ liczenia (np. "jak liczymy zysk z Free Hit") ---
+   Neutralna, przytłumiona — w odróżnieniu od .insight-banner to nie komunikat/fakt o lidze, tylko
+   techniczne wyjaśnienie skąd się bierze liczba, więc świadomie mniej rzucająca się w oczy. */
+.infobox {
+  margin-top: 10px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid #1c2430;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 
 /* --- League Insight: jeden baner, deterministyczny --- */
 .insight-banner {

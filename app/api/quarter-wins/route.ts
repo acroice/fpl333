@@ -9,6 +9,8 @@ import {
   computeFreeTransfersAvailable,
   fetchEventLiveCached,
   fetchEventMinutesCached,
+  fetchFinishedTeamsCached,
+  simulateAutosubs,
   fetchBootstrapCached,
   fetchClassicStandingsCached,
   estimateLiveOverallRank,
@@ -437,11 +439,14 @@ export async function GET(req: NextRequest){
 
     // Bonus punktowy DOSŁOWNIE z chipa (nie total z kolejki) — dla KAŻDEGO zagrania chipa w
     // całym sezonie (nie tylko latestGw), żeby moduł Chips w Statystykach mógł pokazać "ile z
-    // tytułu tego chipa", a nie total GW. Policzalny dla BB (suma pkt zawodników z ławki, które
-    // bez BB by się nie liczyły) i TC (dodatkowe punkty kapitana ponad zwykłe podwojenie) — oba
-    // wymagają składu I punktów live z KONKRETNEJ kolejki, w której chip padł. Dla WC/FH/AM nie
-    // ma dobrze zdefiniowanego "zysku z chipa" (to chipy transferowe/menedżerskie, nie
-    // punktowe), więc dla nich bonus zostaje null.
+    // tytułu tego chipa", a nie total GW. Policzalny wprost z picks+live dla BB (suma pkt
+    // zawodników z ławki, które bez BB by się nie liczyły) i TC (dodatkowe punkty kapitana ponad
+    // zwykłe podwojenie). Free Hit ma osobną, bardziej złożoną ścieżkę niżej (wymaga też składu
+    // SPRZED chipa) — patrz komentarz przy freeHitPlays. Dla Wildcard/Assistant Manager nadal nie
+    // ma dobrze zdefiniowanego "zysku z chipa" (WC to trwała przebudowa składu na przyszłość, nie
+    // punktowy efekt jednej kolejki, więc nie ma z czym uczciwie porównać; AM to inny mechanizm —
+    // bonusy menedżerskie niezwiązane z punktami XI, nieobsługiwany w ogóle), więc dla nich bonus
+    // zostaje null.
     const bonusableCodes = new Set(['bboost', '3xc']);
     const bonusablePlays: { entry: number; code: string; event: number }[] = [];
     for (const [entryStr, chips] of Object.entries(chipHistory)) {
@@ -483,7 +488,7 @@ export async function GET(req: NextRequest){
       return null;
     }
 
-    // dopełnij chipHistory o realny bonus per zagranie (WC/FH/AM zostają null)
+    // dopełnij chipHistory o realny bonus per zagranie (WC/AM zostają null, FH dopełniany niżej)
     for (const entryStr in chipHistory) {
       chipHistory[Number(entryStr)] = chipHistory[Number(entryStr)].map(c => ({
         ...c,
@@ -491,6 +496,75 @@ export async function GET(req: NextRequest){
           ? computeBonus(c.code, picksByEntryGw.get(`${entryStr}:${c.event}`), liveByGw[c.event])
           : null,
       }));
+    }
+
+    // Free Hit: w przeciwieństwie do Wildcard skład wraca po tej JEDNEJ kolejce do stanu sprzed
+    // chipa, więc — inaczej niż WC — da się uczciwie policzyć zysk: różnica między realnym
+    // wynikiem składu z FH a tym, ile faktycznie zdobyłby skład SPRZED FH, tymi samymi live-
+    // -punktami tej samej kolejki (czyli identyczne mecze, identyczne bonusy — jedyna zmienna to
+    // SKŁAD). Skład "sprzed FH" nigdy sam nie zagrał tej kolejki (FPL nie ma dla niego oficjalnych
+    // automatic_subs), więc jego ewentualne zamiany ławka→podstawa symulujemy sami —
+    // simulateAutosubs() na PEŁNYCH, już rozliczonych minutach tej kolejki (ta sama funkcja co
+    // projekcja w squad/route.ts, tu deterministyczna, bo GW jest zamknięta). GW1 pomijamy — nie
+    // ma składu "sprzed", bo GW1 to sam dobór wyjściowego składu.
+    const freeHitPlays: { entry: number; event: number }[] = [];
+    for (const [entryStr, chips] of Object.entries(chipHistory)) {
+      const entry = Number(entryStr);
+      for (const c of chips) {
+        if (c.code === 'freehit' && c.event > 1) freeHitPlays.push({ entry, event: c.event });
+      }
+    }
+    if (freeHitPlays.length) {
+      const fhGws = Array.from(new Set(freeHitPlays.map(p => p.event)));
+      const [fhMinutesList, fhFinishedList, fhPicksBeforeList] = await Promise.all([
+        Promise.all(fhGws.map(gw => fetchEventMinutesCached(gw))),
+        Promise.all(fhGws.map(gw => fetchFinishedTeamsCached(gw))),
+        Promise.all(freeHitPlays.map(p => fetchEntryPicksCached(p.entry, p.event - 1))),
+      ]);
+      const fhMinutesByGw = new Map(fhGws.map((gw, i) => [gw, fhMinutesList[i]]));
+      const fhFinishedByGw = new Map(fhGws.map((gw, i) => [gw, fhFinishedList[i]]));
+
+      // skład NA FH — większość już mamy w picksByEntryGw (latestGw + extraPlays z BB/TC), ale
+      // dociągamy to, czego jeszcze brakuje (rzadkie — FH bez BB/TC tej samej kolejki)
+      const fhAtEventMissing = freeHitPlays.filter(p => !picksByEntryGw.has(`${p.entry}:${p.event}`));
+      const fhAtEventFetched = await Promise.all(fhAtEventMissing.map(p => fetchEntryPicksCached(p.entry, p.event)));
+      fhAtEventMissing.forEach((p, i) => picksByEntryGw.set(`${p.entry}:${p.event}`, fhAtEventFetched[i]));
+
+      const fhBonusByKey = new Map<string, number>();
+      freeHitPlays.forEach((p, i) => {
+        const atEvent = picksByEntryGw.get(`${p.entry}:${p.event}`);
+        const before = fhPicksBeforeList[i];
+        const liveMap = liveByGw[p.event];
+        const minutesMap = fhMinutesByGw.get(p.event);
+        const finishedTeams = fhFinishedByGw.get(p.event);
+        if (!atEvent || !before || !liveMap || !minutesMap || !finishedTeams) return;
+
+        // realny wynik z FH: dla latestGw liczymy z live+mnożnik (entry_history.points dla
+        // TRWAJĄCEJ/świeżo zamkniętej kolejki bywa nieaktualny, ten sam bug co gdzie indziej w tym
+        // pliku — patrz liveEventTotalByEntry wyżej); dla dawno zamkniętych GW entry_history.points
+        // jest już w 100% wiarygodne i prostsze niż przeliczanie samemu.
+        const actualScore = p.event === latestGw
+          ? (() => {
+              const mult = effectiveMultiplierAfterSubs(atEvent.picks, atEvent.automaticSubs);
+              return atEvent.picks.reduce((sum, pk) => sum + (liveMap[pk.element] ?? 0) * (mult[pk.element] ?? 0), 0);
+            })()
+          : atEvent.entryHistory.points;
+
+        const sim = simulateAutosubs(before.picks, minutesMap, finishedTeams, bootstrap.elementsById);
+        const hypotheticalScore = before.picks.reduce(
+          (sum, pk) => sum + (liveMap[pk.element] ?? 0) * (sim.effectiveMultiplier[pk.element] ?? 0),
+          0
+        );
+        fhBonusByKey.set(`${p.entry}:${p.event}`, actualScore - hypotheticalScore);
+      });
+
+      for (const entryStr in chipHistory) {
+        chipHistory[Number(entryStr)] = chipHistory[Number(entryStr)].map(c =>
+          c.code === 'freehit' && fhBonusByKey.has(`${entryStr}:${c.event}`)
+            ? { ...c, bonus: fhBonusByKey.get(`${entryStr}:${c.event}`)! }
+            : c
+        );
+      }
     }
 
     // chipBonus per manager DLA latestGw konkretnie — to jest to, czego nadal potrzebuje
