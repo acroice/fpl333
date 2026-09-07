@@ -93,14 +93,55 @@ zgłasza jako `Cannot find module './NNN.js'` — od tej pory build weryfikacyjn
 port docelowy nie jest zajęty (`Get-NetTCPConnection -LocalPort 3000`), inaczej wystarcza
 `npx tsc --noEmit` + curl do już działającego serwera.
 
+### Start Phase 2 z ROADMAP.md — trzy nowe tabele RAW (`raw_players`, `raw_gameweeks`, `raw_fixtures`)
+
+Front-end dashboardu uznany za dojrzały/stabilny (żadnych otwartych zgłoszeń) — pierwszy krok w
+stronę faktycznego ML: rozszerzenie `pipeline/` o RAW ponad istniejący `league_standings_snapshot`
+(Phase 1), dokładnie tym samym wzorcem (snapshot, WRITE_APPEND, partycja dzienna po
+`ingested_ts` — celowo, żeby Phase 3 mogło robić temporal validation bez data leakage, czyli
+odtworzyć "jak wyglądał zawodnik/mecz W DANYM DNIU", nie tylko stan bieżący).
+
+Nowe pliki: `pipeline/raw_tables.py` (`run_ingest_raw_tables()` — jedno pobranie
+`bootstrap-static` daje jednocześnie `elements` → `raw_players` i `events` → `raw_gameweeks`, plus
+jedno pobranie `/fixtures/` całego sezonu → `raw_fixtures`) i cienki CLI wrapper
+`pipeline/ingest_raw_tables.py`. **Decyzja architektoniczna** (otwarty punkt z poprzedniej sesji):
+JEDNA Cloud Function na wszystkie trzy tabele, nie trzy osobne — `bootstrap-static` i tak trzeba
+pobrać raz na dwie z trzech tabel, a przy tej skali (15-osobowa liga, raz dziennie) granularny
+retry per tabela nie daje realnej korzyści kosztem większej infrastruktury. `pipeline/main.py`
+dostał drugi entry point (`ingest_raw_tables`, obok istniejącego `ingest_snapshot`, w tym samym
+pliku — `gcloud functions deploy` wybiera który przez `--entry-point`), żeby nie ruszać już
+działającej automatyzacji Phase 1 przy dodawaniu Phase 2.
+
+Kolumny per tabela to świadomie wybrany podzbiór (nie cały surowy JSON — `elements` ma ~100 pól),
+dokładnie te, które Phase 3 z ROADMAP.md nazywa wprost jako features: `minutes`, `starts`,
+`expected_goals`/`expected_assists` (xG/xA), `form`, `now_cost` (price), `total_points`
+(raw_players) oraz `team_h_difficulty`/`team_a_difficulty` — FPL FDR, surowiec pod
+`opponent_strength`/`home_away` (raw_fixtures).
+
+Zweryfikowane ręcznie (`python ingest_raw_tables.py`, ADC już skonfigurowane z Phase 1): 654
+wiersze `raw_players`, 38 `raw_gameweeks`, 380 `raw_fixtures`, dataset/tabele utworzone same przy
+pierwszym uruchomieniu (jak w Phase 1). Sprawdzone bezpośrednio zapytaniem do BigQuery — poprawne
+typy (TIMESTAMP/BOOL/FLOAT64), sensowne wartości (np. `raw_fixtures.team_h_difficulty` 1-5,
+`raw_gameweeks.data_checked=true` dla już rozliczonych GW).
+
+**Niedokończone / następny krok:** `ingest_raw_tables` NIE jest jeszcze wdrożony jako Cloud
+Function (na razie tylko ręczny CLI, brak automatyzacji) — do zdeployowania analogicznie do
+`fpl-ingest-league-snapshot` (osobna funkcja, np. `fpl-ingest-raw-tables`, + osobny Cloud Scheduler
+job), prawdopodobnie z tymi samymi przeszkodami IAM co przy pierwszym deployu Phase 1 (patrz
+sesja 1 niżej — role na Compute Engine default SA i buckecie `gcf-v2-sources-*`, część zmian IAM
+blokowana dla agenta, wymaga ręcznego `gcloud ... add-iam-policy-binding` przez użytkownika). Po
+deployu: warstwa STAGING (czyszczenie/normalizacja/dedup) i FEATURES (pierwsza tabela cech, np.
+`player_gameweek_features`, łącząca RAW pod model z Phase 3).
+
 ### Stan repo na koniec sesji 4
 
-`main` ma wszystko z tej sesji zmergowane (PR #17–#20, fast-forward, każdy z osobnym, opisowym
+`main` ma wszystko z tej sesji zmergowane (PR #17–#21, fast-forward, każdy z osobnym, opisowym
 commitem), working tree czysty, brak lokalnych/zdalnych branchy WIP (każdy PR kasował swój branch
-po merge'u). Każdy merge wywołał automatyczny deploy na Vercelu (GitHub integration), potwierdzony
-statusem `success` przez GitHub API. Kolejna sesja może zacząć od Phase 2 z ROADMAP.md (RAW →
-STAGING → FEATURES, patrz plan w sekcji sesji 1 niżej) — front-end dashboardu jest w stabilnym,
-zamkniętym stanie, nic tu nie czeka w tej chwili na dokończenie.
+po merge'u). Każdy merge front-endu wywołał automatyczny deploy na Vercelu (GitHub integration),
+potwierdzony statusem `success` przez GitHub API — PR z Phase 2 (`pipeline/`) nie dotyka Next.js,
+więc nie wywołuje deployu Vercela. Kolejna sesja kontynuuje Phase 2: deploy `ingest_raw_tables`
+jako Cloud Function + Cloud Scheduler, potem STAGING/FEATURES (patrz plan wyżej i w sekcji sesji 1
+niżej) — front-end dashboardu zostaje w stabilnym, zamkniętym stanie.
 
 ## Stan na 2026-09-06 (sesja 3 — front-end dashboardu, kontynuacja sesji 2)
 
