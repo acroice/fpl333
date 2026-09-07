@@ -124,23 +124,47 @@ pierwszym uruchomieniu (jak w Phase 1). Sprawdzone bezpośrednio zapytaniem do B
 typy (TIMESTAMP/BOOL/FLOAT64), sensowne wartości (np. `raw_fixtures.team_h_difficulty` 1-5,
 `raw_gameweeks.data_checked=true` dla już rozliczonych GW).
 
-**Niedokończone / następny krok:** `ingest_raw_tables` NIE jest jeszcze wdrożony jako Cloud
-Function (na razie tylko ręczny CLI, brak automatyzacji) — do zdeployowania analogicznie do
-`fpl-ingest-league-snapshot` (osobna funkcja, np. `fpl-ingest-raw-tables`, + osobny Cloud Scheduler
-job), prawdopodobnie z tymi samymi przeszkodami IAM co przy pierwszym deployu Phase 1 (patrz
-sesja 1 niżej — role na Compute Engine default SA i buckecie `gcf-v2-sources-*`, część zmian IAM
-blokowana dla agenta, wymaga ręcznego `gcloud ... add-iam-policy-binding` przez użytkownika). Po
-deployu: warstwa STAGING (czyszczenie/normalizacja/dedup) i FEATURES (pierwsza tabela cech, np.
-`player_gameweek_features`, łącząca RAW pod model z Phase 3).
+### Deploy `ingest_raw_tables` — Cloud Function + Cloud Scheduler (Phase 2 zautomatyzowana)
+
+Wdrożone jako osobna funkcja `fpl-ingest-raw-tables` (`europe-west1`, gen2, `python313`,
+512Mi/0.33 vCPU, timeout 120s, SA `fpl333-app`) — nie ruszało istniejącej `fpl-ingest-league-snapshot`.
+Deploy przeszedł bez przeszkód IAM na poziomie projektu/bucketu (te z sesji 1 — role na Compute
+Engine default SA i buckecie `gcf-v2-sources-*` — najwyraźniej wystarczają dla kolejnych funkcji w
+tym samym projekcie, nie trzeba było ich powtarzać).
+
+Jedna NOWA przeszkoda: `roles/run.invoker` na Cloud Run trzeba nadać OSOBNO per usługa (nie
+dziedziczy się między funkcjami) — nowy `fpl-ingest-raw-tables-daily` job dostawał
+`PERMISSION_DENIED` (status code 7) do pierwszego `gcloud run services add-iam-policy-binding
+fpl-ingest-raw-tables ... --role=roles/run.invoker --member=serviceAccount:fpl333-app@...`. W
+odróżnieniu od project/bucket-level bindingów z sesji 1, TEN binding (na poziomie pojedynczej
+usługi Cloud Run) nie był blokowany dla agenta — wykonany bezpośrednio, bez potrzeby ręcznej
+interwencji użytkownika.
+
+Cloud Scheduler job `fpl-ingest-raw-tables-daily` (cron `10 6 * * *`, `Europe/Warsaw` — celowo 10
+min po istniejącym `fpl-ingest-league-snapshot-daily`, żeby oba joby nie startowały w tej samej
+sekundzie), autoryzacja OIDC tokenem SA `fpl333-app`. Test end-to-end (`gcloud scheduler jobs run`
+→ `status: {}` bez kodu błędu, ten sam sygnał sukcesu co przy działającym już Phase 1 jobie) —
+potwierdzony drugim kompletem wierszy w BigQuery (654/38/380, identycznie jak ręczny test) z nowym
+`ingested_ts`. Od teraz obie automatyzacje dokładają nowy snapshot codziennie bez ręcznej
+interwencji.
+
+Koszt: wszystko mieści się w darmowym tierze GCP (Cloud Functions/Scheduler/Cloud Build free tier,
+BigQuery load joby darmowe, storage rzędu pojedynczych MB nawet po całym sezonie) — realistycznie
+$0/miesiąc dodatkowo. Do zweryfikowania przez użytkownika w Billing, jeśli chce się upewnić.
+
+**Następny krok:** warstwa STAGING (czyszczenie/normalizacja/dedup) i FEATURES (pierwsza tabela
+cech, np. `player_gameweek_features`, łącząca RAW pod model z Phase 3).
 
 ### Stan repo na koniec sesji 4
 
-`main` ma wszystko z tej sesji zmergowane (PR #17–#21, fast-forward, każdy z osobnym, opisowym
+`main` ma wszystko z tej sesji zmergowane (PR #17–#22, fast-forward, każdy z osobnym, opisowym
 commitem), working tree czysty, brak lokalnych/zdalnych branchy WIP (każdy PR kasował swój branch
 po merge'u). Każdy merge front-endu wywołał automatyczny deploy na Vercelu (GitHub integration),
 potwierdzony statusem `success` przez GitHub API — PR z Phase 2 (`pipeline/`) nie dotyka Next.js,
-więc nie wywołuje deployu Vercela. Kolejna sesja kontynuuje Phase 2: deploy `ingest_raw_tables`
-jako Cloud Function + Cloud Scheduler, potem STAGING/FEATURES (patrz plan wyżej i w sekcji sesji 1
+więc nie wywołuje deployu Vercela. `ingest_raw_tables` wdrożony i zautomatyzowany (Cloud Function +
+Cloud Scheduler, patrz wyżej) — Phase 2 ma teraz DZIAŁAJĄCY, codzienny ingest wszystkich czterech
+tabel RAW (`league_standings_snapshot` + `raw_players`/`raw_gameweeks`/`raw_fixtures`). Kolejna
+sesja kontynuuje Phase 2: warstwa STAGING/FEATURES (patrz plan wyżej i w sekcji sesji 1
 niżej) — front-end dashboardu zostaje w stabilnym, zamkniętym stanie.
 
 ## Stan na 2026-09-06 (sesja 3 — front-end dashboardu, kontynuacja sesji 2)
