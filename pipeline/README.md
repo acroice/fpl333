@@ -40,10 +40,13 @@ gcloud auth application-default login
     Scheduler job `fpl-ingest-league-snapshot-daily`, autoryzacja OIDC tokenem SA
     `fpl333-app`. Szczegóły deployu i napotkane problemy IAM — patrz `PROGRESS.md`
     w repo root.
-  - `ingest_raw_tables(request)` — Phase 2 (patrz niżej), jeszcze niewdrożony jako
-    Cloud Function (na razie tylko ręczny CLI) — do zdeployowania analogicznie do
-    powyższego, jako osobna funkcja (np. `fpl-ingest-raw-tables`) + osobny Scheduler
-    job, żeby nie ruszać już działającej automatyzacji Phase 1.
+  - `ingest_raw_tables(request)` — Phase 2 (patrz niżej), wdrożony jako
+    `fpl-ingest-raw-tables` (`europe-west1`, 512Mi/0.33 vCPU), wywoływany raz dziennie
+    (06:10 czasu Warszawy — celowo 10 min po `fpl-ingest-league-snapshot-daily`, żeby
+    oba joby nie startowały w tej samej sekundzie) przez Cloud Scheduler job
+    `fpl-ingest-raw-tables-daily`, autoryzacja OIDC tokenem SA `fpl333-app`. Osobna
+    funkcja i osobny Scheduler job od Phase 1 — nie ruszają już działającej
+    automatyzacji `league_standings_snapshot`.
 
 - **`raw_tables.py`** — właściwa logika ingestu Phase 2 (`run_ingest_raw_tables()`):
   jedno pobranie `bootstrap-static` (→ `fpl_raw.raw_players` z `elements`, `fpl_raw.raw_gameweeks`
