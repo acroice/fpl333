@@ -184,6 +184,14 @@ export async function GET(req: NextRequest) {
       leagueSize
     );
 
+    // Total GW liczony z live (suma punktów × oficjalny mnożnik każdego zawodnika w `squad`), NIE
+    // z targetPicks.entryHistory.points — to pole z endpointu picks/, liczone po tej samej stronie
+    // co /entry/{id}/history/ (ten sam bug naprawiony dla Ćwiartek/Ligi w quarter-wins/route.ts:
+    // dla świeżo zamkniętej kolejki zostaje w tyle, dopóki bonusy nie są potwierdzone na każdym
+    // meczu). `squad[].total` już jest oparte o `live`, więc ta suma jest zawsze aktualna —
+    // zarówno dla latestGw, jak i dla dowolnej wcześniejszej, zamkniętej kolejki.
+    const officialTotal = squad.reduce((sum, p) => sum + p.total, 0);
+
     // Projekcja autosubów — tylko gdy FPL jeszcze nie ma własnych oficjalnych zamian (kolejka w
     // trakcie). Bez dodatkowego zapytania o minuty (współdzieli cache z fetchEventLiveCached);
     // jedno dodatkowe, tanie zapytanie o zakończone mecze.
@@ -235,6 +243,7 @@ export async function GET(req: NextRequest) {
       entryName: target.entry_name,
       activeChip: chip,
       entryHistory: targetPicks.entryHistory,
+      officialTotal,       // total GW liczony z live, patrz komentarz wyżej — preferować nad entryHistory.points
       transfers,          // [{elementOut,nameOut,photoUrlOut,pointsOut,elementIn,nameIn,photoUrlIn,pointsIn,delta}, ...] — "kto na kogo" w tej GW
       squad,
       leagueSize,

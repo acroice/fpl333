@@ -107,6 +107,7 @@ export type SquadData = {
     eventTransfers: number; eventTransfersCost: number;
     bank: number; value: number; pointsOnBench: number;
   };
+  officialTotal: number; // total GW liczony z live, nie z entryHistory.points (patrz squad/route.ts)
   transfers: SquadTransferRow[]; // transfery zagrane W TEJ GW (puste, gdy manager nic nie ruszał)
   squad: SquadPlayer[];
   leagueSize: number;

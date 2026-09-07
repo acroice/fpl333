@@ -326,6 +326,13 @@ export async function GET(req: NextRequest){
 
     // Awards of the Week — kompaktowe wyróżnienia dla latestGw, liczone z danych, które i tak
     // już mamy (historia per manager), bez dodatkowych zapytań do FPL.
+    // `points` bierze live event_total (liveEventTotalByEntry, patrz komentarz przy quarterScores
+    // wyżej), NIE cur?.pts z /history/ — to ten sam bug, co naprawiony tam: dla świeżo zamkniętej
+    // latestGw /history/ zostaje w tyle, dopóki bonusy nie są potwierdzone na każdym meczu. To pole
+    // zasila topGun/toughWeek/noChipWarrior w "Podsumowaniu GW" i "GW Wrapped" — bez tej poprawki
+    // te bannery pokazywały inne (starsze) liczby niż Liga/Ćwiartki, które już mają fix.
+    // benchPoints zostaje na razie z historii — dopełniane niżej z live, gdy mamy już picks (patrz
+    // benchPointsLiveByEntry).
     const latestRows = leagueEntries.map((plr, idx) => {
       const cur = histories[idx].current.find(x => x.gw === latestGw);
       const prev = histories[idx].current.find(x => x.gw === latestGw - 1);
@@ -333,7 +340,7 @@ export async function GET(req: NextRequest){
         entry: plr.entry,
         player_name: plr.player_name || '',
         entry_name: plr.entry_name || '',
-        points: cur?.pts ?? 0,
+        points: liveEventTotalByEntry.get(plr.entry) ?? cur?.pts ?? 0,
         value: cur?.value ?? 0,
         overallRank: cur?.overallRank ?? 0,
         prevOverallRank: prev?.overallRank ?? null,
@@ -366,6 +373,29 @@ export async function GET(req: NextRequest){
       fetchEventLiveCached(latestGw),
       fetchEventMinutesCached(latestGw),
     ]);
+
+    // Punkty zostawione na ławce w latestGw, liczone z live (jak benchRawPoints w squad/route.ts),
+    // NIE z cur.benchPoints w latestRows (to pole z /history/ — ten sam bug co points wyżej: dla
+    // świeżo zamkniętej kolejki zostaje w tyle, dopóki bonusy nie są potwierdzone). Zasila
+    // "Łzy na ławce" w Podsumowaniu GW/GW Wrapped, więc musi być tak samo świeże jak reszta.
+    const benchPointsLiveByEntry = new Map<number, number>();
+    leagueEntries.forEach((plr, idx) => {
+      const picks = allPicksLatest[idx];
+      // klasyfikacja ławka/podstawa po automatic_subs, ten sam duch co buildSquad w squad/route.ts:
+      // kto wszedł z ławki liczy się jako podstawa, kto wypadł (nie zagrał) — jako ławka.
+      const subbedIn = new Set(picks.automaticSubs.map(s => s.elementIn));
+      const subbedOut = new Set(picks.automaticSubs.map(s => s.elementOut));
+      const benchPts = picks.picks
+        .filter(p => (subbedIn.has(p.element) ? false : subbedOut.has(p.element) ? true : p.position > 11))
+        .reduce((sum, p) => sum + (live[p.element] ?? 0), 0);
+      benchPointsLiveByEntry.set(plr.entry, benchPts);
+    });
+    // Ta sama korekta trafia też do gwPoints (Sezon/Statystyki — ranking Bench/Stabilność), żeby
+    // latestGw nie pokazywała tam innej liczby niż w Podsumowaniu GW.
+    leagueEntries.forEach(plr => {
+      const row = gwPoints[plr.entry]?.find(r => r.gw === latestGw);
+      if (row) row.benchPoints = benchPointsLiveByEntry.get(plr.entry) ?? row.benchPoints;
+    });
 
     // Estymata LIVE rankingu ogólnego (patrz komentarz przy estimateLiveOverallRank w fpl.ts) —
     // podmienia overallRank[x].rank na świeższą wartość znalezioną przeszukaniem ligi Overall (314)
@@ -706,8 +736,13 @@ export async function GET(req: NextRequest){
     const toughWeek = bottomBy(latestRows, r => r.points);
     // Bench Tears: kto zostawił najwięcej punktów na ławce w tej GW — bardziej "bolesna" i
     // konkretna ciekawostka niż suchy najgorszy total (to i tak pokazuje GW Pulse "Worst GW").
-    // Tylko gdy ktoś faktycznie coś zostawił (>0), inaczej nagroda się nie pojawia.
-    const benchTearsRow = topBy(latestRows.filter(r => r.benchPoints > 0), r => r.benchPoints);
+    // Tylko gdy ktoś faktycznie coś zostawił (>0), inaczej nagroda się nie pojawia. Liczone z
+    // benchPointsLiveByEntry (live), nie z r.benchPoints (z /history/, patrz komentarz przy tej
+    // mapie wyżej) — inaczej "Łzy na ławce" w Podsumowaniu GW/GW Wrapped pokazywałyby laggy liczbę.
+    const benchTearsRow = topBy(
+      latestRows.filter(r => (benchPointsLiveByEntry.get(r.entry) ?? 0) > 0),
+      r => benchPointsLiveByEntry.get(r.entry) ?? 0
+    );
     const withComputableBonus = withChip.filter(r => chipBonus[r.entry] != null);
     // wybieramy po realnym zysku z chipa, jeśli da się go policzyć; inaczej fallback na total
     const chipMaster = withComputableBonus.length
@@ -748,7 +783,7 @@ export async function GET(req: NextRequest){
             templateCaptainPts,
           })
         : null, // nikt nie pobił template captaina inną kapitanką w tej kolejce -> ukryty na froncie
-      benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchTearsRow.benchPoints }) : null,
+      benchTears: benchTearsRow ? mkAward(benchTearsRow, { benchPoints: benchPointsLiveByEntry.get(benchTearsRow.entry) ?? 0 }) : null,
       // value tu = pkt straconych na hicie (nie wartość drużyny jak w valueKing — Award ma
       // generyczne pola reużywane per typ nagrody, patrz komentarz przy definicji transferTangle)
       transferTangle: transferTangle ? { entry: transferTangle.entry, player_name: transferTangle.player_name, entry_name: transferTangle.entry_name, value: transferTangle.transfersCost } : null,

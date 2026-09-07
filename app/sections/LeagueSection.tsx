@@ -650,7 +650,7 @@ function SquadDrilldown({
 
   const showingProjected = squad.hasProjection && (useProjection[entry] ?? true);
   const displaySquad = showingProjected && squad.projectedSquad ? squad.projectedSquad : squad.squad;
-  const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.entryHistory.points;
+  const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.officialTotal;
   const benchRawPoints = displaySquad.filter(p => p.isBench).reduce((sum, p) => sum + p.points, 0);
 
   return (
