@@ -201,7 +201,7 @@ perspektyw MLowych"), każda poprawiająca poprzednią:
 
 ### Stan repo na koniec sesji 4
 
-`main` ma wszystko z tej sesji zmergowane (PR #17–#22, fast-forward, każdy z osobnym, opisowym
+`main` ma wszystko z tej sesji zmergowane (PR #17–#24, fast-forward, każdy z osobnym, opisowym
 commitem), working tree czysty, brak lokalnych/zdalnych branchy WIP (każdy PR kasował swój branch
 po merge'u). Każdy merge front-endu wywołał automatyczny deploy na Vercelu (GitHub integration),
 potwierdzony statusem `success` przez GitHub API — PR z Phase 2 (`pipeline/`) nie dotyka Next.js,
