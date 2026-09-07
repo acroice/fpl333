@@ -112,7 +112,10 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.points - a.points || a.ownedCount - b.ownedCount)
       .slice(0, 11);
 
-    // Captaincy Stats — każdy wybór kapitana w lidze: kto go zagrał (%), ile dał punktów
+    // Captaincy Stats — każdy wybór kapitana w lidze: kto go zagrał (%), ile dał punktów.
+    // captainOwners = podzbiór ownersByElement, tylko ci którzy akurat GO kapitanowali (nie
+    // wszyscy właściciele) — do rozwijanego "kto go kapitanuje" pod wierszem, ten sam wzorzec co
+    // "kto go ma" w Ownership.
     const captaincy = Object.entries(captainCount)
       .map(([elementStr, count]) => {
         const element = Number(elementStr);
@@ -128,6 +131,7 @@ export async function GET(req: NextRequest) {
           points: live[element] ?? 0,
           captainCount: count,
           captainPct: leagueSize ? Math.round((count / leagueSize) * 100) : 0,
+          captainOwners: (ownersByElement[element] ?? []).filter(o => o.isCaptain),
         };
       })
       .sort((a, b) => b.captainCount - a.captainCount || b.points - a.points);

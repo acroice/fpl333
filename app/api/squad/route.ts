@@ -22,6 +22,11 @@ export const revalidate = 0;
 
 const POSITION_LABEL: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 
+// "kto konkretnie ma tego zawodnika" — ten sam kształt co PlayerOwner w lib/types.ts (Ownership w
+// Statystykach), tylko lokalna kopia, bo backend nie importuje typów frontendu. Do rozwijanego
+// panelu pod wierszem zawodnika w drill-downie składu (Liga), analogicznie do Ownership.
+type SquadOwner = { entry: number; player_name: string; isBench: boolean; isCaptain: boolean; isTripleCaptain: boolean };
+
 // Buduje listę 15 zawodników na podstawie efektywnych mnożników (0/1/2/3) i informacji o
 // zamianach — współdzielone przez skład "oficjalny" (automatic_subs z FPL) i "projekcję"
 // (nasza symulacja na żywo, patrz simulateAutosubs w _lib/fpl.ts).
@@ -33,7 +38,8 @@ function buildSquad(
   live: Record<number, number>,
   bootstrap: BootstrapSlim,
   ownedCount: Record<number, number>,
-  leagueSize: number
+  leagueSize: number,
+  ownersByElement: Record<number, SquadOwner[]>
 ) {
   return picks
     .map(p => {
@@ -65,6 +71,7 @@ function buildSquad(
         subbedOut: subbedOut.has(p.element),
         multiplier: mult,
         ownershipPct: leagueSize ? Math.round(((ownedCount[p.element] || 0) / leagueSize) * 100) : 0,
+        owners: ownersByElement[p.element] ?? [],
         slot: p.position,
       };
     })
@@ -160,11 +167,24 @@ export async function GET(req: NextRequest) {
     // często kapitanowanych graczy, co wyglądało jak błąd — patrz league-overview/route.ts,
     // gdzie ta sama zmiana już została zrobiona wcześniej; tu doganiamy tę samą logikę).
     const ownedCount: Record<number, number> = {};
-    for (const p of allPicks) {
+    // "kto konkretnie ma" per zawodnik — do rozwijanego panelu pod wierszem w drill-downie składu
+    // (ten sam wzorzec co Ownership w Statystykach/league-overview route.ts). Ławka liczona z
+    // uwzględnieniem automatycznych zamian tego managera (kto wszedł -> podstawa, kto wypadł ->
+    // ławka), tak jak reszta appki.
+    const ownersByElement: Record<number, SquadOwner[]> = {};
+    allPicks.forEach((p, idx) => {
+      const entry = leagueEntries[idx].entry;
+      const player_name = leagueEntries[idx].player_name || '';
       for (const pick of p.picks) {
         ownedCount[pick.element] = (ownedCount[pick.element] || 0) + 1;
+        const subbedIn = p.automaticSubs.some(s => s.elementIn === pick.element);
+        const subbedOut = p.automaticSubs.some(s => s.elementOut === pick.element);
+        const isBench = subbedIn ? false : subbedOut ? true : pick.position > 11;
+        const isTripleCaptain = pick.isCaptain && p.activeChip === '3xc';
+        if (!ownersByElement[pick.element]) ownersByElement[pick.element] = [];
+        ownersByElement[pick.element].push({ entry, player_name, isBench, isCaptain: pick.isCaptain, isTripleCaptain });
       }
-    }
+    });
     const leagueSize = leagueEntries.length;
 
     // Automatyczne zamiany FPL (oficjalne) — jeśli już są dostępne (kolejka zamknięta), stosujemy
@@ -181,7 +201,8 @@ export async function GET(req: NextRequest) {
       live,
       bootstrap,
       ownedCount,
-      leagueSize
+      leagueSize,
+      ownersByElement
     );
 
     // Total GW liczony z live (suma punktów × oficjalny mnożnik każdego zawodnika w `squad`), NIE
@@ -219,7 +240,8 @@ export async function GET(req: NextRequest) {
         live,
         bootstrap,
         ownedCount,
-        leagueSize
+        leagueSize,
+        ownersByElement
       );
       projectedTotal = projectedSquad.reduce((sum, p) => sum + p.total, 0);
       // UWAGA: celowo NIE porównujemy projectedTotal z entryHistory.points — to dwa osobne

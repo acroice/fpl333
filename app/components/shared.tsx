@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import type { Quarter } from '../lib/types';
+import type { Quarter, PlayerOwner } from '../lib/types';
 
 // klucz statusu ćwiartki do klas CSS (paska sezonu, pigułki statusu) — steruje kolorem kropki:
 // trwa = zielona (live), wkrótce = żółta (pending), zakończona = czerwona (closed)
@@ -151,6 +151,30 @@ export function awardNames(award: { player_name: string; tiedEntries?: { entry: 
   if (!award) return '';
   const names = award.tiedEntries?.length ? award.tiedEntries.map(m => m.player_name) : [award.player_name];
   return namesOrInitials(names);
+}
+
+// Panel "kto konkretnie ma tego zawodnika" — pigułki z managerami, rozwijane pod klikalnym
+// wierszem rankingu/składu. Współdzielone przez Ownership (Statystyki), Captaincy (Statystyki) i
+// drill-down składu w Lidze — ten sam wizualny język wszędzie, gdzie pytanie brzmi "kto go ma/kto
+// go kapitanuje". Triple Captain (złota pigułka + 👑³) wyróżniony, bo to rzadka, świąteczna
+// decyzja — reszta to zwykłe (C)/🪑.
+export function OwnersPanel({ owners }: { owners: PlayerOwner[] }) {
+  if (!owners.length) return null;
+  return (
+    <div className="ownerslist">
+      {owners.map(o => (
+        <span
+          key={o.entry}
+          className={`ownerpill${o.isTripleCaptain ? ' ownerpill--tc' : ''}`}
+          title={o.isTripleCaptain ? 'Triple Captain — potrojone punkty' : o.isBench ? 'Na ławce' : 'W podstawowym składzie'}
+        >
+          {o.player_name}
+          {o.isTripleCaptain ? ' 👑³' : o.isCaptain && ' (C)'}
+          {o.isBench && ' 🪑'}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 // awatar-inicjały managera w tabeli Ligi. Top3 rankingu dostaje kolor medalu (ten sam duch co
