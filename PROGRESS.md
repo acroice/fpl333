@@ -3,6 +3,105 @@
 Bieżący stan pracy nad ROADMAP.md — czytaj to na początku sesji, żeby wiedzieć od czego
 kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → DOCUMENT).
 
+## Stan na 2026-09-07 (sesja 4 — bugfixy live-punktów, next-gen drill-downy, przegląd kodu)
+
+Dalszy ciąg polerowania front-endu dashboardu (patrz sesja 3 niżej) — Phase 2 z ROADMAP.md nadal
+nietknięta. Cztery PR-y zmergowane do `main` (#17–#20), każdy zweryfikowany end-to-end na żywej
+lidze przez działający dev server (bez odpalania drugiego obok — patrz notatka o `.next/` niżej),
+plus finalny przegląd kodu całej sesji z poprawkami.
+
+### PR #17 — Bugfix: latestGw pokazywała opóźnione punkty w kolejnych miejscach + GW Wrapped
+
+Sesja 3 naprawiła rozjazd Ćwiartki↔Liga (live `event_total` zamiast laggy `/entry/{id}/history/`
+dla świeżo zamkniętej kolejki), ale nie objęła: `awards.topGun/toughWeek/noChipWarrior/benchTears`
+w `quarter-wins/route.ts` (zasilają "Podsumowanie GW" i "GW Wrapped") oraz kafelek "Total" w
+rozwijanym składzie managera w Lidze (`squad/route.ts`, `entryHistory.points` z endpointu picks/ —
+ten sam laggy mechanizm). Oba naprawione live-computed wartościami.
+
+GW Wrapped: nowy `allTiedBy()` (backend) zwraca WSZYSTKICH remisujących o ekstremalną wartość
+nagrody, nie tylko pierwszego napotkanego (`Award.tiedEntries`) — front (`awardNames()`/
+`namesOrInitials()` w `shared.tsx`) pokazuje pełne imiona przy ≤3 osobach, inicjały przy 4-6, `X
+managerów` powyżej. Karty w GW Wrapped dopełniane z puli zapasowej do zawsze 6 (2×3), gdy
+podstawowy zestaw nie ma kompletu danych w danym tygodniu.
+
+FT w wierszu managera w Lidze: etykieta pokazywała `event_transfers` (ile transferów ZAGRANO), nie
+"free transfers" mimo nazwy — poprawione na realny bank wolnych transferów DO DYSPOZYCJI (nowa
+`computeFreeTransfersAvailable()` w `_lib/fpl.ts`, symuluje zasady FPL od sezonu 2024/25: start 1
+od GW2, +1/kolejkę, cap 5, Wildcard/Free Hit zamrażają bank). Jeden bugfix po drodze: pierwsza
+wersja liczyła bank NA START latestGw (stan sprzed jej rozegrania) zamiast stanu PO niej —
+zgłoszone przez użytkownika na żywym przykładzie (manager oszczędził transfer, powinien mieć 2 nie
+1), naprawione rozszerzeniem symulacji o samą latestGw.
+
+### PR #18 — Statystyki: Chip Tracker uspójniony sezonowo + zysk z Free Hit + wyróżnienie TC
+
+Moduł "Chips" (Statystyki) obiecywał w podtytule "cały sezon", ale pigułki na górze pokazywały
+tylko aktywne chipy W TEJ kolejce — mylące. Wydzielone do osobnej mini-sekcji "Chip Tracker" obok
+Captaincy (ten sam charakter: bieżący stan kolejki). Moduł "Chips" zostaje wyłącznie historią
+sezonu, z nowym liczeniem **zysku z Free Hit** (wynik składu z chipem minus to, ile zdobyłby skład
+sprzed FH w tej samej kolejce — symulacja autosubów starego składu na realnych minutach,
+`simulateAutosubs`). Wildcard i Assistant Manager usunięte z tego widoku (brak dobrze
+zdefiniowanego zysku — WC to trwała przebudowa na przyszłość, AM to inny mechanizm w ogóle
+nieobsługiwany). Bench Boost dostał dodatkowe 🚀 obok 🪑 w Statystykach (samo krzesełko zlewało się
+z resztą treści); w Lidze/bannerach zostaje samo 🪑. Ownership → rozwinięte "kto go ma" wyróżnia
+teraz Triple Captain (złota pigułka + 👑³).
+
+### PR #19 — Rozwijane "kto go ma/kapitanuje": drill-down składu w Lidze + Captaincy
+
+`OwnersPanel` wydzielony do `shared.tsx` (był lokalną funkcją w `StatsSection.tsx`) — reużywalny
+komponent, teraz współdzielony przez Ownership, Captaincy i nowy drill-down składu w Lidze.
+Naprawiony mylący separator "kropka + myślnik" przy ławce w drill-downzie składu; zarówno
+podstawowy skład, jak i ławka dostały klikalny wiersz rozwijający listę "kto go ma" (nowe pole
+`owners` w `SquadPlayer`). Captaincy w Statystykach: wiersz (np. "13/15") jest klikalny, rozwija
+pełną listę managerów, którzy kapitanowali danego zawodnika (nowe pole `captainOwners`).
+
+### PR #20 — Liga: pasek w drill-downzie składu pokazuje wkład punktowy, nie % obstawy
+
+Diagnoza zgłoszenia "paski nie są tu tak adekwatne jak w Statystykach": w Statystykach listy są
+posortowane po tej samej wartości co pasek (RankFill), więc paski czytają się jak leaderboard. W
+drill-downzie składu kolejność to pozycja w składzie (GK→DEF→MID→FWD→ławka), nie ranking — pasek %
+obstawy (drugorzędna metryka) skakał losowo, a najważniejsza metryka (punkty) nie miała żadnej
+wizualizacji. Naprawione: pasek pokazuje wkład punktowy względem max w składzie, tonowany kolorem
+(złoty=kapitan, zielony=dodatni, czerwony=ujemny, szary=ławka nieliczącą się) — nie wymaga
+sortowania listy. % obstawy zostaje jako drugorzędna pigułka `X% · Y/Z` (na prośbę użytkownika,
+ten sam format co Ownership).
+
+### Przegląd kodu całej sesji (`code-review --level high` na diffie #17–#20) + poprawki
+
+- **Realny bug**: zysk z Free Hit dla managera, który zagrał FH w TRWAJĄCEJ latestGw, liczył się z
+  oficjalnych `automatic_subs`, których FPL nie ma jeszcze dla nierozliczonej kolejki (puste do
+  zamknięcia GW) — naprawione tym samym wzorcem co reszta pliku: `simulateAutosubs()` dopóki
+  oficjalnych zamian brak, potem oficjalne, gdy się pojawią (jak `hasProjection` w
+  `squad/route.ts`).
+- Usunięty martwy kod (`topBy`/`bottomBy` w `quarter-wins/route.ts`, niepotrzebne po refaktorze na
+  `allTiedBy`).
+- Zduplikowana logika "wszyscy remisujący o wartość ekstremalną" (własne kopie w
+  `LeagueSection.tsx` i `GwWrappedModal.tsx`) scalona do jednego `extremeTied()`/`namesOf()` w
+  `shared.tsx`.
+- `barPct()` (pasek proporcjonalny) liczył szerokość z surowej wartości, nie z wartości
+  bezwzględnej — dla ujemnych wartości (zysk z chipa na minusie, wkład punktowy przy czerwonej
+  kartce) każda ujemna liczba lądowała na tej samej twardej podłodze 4%, tracąc informację o
+  skali. Naprawione `Math.abs()` w liczniku — kierunek (dobrze/źle) i tak niesie osobno kolor.
+
+### Notatka operacyjna: `npm run build` obok działającego `npm run dev` psuje `.next/`
+
+W trakcie sesji dwukrotnie trafiony błąd warsztatowy: (1) `Get-Process -Name node | Stop-Process`
+po weryfikacji zabijało WSZYSTKIE procesy node, w tym dev server użytkownika działający w innym
+terminalu — od tej pory dev server użytkownika zostaje nietknięty, testy idą przez curl do portu,
+na którym już nasłuchuje. (2) `npm run build` (produkcyjny) uruchomiony obok żywego `npm run dev`
+nadpisuje/przenumerowuje chunki w współdzielonym `.next/`, co dev server (już załadowany w pamięci)
+zgłasza jako `Cannot find module './NNN.js'` — od tej pory build weryfikacyjny odpalany tylko gdy
+port docelowy nie jest zajęty (`Get-NetTCPConnection -LocalPort 3000`), inaczej wystarcza
+`npx tsc --noEmit` + curl do już działającego serwera.
+
+### Stan repo na koniec sesji 4
+
+`main` ma wszystko z tej sesji zmergowane (PR #17–#20, fast-forward, każdy z osobnym, opisowym
+commitem), working tree czysty, brak lokalnych/zdalnych branchy WIP (każdy PR kasował swój branch
+po merge'u). Każdy merge wywołał automatyczny deploy na Vercelu (GitHub integration), potwierdzony
+statusem `success` przez GitHub API. Kolejna sesja może zacząć od Phase 2 z ROADMAP.md (RAW →
+STAGING → FEATURES, patrz plan w sekcji sesji 1 niżej) — front-end dashboardu jest w stabilnym,
+zamkniętym stanie, nic tu nie czeka w tej chwili na dokończenie.
+
 ## Stan na 2026-09-06 (sesja 3 — front-end dashboardu, kontynuacja sesji 2)
 
 Dalszy ciąg polerowania UX (patrz sesja 2 niżej) — Phase 2 z ROADMAP.md nadal nietknięta.

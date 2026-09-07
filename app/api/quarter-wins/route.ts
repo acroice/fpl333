@@ -352,20 +352,12 @@ export async function GET(req: NextRequest){
       };
     }).filter(r => r.points > 0 || r.value > 0); // pomiń graczy bez danych dla latestGw
 
-    function topBy<T>(rows: T[], key: (r: T) => number): T | null {
-      if (!rows.length) return null;
-      return rows.reduce((best, r) => (key(r) > key(best) ? r : best));
-    }
-    function bottomBy<T>(rows: T[], key: (r: T) => number): T | null {
-      if (!rows.length) return null;
-      return rows.reduce((worst, r) => (key(r) < key(worst) ? r : worst));
-    }
     // Wszyscy remisujący o wartość ekstremalną (max/min) danego klucza — ten sam duch co
     // extremeTied we froncie (GW Pulse w LeagueSection.tsx), tylko po stronie backendu, dla nagród
     // liczonych z danych, których front nie ma (bonus z chipa, wartość drużyny, zmiana rankingu).
-    // topBy/bottomBy wyżej zwracają tylko PIERWSZEGO napotkanego przy remisie — używane nadal do
-    // wyłonienia "głównego" wpisu nagrody, ale lista remisujących z tej funkcji trafia do
-    // tiedEntries, żeby front mógł wymienić WSZYSTKICH, a nie arbitralnie jednego.
+    // `xTied[0]` daje "głównego" zwycięzcę (pierwszego napotkanego przy remisie) do pól
+    // entry/player_name Award, a pełna lista remisujących z tej funkcji trafia do tiedEntries,
+    // żeby front mógł wymienić WSZYSTKICH, nie arbitralnie jednego.
     function allTiedBy<T>(rows: T[], key: (r: T) => number, mode: 'max' | 'min'): T[] {
       if (!rows.length) return [];
       const extreme = mode === 'max' ? Math.max(...rows.map(key)) : Math.min(...rows.map(key));
@@ -516,18 +508,19 @@ export async function GET(req: NextRequest){
     }
     if (freeHitPlays.length) {
       const fhGws = Array.from(new Set(freeHitPlays.map(p => p.event)));
-      const [fhMinutesList, fhFinishedList, fhPicksBeforeList] = await Promise.all([
+      // skład NA FH — większość już mamy w picksByEntryGw (latestGw + extraPlays z BB/TC), ale
+      // dociągamy to, czego jeszcze brakuje (rzadkie — FH bez BB/TC tej samej kolejki). Liczone
+      // PRZED poniższym Promise.all (nie zależy od żadnego z tamtych fetchy) i dociągane W TYM
+      // SAMYM Promise.all, żeby nie dokładać zbędnego sekwencyjnego round-tripu.
+      const fhAtEventMissing = freeHitPlays.filter(p => !picksByEntryGw.has(`${p.entry}:${p.event}`));
+      const [fhMinutesList, fhFinishedList, fhPicksBeforeList, fhAtEventFetched] = await Promise.all([
         Promise.all(fhGws.map(gw => fetchEventMinutesCached(gw))),
         Promise.all(fhGws.map(gw => fetchFinishedTeamsCached(gw))),
         Promise.all(freeHitPlays.map(p => fetchEntryPicksCached(p.entry, p.event - 1))),
+        Promise.all(fhAtEventMissing.map(p => fetchEntryPicksCached(p.entry, p.event))),
       ]);
       const fhMinutesByGw = new Map(fhGws.map((gw, i) => [gw, fhMinutesList[i]]));
       const fhFinishedByGw = new Map(fhGws.map((gw, i) => [gw, fhFinishedList[i]]));
-
-      // skład NA FH — większość już mamy w picksByEntryGw (latestGw + extraPlays z BB/TC), ale
-      // dociągamy to, czego jeszcze brakuje (rzadkie — FH bez BB/TC tej samej kolejki)
-      const fhAtEventMissing = freeHitPlays.filter(p => !picksByEntryGw.has(`${p.entry}:${p.event}`));
-      const fhAtEventFetched = await Promise.all(fhAtEventMissing.map(p => fetchEntryPicksCached(p.entry, p.event)));
       fhAtEventMissing.forEach((p, i) => picksByEntryGw.set(`${p.entry}:${p.event}`, fhAtEventFetched[i]));
 
       const fhBonusByKey = new Map<string, number>();
@@ -542,10 +535,17 @@ export async function GET(req: NextRequest){
         // realny wynik z FH: dla latestGw liczymy z live+mnożnik (entry_history.points dla
         // TRWAJĄCEJ/świeżo zamkniętej kolejki bywa nieaktualny, ten sam bug co gdzie indziej w tym
         // pliku — patrz liveEventTotalByEntry wyżej); dla dawno zamkniętych GW entry_history.points
-        // jest już w 100% wiarygodne i prostsze niż przeliczanie samemu.
+        // jest już w 100% wiarygodne i prostsze niż przeliczanie samemu. Mnożnik: dopóki latestGw
+        // trwa, FPL nie ma jeszcze WŁASNYCH automatic_subs dla tego składu (automaticSubs=[] aż do
+        // zamknięcia kolejki) — wtedy symulujemy je sami (simulateAutosubs, ta sama funkcja, ta
+        // sama projekcja co niżej dla składu sprzed FH), inaczej ktoś, kto powinien zejść z ławki,
+        // liczyłby się nadal z surowym mnożnikiem z picks. Gdy FPL już poda oficjalne automatic_subs
+        // (kolejka zamknięta), są one priorytetowe, tak jak w squad/route.ts.
         const actualScore = p.event === latestGw
           ? (() => {
-              const mult = effectiveMultiplierAfterSubs(atEvent.picks, atEvent.automaticSubs);
+              const mult = atEvent.automaticSubs.length > 0
+                ? effectiveMultiplierAfterSubs(atEvent.picks, atEvent.automaticSubs)
+                : simulateAutosubs(atEvent.picks, minutesMap, finishedTeams, bootstrap.elementsById).effectiveMultiplier;
               return atEvent.picks.reduce((sum, pk) => sum + (liveMap[pk.element] ?? 0) * (mult[pk.element] ?? 0), 0);
             })()
           : atEvent.entryHistory.points;

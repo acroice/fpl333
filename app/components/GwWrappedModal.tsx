@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { Awards, LeagueEntry, CaptainInfo, TopCaptainPick } from '../lib/types';
-import { PlayerAvatar, awardNames, namesOrInitials } from './shared';
+import { PlayerAvatar, awardNames, namesOrInitials, extremeTied } from './shared';
 
 type Props = {
   open: boolean;
@@ -13,17 +13,13 @@ type Props = {
   topCaptainPick: TopCaptainPick;
 };
 
-// znajdź wszystkie wpisy remisujące o max awans (last_rank - rank) — jak extremeTied w
-// LeagueSection, tylko lokalna kopia (tamta nie jest eksportowana, a to jedyne miejsce tu
-// potrzebne) — nie chcemy arbitralnie wybierać jednej osoby przy remisie
+// znajdź największy awans w lidze (last_rank - rank), ze wszystkimi remisującymi — reużywa
+// extremeTied ze shared.tsx (ta sama funkcja co Best/Worst GW/Biggest Rise w LeagueSection),
+// zamiast osobnej, ręcznie pisanej kopii tej samej logiki
 function biggestClimber(league: LeagueEntry[]) {
-  const risers = league
-    .filter(e => e.last_rank > 0 && e.last_rank > e.rank)
-    .map(e => ({ e, delta: e.last_rank - e.rank }));
-  if (!risers.length) return null;
-  const maxDelta = Math.max(...risers.map(r => r.delta));
-  const tied = risers.filter(r => r.delta === maxDelta).map(r => r.e);
-  return { entries: tied, delta: maxDelta };
+  const risers = league.filter(e => e.last_rank > 0 && e.last_rank > e.rank);
+  const { value: delta, entries } = extremeTied(risers, e => e.last_rank - e.rank, 'max');
+  return entries.length ? { entries, delta } : null;
 }
 
 // "🏁 GW Wrapped" — dodatkowy, świąteczny ekran zamykający kolejkę, obok (nie zamiast) GW Pulse
