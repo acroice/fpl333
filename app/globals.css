@@ -229,6 +229,16 @@ header { display:flex; align-items:center; justify-content:space-between; gap:16
 .countmark--on { color:#5ee1a2; }
 .countmark--off { color:#4a5b6c; }
 
+/* % obstawy w lidze przy zawodniku w drill-downzie składu (Liga) — drugorzędna pigułka, NIE
+   pełny pasek w tle jak wcześniej (RankFill w tym wierszu pokazuje teraz wkład punktowy, ważniejszą
+   metrykę dla WŁASNEGO składu; obstawa zostaje widoczna, tylko nie konkuruje z nią wizualnie).
+   Własna pigułka (nie goły tekst po "·") też likwiduje przypadek dwóch podobnych separatorów
+   ("– ·") tuż obok siebie, o który było zgłoszenie. */
+.ownpctbadge {
+  margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: rgba(159,217,255,.08); border: 1px solid rgba(159,217,255,.2); color: var(--muted);
+}
+
 /* badge przewagi w porównywarce (kto prowadzi, o ile) */
 .leadbadge {
   display:inline-flex;

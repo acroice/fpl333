@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials, OwnersPanel } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials, OwnersPanel, barPct } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -666,6 +666,25 @@ function SquadDrilldown({
   const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.officialTotal;
   const benchRawPoints = displaySquad.filter(p => p.isBench).reduce((sum, p) => sum + p.points, 0);
 
+  // Pasek w tle wiersza zawodnika pokazuje WKŁAD PUNKTOWY (nie % obstawy jak wcześniej) — to
+  // WŁASNY skład, więc najważniejsze pytanie to "kto dziś ciągnął drużynę", nie "kto jest
+  // popularnym pickiem w lidze" (ta druga informacja zostaje, tylko jako mały, drugorzędny
+  // badge obok, nie pełny pasek). Kolejność wierszy zostaje wg pozycji w składzie (naturalna,
+  // oczekiwana), więc pasek NIE wymaga sortowania listy, żeby być czytelny — każdy pasek sam w
+  // sobie pokazuje wartość tego wiersza względem najlepszego wyniku w całym składzie (15
+  // zawodników, podstawa i ławka razem, żeby skala była spójna nawet gdy porównujemy je osobno w
+  // dwóch sekcjach). Podstawa liczy `total` (już po mnożniku kapitana), ławka `points` (surowe —
+  // to i tak jest głównym numerem w tym wierszu, ✓/✕ obok już mówi, czy się liczy).
+  const maxContribution = Math.max(1, ...displaySquad.map(p => Math.abs(p.isBench ? p.points : p.total)));
+  function contributionTone(p: typeof displaySquad[number]): 'good' | 'bad' | 'special' | 'neutral' {
+    if (!p.isBench && p.isCaptain) return 'special'; // opaska zawsze złota, niezależnie od wyniku
+    const value = p.isBench ? p.points : p.total;
+    if (p.isBench && p.multiplier === 0) return 'neutral'; // nie liczy się -> bez sygnału dobra/zła wiadomość
+    if (value > 0) return 'good';
+    if (value < 0) return 'bad';
+    return 'neutral';
+  }
+
   return (
     <div className="small" style={{ lineHeight: 1.5 }}>
       {/* pigułki statystyk zamiast ściany tekstu rozdzielonej kropkami — reużywa .statchip/
@@ -744,7 +763,7 @@ function SquadDrilldown({
       {displaySquad.filter(p => !p.isBench).map(p => (
         <React.Fragment key={p.element}>
           <div className="squadplayer squadplayer--viz ownershiprow" onClick={() => toggleSquadOwners(p.element)}>
-            <RankFill pct={p.ownershipPct} tone="neutral" />
+            <RankFill pct={barPct(p.total, maxContribution)} tone={contributionTone(p)} />
             <span className="squadplayer-name">
               <PlayerAvatar src={p.photoUrl} alt={p.name} />
               <span className="pill">{p.position}</span>
@@ -753,7 +772,11 @@ function SquadDrilldown({
               {p.isViceCaptain && ' (VC)'}
               {p.subbedIn && <span className="subbadge" title="Wszedł automatyczną zamianą">↑ wszedł</span>}
             </span>
-            <span>{p.total} pkt · {p.ownershipPct}% <span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span></span>
+            <span>
+              {p.total} pkt
+              <span className="ownpctbadge" title="% obstawy w naszej lidze">{p.ownershipPct}% · {p.owners.length}/{squad.leagueSize}</span>
+              {' '}<span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span>
+            </span>
           </div>
           {expandedSquadOwners[p.element] && <OwnersPanel owners={p.owners} />}
         </React.Fragment>
@@ -763,7 +786,7 @@ function SquadDrilldown({
       {displaySquad.filter(p => p.isBench).map(p => (
         <React.Fragment key={p.element}>
           <div className="squadplayer squadplayer--viz ownershiprow" style={{ opacity: p.multiplier > 0 ? 1 : 0.65 }} onClick={() => toggleSquadOwners(p.element)}>
-            <RankFill pct={p.ownershipPct} tone="neutral" />
+            <RankFill pct={barPct(p.points, maxContribution)} tone={contributionTone(p)} />
             <span className="squadplayer-name">
               <PlayerAvatar src={p.photoUrl} alt={p.name} />
               <span className="pill">{p.position}</span>
@@ -772,12 +795,14 @@ function SquadDrilldown({
             </span>
             <span>
               {p.points} pkt
-              {/* ✓/✕ zamiast ✓/– — myślnik wyglądał jak DRUGI separator tuż obok " · ", myląco
-                  (patrz zgłoszenie: "dzieli zarówno kropka jak i myślnik") */}
+              {/* ✓/✕ (nie ✓/– — myślnik wyglądał jak drugi separator tuż obok kropki) +
+                  ownershipPct jako osobna pigułka zamiast gołego tekstu po " · ": koniec z dwoma
+                  wizualnie podobnymi separatorami zlewającymi się w jednym miejscu */}
               <span className={`countmark ${p.multiplier > 0 ? 'countmark--on' : 'countmark--off'}`} title={p.multiplier > 0 ? 'Liczy się do wyniku' : 'Nie liczy się do wyniku (ławka)'}>
                 {p.multiplier > 0 ? '✓' : '✕'}
               </span>
-              {' · '}{p.ownershipPct}% <span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span>
+              <span className="ownpctbadge" title="% obstawy w naszej lidze">{p.ownershipPct}% · {p.owners.length}/{squad.leagueSize}</span>
+              {' '}<span className="qchevron">{expandedSquadOwners[p.element] ? '▲' : '▼'}</span>
             </span>
           </div>
           {expandedSquadOwners[p.element] && <OwnersPanel owners={p.owners} />}
