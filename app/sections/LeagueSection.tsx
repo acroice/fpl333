@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueEntry, GwPoint, TeamInfo, ChipInfo, SquadData, Awards, CaptainInfo, Quarter, OverallRankInfo, ChipHistoryEntry, TopCaptainPick, GwStatus, SeasonTransferRow, TopTransferGain } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, StatTile, StatModule, RankFill, ManagerAvatar, awardNames, namesOrInitials } from '../components/shared';
 
 type SortKey = 'rank' | 'total' | 'gw';
 
@@ -398,7 +398,13 @@ export default function LeagueSection({
                               <span className="small"> · <PlayerAvatar src={captain.photoUrl} alt={captain.name} /> {captain.name}</span>
                             )}
                             {teamInfo[e.entry] && (
-                              <span className="teaminfo"> · FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}</span>
+                              <span className="teaminfo">
+                                {' · '}
+                                <span title="Wolne transfery, które manager ma TERAZ do dyspozycji (po doliczeniu tej kolejki) — ile transferów faktycznie zagrano widać w plakietce przy nazwisku">
+                                  FT {teamInfo[e.entry].freeTransfers}
+                                </span>
+                                {' · '}TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -530,7 +536,7 @@ export default function LeagueSection({
                 <StatTile
                   icon="🪑"
                   value={`${awards.benchTears.benchPoints} pkt`}
-                  caption={awards.benchTears.player_name}
+                  caption={awardNames(awards.benchTears)}
                   label="Bench Disaster"
                   tone="bad"
                 />
@@ -539,7 +545,7 @@ export default function LeagueSection({
                 <StatTile
                   photoUrl={topCaptainPick.photoUrl}
                   value={topCaptainPick.name}
-                  caption={`${topCaptainPick.points} pkt · ${topCaptainPick.managers.length === 1 ? topCaptainPick.managers[0].player_name : `${topCaptainPick.managers.length} managerów`}`}
+                  caption={`${topCaptainPick.points} pkt · ${namesOrInitials(topCaptainPick.managers.map(m => m.player_name))}`}
                   label="Captain Fantastic"
                   tone="special"
                 />
@@ -576,44 +582,44 @@ export default function LeagueSection({
                 <span className="statchip-icon">🏅</span>
                 <span className="statchip-text">
                   <span className="statchip-label">Chip Master · {awards.chipMaster.chip?.label}</span>
-                  <span className="statchip-value">{awards.chipMaster.player_name} · <b>{awards.chipMaster.bonus != null ? `+${awards.chipMaster.bonus} z chipa` : `${awards.chipMaster.points} pkt`}</b></span>
+                  <span className="statchip-value">{awardNames(awards.chipMaster)} · <b>{awards.chipMaster.bonus != null ? `+${awards.chipMaster.bonus} z chipa` : `${awards.chipMaster.points} pkt`}</b></span>
                 </span>
               </span>
             )}
             {awards.noChipWarrior && (
               <span className="statchip statchip--neutral" title="Najlepszy wynik bez chipa">
                 <span className="statchip-icon">🛡️</span>
-                <span className="statchip-text"><span className="statchip-label">No-Chip Warrior</span><span className="statchip-value">{awards.noChipWarrior.player_name} · <b>{awards.noChipWarrior.points}</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">No-Chip Warrior</span><span className="statchip-value">{awardNames(awards.noChipWarrior)} · <b>{awards.noChipWarrior.points}</b></span></span>
               </span>
             )}
             {awards.valueKing && (
               <span className="statchip statchip--special" title="Najwyższa wartość drużyny">
                 <span className="statchip-icon">💰</span>
-                <span className="statchip-text"><span className="statchip-label">Value King</span><span className="statchip-value">{awards.valueKing.player_name} · <b>£{((awards.valueKing.value ?? 0) / 10).toFixed(1)}m</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">Value King</span><span className="statchip-value">{awardNames(awards.valueKing)} · <b>£{((awards.valueKing.value ?? 0) / 10).toFixed(1)}m</b></span></span>
               </span>
             )}
             {awards.rankCrasher && (
               <span className="statchip statchip--bad" title="Największy spadek w rankingu ogólnym FPL vs poprzednia kolejka">
                 <span className="statchip-icon">🔻</span>
-                <span className="statchip-text"><span className="statchip-label">Rank Crasher</span><span className="statchip-value">{awards.rankCrasher.player_name} · <b>-{awards.rankCrasher.rankChange?.toLocaleString('pl')}</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">Rank Crasher</span><span className="statchip-value">{awardNames(awards.rankCrasher)} · <b>-{awards.rankCrasher.rankChange?.toLocaleString('pl')}</b></span></span>
               </span>
             )}
             {awards.bestCaptain && (
               <span className="statchip statchip--good" title={`Zagrał innego kapitana niż większość ligi (${awards.bestCaptain.templateCaptainName}, ${awards.bestCaptain.templateCaptainPts} pkt) i wygrał`}>
                 <span className="statchip-icon">🧠</span>
-                <span className="statchip-text"><span className="statchip-label">Best Captain</span><span className="statchip-value">{awards.bestCaptain.player_name} · <b>{awards.bestCaptain.captainName} {awards.bestCaptain.captainPts}</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">Best Captain</span><span className="statchip-value">{awardNames(awards.bestCaptain)} · <b>{awards.bestCaptain.captainName} {awards.bestCaptain.captainPts}</b></span></span>
               </span>
             )}
             {awards.rankRiser && (
               <span className="statchip statchip--good" title="Największa poprawa rankingu ogólnego FPL vs poprzednia kolejka">
                 <span className="statchip-icon">🚀</span>
-                <span className="statchip-text"><span className="statchip-label">Rank Riser</span><span className="statchip-value">{awards.rankRiser.player_name} · <b>+{Math.abs(awards.rankRiser.rankChange ?? 0).toLocaleString('pl')}</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">Rank Riser</span><span className="statchip-value">{awardNames(awards.rankRiser)} · <b>+{Math.abs(awards.rankRiser.rankChange ?? 0).toLocaleString('pl')}</b></span></span>
               </span>
             )}
             {awards.transferTangle && (
               <span className="statchip statchip--bad" title="Największy hit (pkt straconych na transferach ponad darmowy limit) w tej kolejce">
                 <span className="statchip-icon">🔀</span>
-                <span className="statchip-text"><span className="statchip-label">Transfer Tangle</span><span className="statchip-value">{awards.transferTangle.player_name} · <b>-{awards.transferTangle.value}</b></span></span>
+                <span className="statchip-text"><span className="statchip-label">Transfer Tangle</span><span className="statchip-value">{awardNames(awards.transferTangle)} · <b>-{awards.transferTangle.value}</b></span></span>
               </span>
             )}
             {pulse && pulse.bestRise.length > 0 && (
@@ -650,7 +656,7 @@ function SquadDrilldown({
 
   const showingProjected = squad.hasProjection && (useProjection[entry] ?? true);
   const displaySquad = showingProjected && squad.projectedSquad ? squad.projectedSquad : squad.squad;
-  const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.entryHistory.points;
+  const displayTotal = showingProjected && squad.projectedTotal != null ? squad.projectedTotal : squad.officialTotal;
   const benchRawPoints = displaySquad.filter(p => p.isBench).reduce((sum, p) => sum + p.points, 0);
 
   return (

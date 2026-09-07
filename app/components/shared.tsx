@@ -131,6 +131,28 @@ export function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Podpis dla wielu managerów naraz (remis w nagrodzie, kilku z tym samym kapitanem, itd.) —
+// pełne imiona przy małej grupie (≤3, mieści się bez rozpychania kafelka), inicjały oddzielone
+// "/" przy średniej (4-6, wciąż czytelne). Powyżej 6 same inicjały robią się nieczytelną plątaniną
+// w wąskim kafelku, więc wraca zwykły label z liczbą ("X managerów") — dokładnie jak dawny
+// wzorzec przy dużej grupie, tylko teraz z pełnymi imionami/inicjałami dla mniejszych grup.
+export function namesOrInitials(names: string[]): string {
+  if (!names.length) return '—';
+  if (names.length <= 3) return names.join(' · ');
+  if (names.length <= 6) return names.map(n => initials(n)).join('/');
+  return `${names.length} managerów`;
+}
+
+// To samo dla nagród liczonych backendem (Award, patrz lib/types.ts) — przy remisie wartości
+// (np. dwóch managerów z tym samym wynikiem GW) quarter-wins/route.ts przesyła pełną listę w
+// tiedEntries zamiast arbitralnie wybierać jednego zwycięzcę; ten helper wyciąga z niej nazwy do
+// wyświetlenia, z fallbackiem na pojedynczy player_name, gdy remisu nie było.
+export function awardNames(award: { player_name: string; tiedEntries?: { entry: number; player_name: string }[] } | null | undefined): string {
+  if (!award) return '';
+  const names = award.tiedEntries?.length ? award.tiedEntries.map(m => m.player_name) : [award.player_name];
+  return namesOrInitials(names);
+}
+
 // awatar-inicjały managera w tabeli Ligi. Top3 rankingu dostaje kolor medalu (ten sam duch co
 // rankBadge 🥇🥈🥉 w ćwiartkach) — to GENUINE osiągnięcie, w odróżnieniu od np. rankingu "kto
 // zostawił najwięcej na ławce" w Statystykach, gdzie świadomie zrezygnowaliśmy z medali, bo tamto

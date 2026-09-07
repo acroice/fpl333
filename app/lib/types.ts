@@ -57,7 +57,11 @@ export type CaptainInfo = { element: number; name: string; photoUrl: string; poi
 // nie tylko po jej zamknięciu; prevRank z poprzedniej GW do strzałki ruchu, null gdy brak (np. GW1)
 export type OverallRankInfo = { rank: number; prevRank: number | null } | null;
 
-export type TeamInfo = { value: number; transfers: number; transfersCost: number; played: number; playedTotal: number };
+export type TeamInfo = {
+  value: number; transfers: number; transfersCost: number;
+  freeTransfers: number; // wolne transfery, które manager ma TERAZ do dyspozycji (po latestGw)
+  played: number; playedTotal: number;
+};
 
 export type ChipInfo = { code: string; label: string; name?: string };
 
@@ -107,6 +111,7 @@ export type SquadData = {
     eventTransfers: number; eventTransfersCost: number;
     bank: number; value: number; pointsOnBench: number;
   };
+  officialTotal: number; // total GW liczony z live, nie z entryHistory.points (patrz squad/route.ts)
   transfers: SquadTransferRow[]; // transfery zagrane W TEJ GW (puste, gdy manager nic nie ruszał)
   squad: SquadPlayer[];
   leagueSize: number;
@@ -121,6 +126,10 @@ export type Award = {
   bonus?: number | null; // Chip Master: pkt zdobyte dzięki chipowi (BB/TC); null gdy nie da się policzyć (WC/FH)
   captainName?: string; captainPts?: number; templateCaptainName?: string; templateCaptainPts?: number; // Best Captain
   benchPoints?: number; // Bench Tears: pkt zostawione na ławce
+  // WSZYSCY remisujący o tę samą (ekstremalną) wartość nagrody, gdy jest ich więcej niż jeden —
+  // entry/player_name wyżej zostają "głównym" wpisem (pierwszy z listy), tiedEntries niesie pełną
+  // listę do wyświetlenia (patrz awardNames w components/shared.tsx). Brak/undefined = jeden zwycięzca.
+  tiedEntries?: { entry: number; player_name: string }[];
 } | null;
 
 export type Awards = {

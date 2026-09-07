@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import type { LeagueOverview, GwPoint, ChipHistoryEntry, TeamInfo, TopCaptainPick, SeasonTransferRow, PlayerOwner } from '../lib/types';
-import { PlayerAvatar, ClubBadge, chipIcon, rankBadge, StatModule, barPct, RankFill } from '../components/shared';
+import { PlayerAvatar, ClubBadge, chipIcon, rankBadge, StatModule, barPct, RankFill, namesOrInitials } from '../components/shared';
 
 type Props = {
   active: boolean;
@@ -188,9 +188,7 @@ export default function StatsSection({
               <span className="statchip-value">
                 {topCaptainPick.name} · <b>{topCaptainPick.points} pkt</b>
                 {' — '}
-                {topCaptainPick.managers.length === 1
-                  ? topCaptainPick.managers[0].player_name
-                  : `${topCaptainPick.managers.length} managerów`}
+                {namesOrInitials(topCaptainPick.managers.map(m => m.player_name))}
               </span>
             </span>
           </div>
