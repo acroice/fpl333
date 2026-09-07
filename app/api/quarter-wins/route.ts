@@ -6,6 +6,7 @@ import {
   fetchEntryTransfersCached,
   collapseTransferChain,
   effectiveMultiplierAfterSubs,
+  computeFreeTransfersAvailable,
   fetchEventLiveCached,
   fetchEventMinutesCached,
   fetchBootstrapCached,
@@ -635,13 +636,19 @@ export async function GET(req: NextRequest){
     const chipUsageThisRound = Object.entries(chipCountsThisRound)
       .map(([code, count]) => ({ code, label: CHIP_LABELS[code] || code, count }))
       .sort((a, b) => b.count - a.count);
-    // Wartość drużyny (TV) + transfery zagrane (FT) + ile ze "składu, który się liczy" faktycznie
-    // zagrało (PLAYED) w latestGw — subtelny wgląd pod nazwą teamu w głównej tabeli. Skład, który
-    // się liczy, to zwykle podstawowa 11 — ale przy Bench Boost liczy się cała 15, więc PLAYED
-    // wtedy sprawdza wszystkich 15. Wszystko z danych, które i tak już mamy (allPicksLatest +
-    // minuty z tej samej kolejki), zero dodatkowych zapytań poza jednym tanim fetchEventMinutesCached.
+    // Wartość drużyny (TV) + transfery zagrane w tej GW + FT (wolne transfery w banku NA POCZĄTEK
+    // tej kolejki, przed zagranymi transferami — patrz computeFreeTransfersAvailable w _lib/fpl.ts)
+    // + ile ze "składu, który się liczy" faktycznie zagrało (PLAYED) w latestGw — subtelny wgląd
+    // pod nazwą teamu w głównej tabeli. FT jest tu bardziej użyteczne niż "ile transferów zagrał"
+    // (to drugie i tak widać osobno w plakietce transferów w tym samym wierszu) — mówi, ile miał
+    // do dyspozycji ZANIM cokolwiek ruszył, więc od razu widać czy hit (jeśli był) był "zmuszony"
+    // (miał 1 FT, zagrał 2) czy "z wyboru" (miał 3, zagrał 4). Skład, który się liczy, to zwykle
+    // podstawowa 11 — ale przy Bench Boost liczy się cała 15, więc PLAYED wtedy sprawdza wszystkich
+    // 15. Wszystko z danych, które i tak już mamy (allPicksLatest + minuty z tej samej kolejki +
+    // histories z pętli quarterScores wyżej), zero dodatkowych zapytań poza jednym tanim
+    // fetchEventMinutesCached.
     const teamInfo: Record<number, {
-      value: number; transfers: number; transfersCost: number;
+      value: number; transfers: number; transfersCost: number; freeTransfers: number;
       played: number; playedTotal: number;
     }> = {};
     leagueEntries.forEach((plr, idx) => {
@@ -657,6 +664,7 @@ export async function GET(req: NextRequest){
         value: eh.value,
         transfers: eh.eventTransfers,
         transfersCost: eh.eventTransfersCost,
+        freeTransfers: computeFreeTransfersAvailable(histories[idx].current, histories[idx].chips, latestGw),
         played,
         playedTotal,
       };

@@ -33,6 +33,8 @@ export type GwHistory = {
   value: number;         // wartość drużyny w tej kolejce (jednostki 0.1mln, czyli 1000 = £100.0m)
   overallRank: number;   // ogólny ranking FPL (spośród wszystkich graczy) po tej kolejce
   benchPoints: number;   // pkt pozostawione na ławce w tej kolejce
+  transfers: number;     // event_transfers — ile transferów ZAGRANO w tej kolejce (potrzebne do
+                          // symulacji banku wolnych transferów, patrz computeFreeTransfersAvailable)
 };
 
 export type ChipUsage = { name: string; event: number }; // name: 'bboost' | 'wildcard' | 'freehit' | '3xc' | 'manager' | ...
@@ -75,6 +77,37 @@ export function collapseTransferChain<T extends { elementOut: number; elementIn:
   return headOrder
     .filter(head => chain.get(head) !== head) // odfiltruj pełne cofnięcia (wrócił do punktu wyjścia)
     .map(head => ({ elementOut: head, elementIn: chain.get(head)! }));
+}
+
+// Ile wolnych transferów (FT) manager ma W BANKU na POCZĄTEK danej kolejki, czyli przed
+// transferami zagranymi w tej GW. FPL nie zwraca tego wprost przez publiczne API (ani /history/,
+// ani /event/{gw}/picks/ nie mają pola "free transfers remaining") — symulujemy zasady banku FT
+// obowiązujące od sezonu 2024/25 (zweryfikowane ręcznie na żywych danych naszej ligi — dwóch
+// managerów, jeden bez hita i jeden z hitem 4 pkt, oba dały bank zgodny z realnym event_transfers_cost):
+// - od GW2 startowo 1 FT (GW1 to dobór wyjściowego składu, nie "transfer" w tym sensie);
+// - każda kolejna kolejka bez Wildcard/Free Hit: bank = min(max(bank - zagrane_transfery, 0) + 1, 5)
+//   — czyli odejmujemy zagrane transfery (nie mniej niż 0, gdy wzięto hita zeszło się to do zera),
+//   dokładamy +1 za tę kolejkę, capujemy na 5 (limit banku od 2024/25, wcześniej było 2);
+// - Wildcard/Free Hit NIE konsumują ani nie zwiększają banku — od 2024/25 "saved transfers will
+//   no longer reset to zero" po zagraniu chipa, bank przechodzi bez zmian na kolejną kolejkę.
+// Efekt uboczny tej formuły (zgodny z prawdziwymi zasadami FPL): wynik NIGDY nie jest 0 — najmniej
+// to 1 (zawsze dochodzi +1 za każdą przetworzoną kolejkę), więc "0 FT" po prostu nie występuje.
+export function computeFreeTransfersAvailable(
+  history: GwHistory[],
+  chips: ChipUsage[],
+  targetGw: number
+): number {
+  if (targetGw < 2) return 0; // GW1: pojęcie "wolnego transferu" jeszcze nie ma zastosowania
+  const chipByGw = new Map(chips.map(c => [c.event, c.name]));
+  const madeByGw = new Map(history.map(h => [h.gw, h.transfers]));
+  let bank = 1; // wartość wchodząc w GW2
+  for (let gw = 2; gw < targetGw; gw++) {
+    const chip = chipByGw.get(gw);
+    if (chip === 'wildcard' || chip === 'freehit') continue; // bank zamrożony na czas chipa
+    const made = madeByGw.get(gw) ?? 0;
+    bank = Math.min(Math.max(bank - made, 0) + 1, 5);
+  }
+  return bank;
 }
 
 // Mnożnik zawodnika PO oficjalnych automatycznych zamianach FPL (automatic_subs) — bazowy
@@ -220,6 +253,7 @@ async function fetchEntryHistoryRaw(entryId: number): Promise<EntryHistoryData> 
       value: Number(e.value ?? 0),
       overallRank: Number(e.overall_rank ?? 0),
       benchPoints: Number(e.points_on_bench ?? 0),
+      transfers: Number(e.event_transfers ?? 0),
     })),
     chips: (data?.chips ?? []).map((c: any) => ({ name: c.name, event: c.event })),
   };

@@ -398,7 +398,13 @@ export default function LeagueSection({
                               <span className="small"> · <PlayerAvatar src={captain.photoUrl} alt={captain.name} /> {captain.name}</span>
                             )}
                             {teamInfo[e.entry] && (
-                              <span className="teaminfo"> · FT {teamInfo[e.entry].transfers} · TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}</span>
+                              <span className="teaminfo">
+                                {' · '}
+                                <span title="Wolne transfery w banku na początek tej kolejki, przed zagranymi transferami — ile transferów faktycznie zagrano widać w plakietce przy nazwisku">
+                                  FT {teamInfo[e.entry].freeTransfers}
+                                </span>
+                                {' · '}TV £{(teamInfo[e.entry].value / 10).toFixed(1)}m · PLD {teamInfo[e.entry].played}/{teamInfo[e.entry].playedTotal}
+                              </span>
                             )}
                           </div>
                         </td>
