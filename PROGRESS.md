@@ -3,6 +3,57 @@
 Bieżący stan pracy nad ROADMAP.md — czytaj to na początku sesji, żeby wiedzieć od czego
 kontynuować. Aktualizowane na koniec każdej sesji roboczej (Weekly System → DOCUMENT).
 
+## Stan na 2026-09-15 (sesja 5 — health-check automatyzacji + bugfix brutto/netto)
+
+### Health-check automatyzacji Phase 2 (tydzień bez interwencji)
+
+Na start sesji sprawdzone, czy automatyzacja z sesji 4 przeżyła tydzień bez nadzoru: oba Cloud
+Scheduler joby (`fpl-ingest-league-snapshot-daily`, `fpl-ingest-raw-tables-daily`) codziennie
+zwracały `200`, zero błędów w logach Cloud Run od 08.09 do 15.09. `raw_players` rósł codziennie
+(654→659 zawodników — transfery w PL w trakcie sezonu). Jedyna drobna rzecz: `raw_player_gameweek_live`
+utknęła na GW1-3 mimo że GW4 miała `data_checked=true` już od paru dni — nie bug, tylko naturalny
+poślizg do 24h (bonusy GW4 potwierdziły się już PO porannym uruchomieniu joba tego dnia). Ręczne
+uruchomienie dociągnęło GW4 od razu (659 wierszy), jutrzejszy automatyczny run i tak by to złapał
+sam — logika przyrostowa zachowała się dokładnie tak, jak zaprojektowana.
+
+### PR #26 — Bugfix: punkty GW liczone brutto zamiast netto (koszt hita)
+
+Zgłoszenie: wykres w zakładce Sezon nie zgadzał się z Ligą. Namierzone źródło, zweryfikowane na
+żywych danych: FPL zwraca per-GW `points` w `/entry/{id}/history/` jako **BRUTTO** (przed odjęciem
+kosztu hita) — tylko skumulowane `total_points` jest już netto. Dowód: manager z hitem -4 w GW3 miał
+`total_points=181` po GW3, mimo że 130 (po GW2) + 55 (surowe `points` GW3) = 185, nie 181. Nasz kod
+(i komentarz w `_lib/fpl.ts`) zakładał odwrotnie — "punkty NETTO, FPL już odejmuje" — założenie
+błędne od samego początku, po prostu nigdy wcześniej nie natrafiono na przypadek z hitem, który by
+to ujawnił.
+
+Naprawione u źródła i w czterech miejscach pochodnych:
+- `_lib/fpl.ts`: `pts = e.points - event_transfers_cost` przy mapowaniu `/history/` — naprawia
+  Sezon (wykres + Rekordy sezonu), Ćwiartki (sumy i wyłanianie zwycięzcy), Statystyki
+  (Stabilność/stddev) — wszystko, co czyta `gwPoints`.
+- `quarter-wins/route.ts`: `liveEventTotalByEntry` (live `event_total` z classic standings,
+  substytucja dla trwającej/świeżo zamkniętej kolejki, wprowadzona w sesji 3) była też brutto —
+  teraz odejmuje koszt hita z `latestGw` (znany od razu po deadline, bez ryzyka "live lag" jak przy
+  bonusach). Naprawia awards (`topGun`/`toughWeek`/itd. dla `latestGw`).
+- `squad/route.ts`: `officialTotal`/`projectedTotal` (kafelek "Total GW" w drill-downzie składu,
+  wprowadzony w sesji 4) sumowały tylko punkty zawodników — hit to kara na poziomie managera,
+  nigdy nie wliczy się przez sumowanie zawodników, trzeba ją odjąć osobno.
+- `LeagueSection.tsx`: `renderGwScore` miał odwróconą matematykę — traktował `event_total`
+  (brutto) jako netto i liczył "brutto" przez DODANIE kosztu (podwójne liczenie). GW Pulse
+  Best/Worst i insight "wygrywa drugą kolejkę z rzędu" porównywały brutto zamiast netto — mogłyby
+  fałszywie wyróżnić kogoś tylko dzięki niedoliczonemu hitowi.
+
+Zweryfikowane end-to-end na żywej lidze: wszystkich 15 managerów zgadza się teraz idealnie (suma
+`gwPoints.pts` = Liga `total`), w tym obaj z hitem w tym sezonie (Paweł Nowak GW4: 88→84, Mateusz
+Maj GW3: 55→51). Żadna ćwiartka jeszcze się nie zakończyła (jesteśmy w GW4 z 10 w Q1), więc nie
+trzeba korygować już ogłoszonego zwycięzcy — błąd działał tylko na bieżące, wciąż aktualizowane
+liczby.
+
+### Stan repo na koniec sesji 5
+
+`main` na `689491b` (PR #26, fast-forward), working tree czysty, brak branchy WIP. Deploy na
+Vercelu — patrz commit, potwierdzenie w rozmowie. Phase 2 (`pipeline/`) bez zmian w tej sesji —
+health-check wyszedł czysto, następny krok to wciąż STAGING/FEATURES (patrz plan w sesji 4 wyżej).
+
 ## Stan na 2026-09-07 (sesja 4 — bugfixy live-punktów, next-gen drill-downy, przegląd kodu)
 
 Dalszy ciąg polerowania front-endu dashboardu (patrz sesja 3 niżej) — Phase 2 z ROADMAP.md nadal
