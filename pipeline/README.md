@@ -18,6 +18,32 @@ gcloud auth application-default login
 
 ## Skrypty
 
+- **`features.py`** — STAGING (widoki, dataset `fpl_staging`: `stg_player_team`,
+  `stg_players_daily`, `stg_fixtures`, `stg_gameweeks` — deduplikacja dziennych snapshotów RAW do
+  jednego wiersza na encję/dzień) + FEATURES (`run_build_staging_and_features()`, materializowana
+  tabela `fpl_features.player_gameweek_features`, pełny rebuild przez `WRITE_TRUNCATE` za każdym
+  razem — dane są małe, więc to tańsze i prostsze niż logika przyrostowa). Jeden wiersz =
+  (zawodnik, kolejka): `target_points`/`target_minutes` (to, co model ma przewidzieć),
+  `prev_gw_points`/`prev_gw_minutes`, `avg_points_last3`/`avg_minutes_last3`/`avg_xgi_last3`,
+  `cum_points_before_gw` (wszystko liczone WYŁĄCZNIE z kolejek wcześniejszych niż `gw` — zero
+  przecieku), `was_home`/`opponent_team`/`opponent_difficulty` (z `raw_fixtures`, perspektywa
+  rozwiązana per zawodnik), `price`/`form` (z `raw_players`, tylko jeśli mamy snapshot SPRZED
+  deadline'u tej kolejki — dla GW1-3 celowo `NULL`, patrz decyzja o data leakage w PROGRESS.md
+  sesja 4). Uproszczenie: przy double gameweeku (na razie się nie zdarzył) bierze tylko pierwszy
+  mecz danej kolejki, nie sumuje obu.
+
+- **`build_features.py`** — cienki CLI wrapper na `run_build_staging_and_features()`:
+
+  ```bash
+  python build_features.py
+  ```
+
+  Zweryfikowane ręcznie (2026-09-15): 2549 wierszy (610+626+654+659, dokładnie tyle co
+  `raw_player_gameweek_live`), zero duplikatów `(element, gw)`. Haaland sprawdzony ręcznie GW-po-GW
+  (`prev_gw_points`/`avg_points_last3`/`cum_points_before_gw` zgadzają się z ręcznym przeliczeniem).
+  `price`/`form` poprawnie `NULL` dla 100% wierszy GW1-3, obecne dla GW4 poza 4 zawodnikami
+  dodanymi do gry już po jej deadline (oczekiwane, nie błąd).
+
 - **`snapshot.py`** — właściwa logika ingestu (`run_ingest()`): pobiera aktualny stan
   tabeli ligi FPL (jeden snapshot, nie pełna historia) i dopisuje go do BigQuery
   (`fpl_raw.league_standings_snapshot`, partycjonowana dziennie). Dataset i tabela

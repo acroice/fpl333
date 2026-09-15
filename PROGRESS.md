@@ -48,11 +48,52 @@ Maj GW3: 55→51). Żadna ćwiartka jeszcze się nie zakończyła (jesteśmy w G
 trzeba korygować już ogłoszonego zwycięzcy — błąd działał tylko na bieżące, wciąż aktualizowane
 liczby.
 
+### Phase 2 domknięta — STAGING + `player_gameweek_features` (pierwsza tabela cech)
+
+Ostatni kawałek Phase 2 z ROADMAP.md: `pipeline/features.py` (`run_build_staging_and_features()`)
++ CLI wrapper `pipeline/build_features.py`.
+
+**STAGING** (dataset `fpl_staging`, WIDOKI nie tabele — dane RAW są małe, materializowanie nie daje
+korzyści kosztowej, a widok jest zawsze świeży): `stg_player_team`, `stg_players_daily`,
+`stg_fixtures`, `stg_gameweeks` — wszystkie dedupują dzienne snapshoty RAW (raw_players/raw_fixtures/
+raw_gameweeks to full-refresh każdego dnia, w dniach z wieloma ingestami — np. moje ręczne testy —
+miały po kilka wierszy na encję) do jednego, najświeższego wiersza na encję/dzień.
+
+**FEATURES** (dataset `fpl_features`, MATERIALIZOWANA tabela `player_gameweek_features`, pełny
+rebuild `WRITE_TRUNCATE` za każdym razem — tanie przy tak małych danych, prostsze niż logika
+przyrostowa): jeden wiersz = (zawodnik, kolejka), z:
+- `target_points`/`target_minutes` — to, co model ma przewidzieć (nie feature wejściowy);
+- `prev_gw_points`/`prev_gw_minutes`, `avg_points_last3`/`avg_minutes_last3`/`avg_xgi_last3`,
+  `cum_points_before_gw` — WSZYSTKO liczone oknem `ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING`
+  (i analogicznie dla sumy kumulatywnej) na `raw_player_gameweek_live`, czyli wyłącznie z kolejek
+  WCZEŚNIEJSZYCH niż `gw` — zero przecieku;
+- `was_home`/`opponent_team`/`opponent_difficulty` — join z `raw_fixtures`, perspektywa (który
+  difficulty należy do KTÓREGO zawodnika) rozwiązana w SQL per drużyna; uproszczenie: przy double
+  gameweeku (jeszcze się nie zdarzył w tym sezonie) bierze tylko pierwszy mecz, nie sumuje obu;
+- `price`/`form` — z `raw_players`, ale tylko jeśli mamy snapshot SPRZED deadline'u danej kolejki
+  (join z nierównością na dacie) — dokładnie ta decyzja o unikaniu data leakage z sesji 4.
+
+Zweryfikowane: 2549 wierszy (dokładnie tyle co `raw_player_gameweek_live`, 610+626+654+659 dla
+GW1-4), zero duplikatów `(element, gw)`. Haaland sprawdzony ręcznie GW-po-GW — `prev_gw_points`/
+`avg_points_last3`/`cum_points_before_gw` zgadzają się z ręcznym przeliczeniem co do jednego punktu.
+`price`/`form`: 100% `NULL` dla GW1-3 (potwierdza, że zabezpieczenie przed leakage faktycznie
+działa), obecne dla GW4 poza 4 zawodnikami dodanymi do gry już po jej deadline (element 656-659,
+wytłumaczone — nie błąd).
+
+**Niedokończone / do rozstrzygnięcia w kolejnej sesji:** `build_features.py` nie jest jeszcze
+zautomatyzowany (na razie tylko ręczny CLI, jak `raw_tables.py` przed swoim pierwszym deployem) —
+do decyzji, czy dopiąć do istniejącej `ingest_raw_tables` Cloud Function, czy zostawić jako osobny,
+ręcznie odpalany krok (bo to raczej "przelicz cechy przed treningiem", nie coś, co musi się dziać
+codziennie automatycznie). Po tej decyzji: Phase 3 — pierwszy model (baseline + ML) na
+`player_gameweek_features`.
+
 ### Stan repo na koniec sesji 5
 
-`main` na `689491b` (PR #26, fast-forward), working tree czysty, brak branchy WIP. Deploy na
-Vercelu — patrz commit, potwierdzenie w rozmowie. Phase 2 (`pipeline/`) bez zmian w tej sesji —
-health-check wyszedł czysto, następny krok to wciąż STAGING/FEATURES (patrz plan w sesji 4 wyżej).
+`main` ma wszystko z tej sesji zmergowane (PR #26 — bugfix brutto/netto, plus STAGING/FEATURES),
+working tree czysty, brak branchy WIP. Deploy front-endu na Vercelu potwierdzony. Phase 2 z
+ROADMAP.md (RAW → STAGING → FEATURES) jest teraz KOMPLETNA — `player_gameweek_features` gotowa pod
+pierwszy model. Następna sesja: albo automatyzacja `build_features`, albo od razu Phase 3
+(pierwszy model Expected Points).
 
 ## Stan na 2026-09-07 (sesja 4 — bugfixy live-punktów, next-gen drill-downy, przegląd kodu)
 
