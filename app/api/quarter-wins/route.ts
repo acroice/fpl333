@@ -120,12 +120,9 @@ export async function GET(req: NextRequest){
       Promise.all(leagueEntries.map(plr => fetchEntryHistoryCached(plr.entry))),
       fetchClassicStandingsCached(leagueId),
     ]);
-    const liveEventTotalByEntry = new Map<number, number>(
-      liveStandings.results.map((r: any) => [r.entry, Number(r.event_total ?? 0)])
-    );
 
     // Najświeższa kolejka, dla której mamy dane (max gw obecny w historii managerów) — potrzebna
-    // już tutaj (żeby wiedzieć, którą kolejkę zastąpić live wartością), a dalej też do badge'a
+    // już niżej (żeby wiedzieć, którą kolejkę zastąpić live wartością), a dalej też do badge'a
     // chipa w tabeli głównej i do "Awards of the Week".
     let latestGw = 0;
     for (const h of histories) {
@@ -133,6 +130,21 @@ export async function GET(req: NextRequest){
         if (item.gw > latestGw) latestGw = item.gw;
       }
     }
+
+    // liveStandings.event_total jest BRUTTO (tak samo jak surowe e.points z /history/, patrz
+    // komentarz przy fetchEntryHistoryRaw w _lib/fpl.ts) — odejmujemy tu koszt hita z latestGw
+    // (histories[idx].current, pole `cost`), żeby dostać faktyczne NETTO. Koszt hita jest znany od
+    // razu po deadline (nie zależy od wyniku meczów jak bonusy), więc nie ma tu ryzyka "live lag" —
+    // w przeciwieństwie do samych punktów, które substytuujemy właśnie dlatego, że /history/ dla
+    // TRWAJĄCEJ/świeżo zamkniętej kolejki zostaje w tyle o niedoliczone bonusy (sprawdzone: 50 pkt
+    // z historii vs 53 pkt już z bonusami w live standings). Dla wszystkich wcześniejszych
+    // (zamkniętych, bonusy dawno potwierdzone) kolejek historia jest w 100% wiarygodna.
+    const latestGwCostByEntry = new Map<number, number>(
+      histories.map((h, idx) => [leagueEntries[idx].entry, h.current.find(item => item.gw === latestGw)?.cost ?? 0])
+    );
+    const liveEventTotalByEntry = new Map<number, number>(
+      liveStandings.results.map((r: any) => [r.entry, Number(r.event_total ?? 0) - (latestGwCostByEntry.get(r.entry) ?? 0)])
+    );
 
     leagueEntries.forEach((plr, idx) => {
       const hist = histories[idx].current; // [{gw, pts, cost, value, overallRank, benchPoints}]

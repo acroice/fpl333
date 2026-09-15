@@ -28,7 +28,8 @@ export type StandingsRaw = {
 
 export type GwHistory = {
   gw: number;
-  pts: number;         // punkty NETTO — FPL już odejmuje tu koszt hitów (event_transfers_cost)
+  pts: number;         // punkty NETTO — MY odejmujemy tu koszt hitów (event_transfers_cost); surowe
+                        // e.points z FPL jest brutto, tylko total_points (suma) jest już netto
   cost: number;         // ile pkt kosztowały transfery ponad darmowy limit w tej kolejce (0, 4, 8, ...)
   value: number;         // wartość drużyny w tej kolejce (jednostki 0.1mln, czyli 1000 = £100.0m)
   overallRank: number;   // ogólny ranking FPL (spośród wszystkich graczy) po tej kolejce
@@ -254,7 +255,11 @@ async function fetchEntryHistoryRaw(entryId: number): Promise<EntryHistoryData> 
   return {
     current: (data?.current ?? []).map((e: any) => ({
       gw: e.event,
-      pts: e.points,
+      // e.points z FPL jest BRUTTO (przed odjęciem kosztu hita) — zweryfikowane na żywych danych:
+      // total_points (suma kumulatywna) sam odejmuje hita, ale pojedyncze e.points dla tej
+      // kolejki NIE. Odejmujemy tu ręcznie, żeby `pts` faktycznie było netto, zgodnie z tym, czego
+      // oczekują wszyscy konsumenci tego pola w reszcie apki (Sezon, Ćwiartki, Statystyki).
+      pts: e.points - Number(e.event_transfers_cost ?? 0),
       cost: Number(e.event_transfers_cost ?? 0),
       value: Number(e.value ?? 0),
       overallRank: Number(e.overall_rank ?? 0),
