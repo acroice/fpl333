@@ -210,8 +210,11 @@ export async function GET(req: NextRequest) {
     // co /entry/{id}/history/ (ten sam bug naprawiony dla Ćwiartek/Ligi w quarter-wins/route.ts:
     // dla świeżo zamkniętej kolejki zostaje w tyle, dopóki bonusy nie są potwierdzone na każdym
     // meczu). `squad[].total` już jest oparte o `live`, więc ta suma jest zawsze aktualna —
-    // zarówno dla latestGw, jak i dla dowolnej wcześniejszej, zamkniętej kolejki.
-    const officialTotal = squad.reduce((sum, p) => sum + p.total, 0);
+    // zarówno dla latestGw, jak i dla dowolnej wcześniejszej, zamkniętej kolejki. Odejmujemy koszt
+    // hita (eventTransfersCost) — suma z `squad` to surowy wynik piłkarski (11 czy 15 zawodników),
+    // hit to osobna, MENADŻERSKA kara nakładana na wynik managera, nie na żadnego zawodnika, więc
+    // nigdy nie wliczy się sama przez sumowanie punktów zawodników.
+    const officialTotal = squad.reduce((sum, p) => sum + p.total, 0) - targetPicks.entryHistory.eventTransfersCost;
 
     // Projekcja autosubów — tylko gdy FPL jeszcze nie ma własnych oficjalnych zamian (kolejka w
     // trakcie). Bez dodatkowego zapytania o minuty (współdzieli cache z fetchEventLiveCached);
@@ -243,7 +246,9 @@ export async function GET(req: NextRequest) {
         leagueSize,
         ownersByElement
       );
-      projectedTotal = projectedSquad.reduce((sum, p) => sum + p.total, 0);
+      // Ten sam powód co przy officialTotal wyżej — odejmujemy koszt hita, sama suma punktów
+      // zawodników go nie uwzględnia.
+      projectedTotal = projectedSquad.reduce((sum, p) => sum + p.total, 0) - targetPicks.entryHistory.eventTransfersCost;
       // UWAGA: celowo NIE porównujemy projectedTotal z entryHistory.points — to dwa osobne
       // endpointy FPL (live/ i picks/), które podczas trwającego meczu potrafią mieć lekko
       // inny moment odświeżenia (np. tymczasowe punkty bonusowe), więc same się różnią nawet

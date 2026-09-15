@@ -200,17 +200,25 @@ export default function LeagueSection({
   const leader = React.useMemo(() => league.find(e => e.rank === 1) ?? null, [league]);
   const leaderTotal = leader?.total ?? 0;
 
+  // e.event_total z FPL jest BRUTTO (patrz komentarz przy renderGwScore) — Best/Worst GW i
+  // "wygrywa drugą kolejkę z rzędu" muszą porównywać NETTO, inaczej ktoś z hitem mógłby zostać
+  // fałszywie ogłoszony "najlepszym wynikiem GW" tylko dzięki niedoliczonemu kosztowi.
+  const netEventTotal = React.useCallback(
+    (e: LeagueEntry) => e.event_total - (teamInfo[e.entry]?.transfersCost ?? 0),
+    [teamInfo]
+  );
+
   // GW Pulse — 4 KPI, wszystkie z tie-aware liczeniem (żeby nie wybierać arbitralnie 1 osoby)
   const pulse = React.useMemo(() => {
     if (!ready) return null;
-    const best = extremeTied(league, e => e.event_total, 'max');
-    const worst = extremeTied(league, e => e.event_total, 'min');
+    const best = extremeTied(league, netEventTotal, 'max');
+    const worst = extremeTied(league, netEventTotal, 'min');
     const risers = league.filter(e => e.last_rank > 0).map(e => ({ e, delta: e.last_rank - e.rank }));
     const maxDelta = risers.length ? Math.max(...risers.map(r => r.delta)) : 0;
     const bestRise = maxDelta > 0 ? risers.filter(r => r.delta === maxDelta).map(r => r.e) : [];
-    const avg = league.reduce((s, e) => s + e.event_total, 0) / league.length;
+    const avg = league.reduce((s, e) => s + netEventTotal(e), 0) / league.length;
     return { best, worst, bestRise, riseDelta: maxDelta, avg };
-  }, [ready, league]);
+  }, [ready, league, netEventTotal]);
 
   // League Insight — jedna, deterministyczna, priorytetowa reguła. Zero AI, zero losowości.
   // Jeśli żadna reguła nie "strzeli", sekcja się nie renderuje (nie generujemy sztucznych treści).
@@ -235,7 +243,7 @@ export default function LeagueSection({
       if (prevScores.length) {
         const maxPrev = Math.max(...prevScores.map(r => r.pts));
         const prevWinners = new Set(prevScores.filter(r => r.pts === maxPrev).map(r => r.entry));
-        const thisGwTop = extremeTied(league, e => e.event_total, 'max');
+        const thisGwTop = extremeTied(league, netEventTotal, 'max');
         if (thisGwTop.entries.length === 1 && prevWinners.size === 1 && prevWinners.has(thisGwTop.entries[0].entry)) {
           return { icon: '🔥', text: `${thisGwTop.entries[0].player_name} wygrywa drugą kolejkę z rzędu` };
         }
@@ -260,7 +268,7 @@ export default function LeagueSection({
     }
 
     return null;
-  }, [ready, league, gwPoints, awards]);
+  }, [ready, league, gwPoints, awards, netEventTotal]);
 
   const renderDelta = (e: LeagueEntry) => {
     if (preSeason || e.last_rank <= 0 || e.last_rank === e.rank) {
@@ -277,17 +285,19 @@ export default function LeagueSection({
     return <span className="gapcell">{gap}</span>;
   };
 
-  // wynik GW z jawnym rozbiciem hita — e.event_total to już NETTO (FPL sam odejmuje koszt
-  // płatnych transferów w standings), ale sam netto wynik nie mówi, że ktoś w ogóle wziął hita.
-  // Przy cost > 0 doklejamy "(-X) =" przed liczbą, tak jak poprosiłeś — reszta (kto na kogo)
-  // i tak jest widoczna w plakietce transferów obok nazwiska / w drill-downie.
+  // wynik GW z jawnym rozbiciem hita — e.event_total z FPL jest BRUTTO (sprawdzone na żywych
+  // danych: pojedyncze event_total dla kolejki NIE ma odjętego kosztu hita, w przeciwieństwie do
+  // e.total, sumy kumulatywnej sezonu, która już jest netto — ten sam bug co przy pts w
+  // _lib/fpl.ts, patrz komentarz tam). Przy cost > 0 pokazujemy netto (event_total - cost) jako
+  // główną liczbę, z jawnym rozbiciem "(-X) =", tak jak poprosiłeś — reszta (kto na kogo) i tak
+  // jest widoczna w plakietce transferów obok nazwiska / w drill-downie.
   const renderGwScore = (e: LeagueEntry) => {
     const cost = teamInfo[e.entry]?.transfersCost ?? 0;
     if (cost <= 0) return <>{e.event_total}</>;
-    const gross = e.event_total + cost;
+    const net = e.event_total - cost;
     return (
-      <span title={`Wynik brutto ${gross} pkt − hit ${cost} pkt (płatne transfery) = ${e.event_total} pkt netto`}>
-        <span className="gwscore-hit">(-{cost})</span> = <strong>{e.event_total}</strong>
+      <span title={`Wynik brutto ${e.event_total} pkt − hit ${cost} pkt (płatne transfery) = ${net} pkt netto`}>
+        <span className="gwscore-hit">(-{cost})</span> = <strong>{net}</strong>
       </span>
     );
   };
